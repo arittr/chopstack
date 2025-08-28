@@ -1,0 +1,51 @@
+{
+    "compilerOptions": {
+        /* Language & libs */
+        "target": "ES2022",
+        "lib": [
+            "ES2022"
+        ],
+        /* Node ESM build */
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "rootDir": "src",
+        "outDir": "dist",
+        "resolveJsonModule": true,
+        /* Declarations & maps */
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        /* Strictness */
+        "strict": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "noUncheckedIndexedAccess": true,
+        "exactOptionalPropertyTypes": true,
+        "noImplicitOverride": true,
+        "useUnknownInCatchVariables": true,
+        "forceConsistentCasingInFileNames": true,
+        /* Interop & per-file safety */
+        "isolatedModules": true,
+        "verbatimModuleSyntax": true,
+        "esModuleInterop": true,
+        /* Performance */
+        "skipLibCheck": true,
+        "skipDefaultLibCheck": true,
+        "incremental": true,
+        "composite": true,
+        /* Node types */
+        "types": [
+            "node"
+        ]
+    },
+    "include": [
+        "src/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "build",
+        "coverage",
+        ".chopstack"
+    ]
+}

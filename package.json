@@ -1,0 +1,72 @@
+{
+  "name": "chopstack",
+  "version": "0.1.0",
+  "description": "Chop massive AI changes into clean, reviewable PR stacks - AI-powered parallel Git workflows with intelligent task decomposition",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "chopstack": "./dist/bin/chopstack.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsx watch src/bin/chopstack.ts",
+    "dev:lib": "tsx watch src/index.ts",
+    "dev:debug": "tsx watch --inspect src/bin/chopstack.ts",
+    "dev:mcp": "fastmcp dev src/index.ts",
+    "inspect:mcp": "fastmcp inspect src/index.ts",
+    "clean": "rm -rf dist",
+    "start": "node dist/bin/chopstack.js",
+    "start:mcp": "node dist/index.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --cache --write .",
+    "format:check": "prettier --cache --check .",
+    "type-check": "tsc --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublishOnly": "pnpm run clean && pnpm run build"
+  },
+  "keywords": [
+    "chopstack",
+    "mcp",
+    "ai",
+    "git",
+    "workflow",
+    "parallel",
+    "stacked-prs",
+    "code-review",
+    "typescript",
+    "pr-automation",
+    "git-worktree"
+  ],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.8.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@types/node": "^24.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint": "^9.15.0",
+    "eslint-config-prettier": "^9.1.2",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-perfectionist": "^4.1.2",
+    "eslint-plugin-promise": "^7.2.1",
+    "eslint-plugin-unicorn": "^56.0.1",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "fastmcp": "^3.15.2",
+    "ts-pattern": "^5.8.0",
+    "zod": "^4.1.4"
+  }
+}
