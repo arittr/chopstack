@@ -6,6 +6,7 @@ import unicorn from 'eslint-plugin-unicorn';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import perfectionist from 'eslint-plugin-perfectionist';
 import promisePlugin from 'eslint-plugin-promise';
+import simpleImportSort from 'eslint-plugin-simple-import-sort';
 
 export default [
   // Base JavaScript recommendations
@@ -49,6 +50,7 @@ export default [
     },
     plugins: {
       '@typescript-eslint': tseslint,
+      'simple-import-sort': simpleImportSort,
       import: importPlugin,
       unicorn: unicorn,
       perfectionist: perfectionist,
@@ -190,17 +192,7 @@ export default [
       'import/no-named-as-default': 'off', // TypeScript handles this
       'import/no-named-as-default-member': 'off', // TypeScript handles this
       'import/no-duplicates': 'error',
-      'import/order': [
-        'error',
-        {
-          groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index', 'type'],
-          'newlines-between': 'always',
-          alphabetize: {
-            order: 'asc',
-            caseInsensitive: true,
-          },
-        },
-      ],
+      'import/order': 'off', // Disabled in favor of perfectionist/sort-imports
       'import/first': 'error',
       'import/newline-after-import': 'error',
       'import/no-default-export': 'error',
@@ -344,8 +336,8 @@ export default [
             'internal-type',
             'internal',
             'parent-type',
-            'sibling-type',
             'parent',
+            'sibling-type',
             'sibling',
             'index-type',
             'index',
@@ -353,7 +345,7 @@ export default [
             'unknown',
           ],
           newlinesBetween: 'always',
-          internalPattern: ['^@/'],
+          internalPattern: ['^@/', '^../types/', '^./types/'],
         },
       ],
       'perfectionist/sort-named-imports': [
@@ -386,7 +378,7 @@ export default [
       ],
 
       // Core ESLint rules
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-console': ['warn', { allow: ['warn', 'error', 'log'] }],
       'no-debugger': 'error',
       'no-alert': 'error',
       'no-await-in-loop': 'error',
