@@ -100,13 +100,28 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
 
   private _tryParseJsonWrapper(stdout: string): ParsedContent | null {
     try {
-      const response = JSON.parse(stdout) as ClaudeResponse;
-      if (!isNonEmptyString(response.result)) {
-        return null;
+      // stream-json format outputs one JSON object per line
+      const lines = stdout.trim().split('\n');
+      
+      for (const line of lines) {
+        if (line.trim() === '') {
+          continue;
+        }
+        
+        try {
+          const json = JSON.parse(line) as ClaudeResponse;
+          // Look for the final result object
+          if (json.type === 'result' && isNonEmptyString(json.result)) {
+            console.log('✅ Found JSON result object, extracting content...');
+            return this._extractContentFromResult(json.result);
+          }
+        } catch {
+          // Skip lines that aren't valid JSON
+          continue;
+        }
       }
-
-      console.log('✅ Found JSON wrapper response, extracting content...');
-      return this._extractContentFromResult(response.result);
+      
+      return null;
     } catch {
       return null;
     }
