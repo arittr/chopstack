@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { run } from '../index';
+import { run } from '../index.js';
 
 // Slice off `node` and script path
-const exitCode = run(process.argv.slice(2));
+const exitCode = await run(process.argv.slice(2));
 process.exit(exitCode);
