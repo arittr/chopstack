@@ -1,13 +1,12 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { parse as parseYaml } from 'yaml';
-
 import type { DecomposerAgent, Plan } from '../types/decomposer';
 
-import { PlanSchema } from '../types/decomposer';
 import { PromptBuilder } from '../types/prompts';
-import { hasContent, isNonEmptyString, isNonNullish } from '../utils/guards';
+import { AgentNotFoundError, PlanParsingError } from '../utils/errors';
+import { hasContent } from '../utils/guards';
+import { YamlPlanParser } from '../utils/yaml-parser';
 
 const execAsync = promisify(exec);
 
@@ -27,23 +26,24 @@ export class AiderDecomposer implements DecomposerAgent {
         console.warn('Aider stderr:', stderr);
       }
 
-      // Parse the YAML from Aider's response
-      const yamlMatch = stdout.match(/```yaml\n([\S\s]+?)\n```/);
-      if (!isNonNullish(yamlMatch) || !isNonEmptyString(yamlMatch[1])) {
-        throw new Error('No YAML plan found in Aider output');
+      // Parse and validate the YAML from Aider's response
+      const yamlContent = YamlPlanParser.extractYamlFromMarkdown(stdout);
+      if (yamlContent === null) {
+        throw new PlanParsingError('No YAML plan found in Aider output', stdout);
       }
 
-      const rawPlan = parseYaml(yamlMatch[1]) as unknown;
-
-      // Validate the plan structure using Zod schema
-      const validatedPlan = PlanSchema.parse(rawPlan);
-
-      return validatedPlan;
+      return YamlPlanParser.parseAndValidatePlan({
+        content: yamlContent,
+        source: 'yaml',
+      });
     } catch (error) {
-      if (error instanceof Error) {
-        throw new TypeError(`Aider decomposition failed: ${error.message}`);
+      if (error instanceof PlanParsingError) {
+        throw error;
       }
-      throw new Error('Aider decomposition failed with unknown error');
+      if (error instanceof Error) {
+        throw new AgentNotFoundError('aider', error);
+      }
+      throw new AgentNotFoundError('aider');
     }
   }
 

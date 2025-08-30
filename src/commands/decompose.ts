@@ -19,8 +19,8 @@ export async function decomposeCommand(options: DecomposeOptions): Promise<numbe
 
     console.log(`🤖 Using agent: ${options.agent}`);
 
-    // Create the appropriate agent
-    const agent = createDecomposerAgent(options.agent);
+    // Create the appropriate agent (includes capability validation)
+    const agent = await createDecomposerAgent(options.agent);
 
     // Get current working directory
     const cwd = process.cwd();

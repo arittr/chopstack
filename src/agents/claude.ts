@@ -1,17 +1,14 @@
-import { exec, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { clearTimeout, setTimeout } from 'node:timers';
-import { promisify } from 'node:util';
 
 import { match } from 'ts-pattern';
-import { parse as parseYaml } from 'yaml';
 
 import type { DecomposerAgent, Plan } from '../types/decomposer';
 
-import { PlanSchema } from '../types/decomposer';
 import { PromptBuilder } from '../types/prompts';
+import { AgentNotFoundError, PlanParsingError } from '../utils/errors';
 import { isNonEmptyString, isNonNullish } from '../utils/guards';
-
-const execAsync = promisify(exec);
+import { type ParsedContent, YamlPlanParser } from '../utils/yaml-parser';
 
 type StreamingMessage = {
   delta?: {
@@ -28,35 +25,24 @@ type ClaudeResponse = {
   type?: string;
 };
 
-type ParsedContent = {
-  content: string;
-  source: 'yaml' | 'json' | 'raw';
-};
 
 export class ClaudeCodeDecomposer implements DecomposerAgent {
-  private static readonly CLI_CHECK_TIMEOUT = 5000;
-
   async decompose(specContent: string, cwd: string): Promise<Plan> {
-    await this._validateClaudeCLI();
-
-    const prompt = PromptBuilder.buildDecompositionPrompt(specContent);
-    const stdout = await this._executeClaudeCommand(prompt, cwd);
-    const parsedContent = this._parseClaudeResponse(stdout);
-    const plan = this._validateAndReturnPlan(parsedContent);
-
-    return plan;
-  }
-
-  private async _validateClaudeCLI(): Promise<void> {
-    console.log('🔍 Checking if Claude CLI is available...');
-
     try {
-      await execAsync('claude --version', { timeout: ClaudeCodeDecomposer.CLI_CHECK_TIMEOUT });
-      console.log('✅ Claude CLI is available');
-    } catch {
-      console.warn('⚠️ Claude CLI not found. Please install the Claude CLI first.');
-      console.warn('⚠️ Falling back to mock agent for demonstration.');
-      throw new Error('Claude CLI not found. Please install the Claude CLI or use --agent mock');
+      const prompt = PromptBuilder.buildDecompositionPrompt(specContent);
+      const stdout = await this._executeClaudeCommand(prompt, cwd);
+      const parsedContent = this._parseClaudeResponse(stdout);
+      const plan = this._validateAndReturnPlan(parsedContent);
+
+      return plan;
+    } catch (error) {
+      if (error instanceof PlanParsingError) {
+        throw error;
+      }
+      if (error instanceof Error) {
+        throw new AgentNotFoundError('claude', error);
+      }
+      throw new AgentNotFoundError('claude');
     }
   }
 
@@ -179,25 +165,7 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
   }
 
   private _validateAndReturnPlan(parsedContent: ParsedContent): Plan {
-    console.log('🔍 Validating plan structure with Zod...');
-
-    try {
-      const rawPlan = match(parsedContent.source)
-        .with('yaml', () => parseYaml(parsedContent.content) as unknown)
-        .with('json', () => JSON.parse(parsedContent.content) as unknown)
-        .with('raw', () => parseYaml(parsedContent.content) as unknown)
-        .exhaustive();
-
-      const validatedPlan = PlanSchema.parse(rawPlan);
-      console.log(`✅ Plan validated successfully with ${validatedPlan.tasks.length} tasks`);
-
-      return validatedPlan;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown parsing error';
-      console.error(`❌ Failed to parse ${parsedContent.source}: ${message}`);
-      console.error(`📤 Content for debugging:\n${parsedContent.content}`);
-      throw new Error(`Failed to parse ${parsedContent.source}: ${message}`);
-    }
+    return YamlPlanParser.parseAndValidatePlan(parsedContent);
   }
 }
 
