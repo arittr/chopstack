@@ -12,12 +12,12 @@ export async function decomposeCommand(options: DecomposeOptions): Promise<numbe
   try {
     // Read the specification file
     const specPath = resolve(options.spec);
+    console.log(`📄 Reading spec from: ${specPath}`);
+    
     const specContent = await readFile(specPath, 'utf8');
+    console.log(`📄 Spec content length: ${specContent.length} characters`);
 
-    if (options.verbose === true) {
-      console.log(`📄 Reading spec from: ${specPath}`);
-      console.log(`🤖 Using agent: ${options.agent}`);
-    }
+    console.log(`🤖 Using agent: ${options.agent}`);
 
     // Create the appropriate agent
     const agent = createDecomposerAgent(options.agent);
@@ -25,12 +25,11 @@ export async function decomposeCommand(options: DecomposeOptions): Promise<numbe
     // Get current working directory
     const cwd = process.cwd();
 
-    if (options.verbose === true) {
-      console.log('🔍 Analyzing codebase and generating plan...');
-    }
+    console.log('🔍 Analyzing codebase and generating plan...');
 
     // Decompose the specification into a plan
     const plan = await agent.decompose(specContent, cwd);
+    console.log(`📋 Generated plan with ${plan.tasks.length} tasks`);
 
     // Validate the plan
     const validator = new PlanValidator();
@@ -38,11 +37,11 @@ export async function decomposeCommand(options: DecomposeOptions): Promise<numbe
 
     if (!validation.valid) {
       console.error('❌ Plan validation failed:');
-      
+
       if (isValidArray(validation.conflicts)) {
         console.error('  File conflicts:', validation.conflicts.join(', '));
       }
-      
+
       if (isValidArray(validation.circularDependencies)) {
         console.error('  Circular dependencies:', validation.circularDependencies.join(' -> '));
       }
@@ -52,7 +51,7 @@ export async function decomposeCommand(options: DecomposeOptions): Promise<numbe
           console.error(`  Error: ${error}`);
         }
       }
-      
+
       return 1;
     }
 

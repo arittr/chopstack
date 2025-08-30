@@ -3,7 +3,7 @@ import { match } from 'ts-pattern';
 import type { AgentType, DecomposerAgent } from '../types/decomposer';
 
 import { AiderDecomposer } from './aider';
-import { ClaudeCodeDecomposer } from './claude-code';
+import { ClaudeCodeDecomposer } from './claude';
 import { MockDecomposer } from './mock';
 
 export function createDecomposerAgent(agentType: AgentType | 'mock'): DecomposerAgent {
