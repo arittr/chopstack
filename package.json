@@ -16,6 +16,7 @@
     "build": "tsup",
     "build:watch": "tsup --watch",
     "dev": "tsx watch src/bin/chopstack.ts",
+    "dev:run": "tsx src/bin/chopstack.ts",
     "dev:lib": "tsx watch src/index.ts",
     "dev:debug": "tsx watch --inspect src/bin/chopstack.ts",
     "dev:mcp": "fastmcp dev src/index.ts",
