@@ -27,7 +27,11 @@ tasks:
     agentPrompt: string (specific prompt for implementing this task)
 \`\`\`
 
-Important: Output ONLY the YAML plan, no other text or edits.`;
+IMPORTANT: 
+- Output ONLY the YAML plan, no other text or edits
+- Always quote file paths that contain special characters like brackets [] or spaces
+- Example: "packages/app/src/app/api/users/[id]/route.ts" (quoted because of [])
+- Example: packages/app/src/services/user.service.ts (no quotes needed)`;
   },
 
   buildClaudeCodePrompt(specFile: string): string {
