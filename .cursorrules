@@ -1,13 +1,15 @@
 # Chopstack Project Rules
 
 ## Project Overview
+
 This is a TypeScript CLI tool called "chopstack" that helps chop massive AI changes into clean, reviewable PR stacks using AI-powered parallel Git workflows with intelligent task decomposition.
 
 ## Technology Stack
+
 - **Language**: TypeScript (ES2022, NodeNext modules)
 - **Runtime**: Node.js >=18.0.0
 - **Package Manager**: pnpm
-- **Key Dependencies**: 
+- **Key Dependencies**:
   - `fastmcp` for MCP server framework (built on official MCP SDK)
   - `ts-pattern` for functional pattern matching
   - `zod` for schema validation (works with FastMCP's Standard Schema support)
@@ -17,24 +19,28 @@ This is a TypeScript CLI tool called "chopstack" that helps chop massive AI chan
 ## Code Style & Patterns
 
 ### TypeScript Guidelines
+
 - Use strict TypeScript configuration (all strict flags enabled)
 - Prefer `type` over `interface` for simple shapes
 - Use `interface` for extensible object shapes and when declaration merging might be needed
 - Always use explicit return types for public functions
 - Use `const assertions` and `as const` for immutable data
 - Leverage TypeScript's advanced types: union types, mapped types, conditional types
+- Do not specify the file extension in imports
 
 ### Pattern Matching with ts-pattern
+
 - **ALWAYS use ts-pattern for complex conditional logic** instead of switch statements or if/else chains
 - Import: `import { match, P } from 'ts-pattern'`
 - Use `match()` for:
   - Handling different CLI command types
-  - Processing different Git operation results  
+  - Processing different Git operation results
   - Handling various error states
   - Parsing different configuration formats
   - State machine transitions
 
 #### ts-pattern Examples:
+
 ```typescript
 // CLI command handling
 const result = match(command)
@@ -59,6 +65,7 @@ const nextState = match([currentState, action])
 ```
 
 ### Code Organization
+
 - **Barrel exports**: Use `index.ts` files to create clean public APIs
 - **Single responsibility**: Each module should have one clear purpose
 - **Functional approach**: Prefer pure functions, avoid mutations
@@ -66,6 +73,7 @@ const nextState = match([currentState, action])
 - **CLI structure**: Keep CLI logic separate from core business logic
 
 ### Naming Conventions
+
 - **Files**: kebab-case (`git-operations.ts`, `pr-stack.ts`)
 - **Functions**: camelCase, descriptive verbs (`parseGitStatus`, `createPrStack`)
 - **Types**: PascalCase (`CliCommand`, `GitOperation`, `PrStackConfig`)
@@ -73,42 +81,47 @@ const nextState = match([currentState, action])
 - **Enums**: PascalCase with descriptive values
 
 ### Import Organization
+
 ```typescript
 // 1. Node.js built-ins
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-// 2. External dependencies  
+// 2. External dependencies
 import { FastMCP } from 'fastmcp';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 
 // 3. Internal imports (absolute paths preferred)
-import { GitOperations } from './git-operations.js';
-import { type CliCommand } from './types.js';
+import { GitOperations } from './git-operations';
+import { type CliCommand } from './types';
 ```
 
 ## Development Practices
 
 ### Error Handling
+
 - Use ts-pattern for error matching and handling
 - Create specific error types for different failure modes
 - Always provide helpful error messages for CLI users
 - Log errors appropriately (use structured logging)
 
 ### Testing Strategy
+
 - Write unit tests for core business logic
 - Use integration tests for CLI commands
 - Mock external dependencies (Git, file system)
 - Test error scenarios thoroughly
 
 ### Git & Version Control
+
 - Use conventional commits
 - Keep commits focused and atomic
 - Write descriptive commit messages
 - Use feature branches for new functionality
 
 ### Performance Considerations
+
 - Use incremental TypeScript compilation
 - Lazy load heavy dependencies when possible
 - Consider streaming for large file operations
@@ -117,24 +130,28 @@ import { type CliCommand } from './types.js';
 ## CLI-Specific Guidelines
 
 ### Command Structure
+
 - Use consistent command naming and structure
 - Provide helpful `--help` output for all commands
 - Support both short (`-h`) and long (`--help`) flags
 - Validate input early and provide clear error messages
 
 ### User Experience
+
 - Show progress indicators for long operations
 - Provide clear success/failure feedback
 - Use colors and formatting for better readability
 - Support both interactive and non-interactive modes
 
 ### Configuration
+
 - Support multiple configuration sources (CLI flags, config files, env vars)
 - Use sensible defaults
 - Validate configuration and show clear error messages
 - Document all configuration options
 
 ## FastMCP Integration
+
 - Use FastMCP's simplified API for MCP server development
 - Leverage Zod schemas with FastMCP's Standard Schema support
 - Use FastMCP's built-in session management and authentication
@@ -142,20 +159,21 @@ import { type CliCommand } from './types.js';
 - Use FastMCP's CLI tools for development and testing (`fastmcp dev`, `fastmcp inspect`)
 
 ### FastMCP Patterns
+
 ```typescript
 // Server setup
 const server = new FastMCP({
-  name: "chopstack",
-  version: "0.1.0",
-  instructions: "AI-powered Git workflow automation tool",
+  name: 'chopstack',
+  version: '0.1.0',
+  instructions: 'AI-powered Git workflow automation tool',
 });
 
 // Tool definition with Zod validation
 server.addTool({
-  name: "create-pr-stack",
-  description: "Create a stack of PRs from changes",
+  name: 'create-pr-stack',
+  description: 'Create a stack of PRs from changes',
   parameters: z.object({
-    baseBranch: z.string().default("main"),
+    baseBranch: z.string().default('main'),
     maxStackSize: z.number().min(1).max(10).default(5),
   }),
   execute: async (args, { session }) => {
@@ -167,12 +185,13 @@ server.addTool({
 
 // Start server with appropriate transport
 server.start({
-  transportType: "stdio", // For CLI integration
+  transportType: 'stdio', // For CLI integration
   // transportType: "httpStream", // For HTTP/SSE
 });
 ```
 
 ## File Structure Preferences
+
 ```
 src/
 ├── bin/           # CLI entry points
@@ -186,6 +205,7 @@ src/
 ```
 
 ## Code Review Guidelines
+
 - Ensure all pattern matching is exhaustive
 - Check for proper error handling
 - Verify TypeScript types are precise
@@ -193,12 +213,14 @@ src/
 - Test with real Git repositories
 
 ## Documentation
+
 - Use JSDoc for public APIs
 - Include usage examples in README
 - Document complex algorithms and business logic
 - Keep inline comments focused on "why" not "what"
 
 ## Dependencies
+
 - Minimize external dependencies
 - Prefer well-maintained, popular packages
 - Keep dev dependencies up to date
