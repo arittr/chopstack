@@ -1,0 +1,50 @@
+tasks:
+  - id: create-user-types
+    title: Create User types and interfaces
+    description: Define the User interface with id, name, email, and createdAt fields
+    touches: []
+    produces:
+      - src/types/user.ts
+    requires: []
+    estimatedLines: 20
+    agentPrompt: Create a User interface with id (number), name (string), email (string), and createdAt
+      (Date) fields
+  - id: create-user-crud
+    title: Implement User CRUD operations
+    description: Create functions for creating, reading, updating, and deleting users
+    touches: []
+    produces:
+      - src/services/user-service.ts
+    requires:
+      - create-user-types
+    estimatedLines: 80
+    agentPrompt: "Implement CRUD functions: createUser, getUserById, updateUser, deleteUser using the
+      User interface"
+  - id: add-validation
+    title: Add input validation
+    description: Add validation for email format and required fields
+    touches:
+      - src/services/user-service.ts
+    produces:
+      - src/utils/validation.ts
+    requires:
+      - create-user-crud
+    estimatedLines: 30
+    agentPrompt: Add email format validation and required field validation for User operations
+  - id: write-tests
+    title: Write unit tests
+    description: Create comprehensive unit tests for all CRUD operations and validation
+    touches: []
+    produces:
+      - src/services/user-service.test.ts
+      - src/utils/validation.test.ts
+    requires:
+      - add-validation
+    estimatedLines: 120
+    agentPrompt: Write unit tests for all user service functions and validation utilities
+
+# Plan Metrics
+# Task Count: 4
+# Max Parallelization: 1
+# Estimated Speedup: 1.00x
+# Total Estimated Lines: 250
