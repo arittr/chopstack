@@ -103,3 +103,6 @@ Thumbs.db
 # Chopstack-specific
 .chopstack/executions/
 .chopstack/logs/
+
+# code tools
+.crush
