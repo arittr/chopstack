@@ -32,15 +32,19 @@ export class PlanOutputter {
   private static _formatMetrics(metrics: PlanMetrics): string {
     return `# Plan Metrics
 # Task Count: ${metrics.taskCount}
+# Execution Layers: ${metrics.executionLayers}
 # Max Parallelization: ${metrics.maxParallelization}
+# Critical Path Length: ${metrics.criticalPathLength} lines
 # Estimated Speedup: ${metrics.estimatedSpeedup.toFixed(2)}x
 # Total Estimated Lines: ${metrics.totalEstimatedLines}`;
   }
 
   static logMetrics(metrics: PlanMetrics): void {
-    console.log('\n📊 Plan Metrics:');
+    console.log('\n📊 Enhanced Plan Metrics:');
     console.log(`  Tasks: ${metrics.taskCount}`);
+    console.log(`  Execution Layers: ${metrics.executionLayers}`);
     console.log(`  Max Parallel: ${metrics.maxParallelization}`);
+    console.log(`  Critical Path: ${metrics.criticalPathLength} lines`);
     console.log(`  Est. Speedup: ${metrics.estimatedSpeedup.toFixed(2)}x`);
     console.log(`  Est. Lines: ${metrics.totalEstimatedLines}`);
   }

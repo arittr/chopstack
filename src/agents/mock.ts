@@ -3,7 +3,7 @@ import type { DecomposerAgent, Plan } from '../types/decomposer';
 export class MockDecomposer implements DecomposerAgent {
   // eslint-disable-next-line @typescript-eslint/require-await, no-unused-vars
   async decompose(_specContent: string, _cwd: string): Promise<Plan> {
-    // Mock implementation for testing  
+    // Mock implementation for testing
     const plan: Plan = {
       tasks: [
         {
@@ -14,7 +14,8 @@ export class MockDecomposer implements DecomposerAgent {
           produces: ['src/types/user.ts'],
           requires: [],
           estimatedLines: 20,
-          agentPrompt: 'Create a User interface with id (number), name (string), email (string), and createdAt (Date) fields',
+          agentPrompt:
+            'Create a User interface with id (number), name (string), email (string), and createdAt (Date) fields',
         },
         {
           id: 'create-user-crud',
@@ -24,7 +25,8 @@ export class MockDecomposer implements DecomposerAgent {
           produces: ['src/services/user-service.ts'],
           requires: ['create-user-types'],
           estimatedLines: 80,
-          agentPrompt: 'Implement CRUD functions: createUser, getUserById, updateUser, deleteUser using the User interface',
+          agentPrompt:
+            'Implement CRUD functions: createUser, getUserById, updateUser, deleteUser using the User interface',
         },
         {
           id: 'add-validation',
@@ -34,7 +36,8 @@ export class MockDecomposer implements DecomposerAgent {
           produces: ['src/utils/validation.ts'],
           requires: ['create-user-crud'],
           estimatedLines: 30,
-          agentPrompt: 'Add email format validation and required field validation for User operations',
+          agentPrompt:
+            'Add email format validation and required field validation for User operations',
         },
         {
           id: 'write-tests',

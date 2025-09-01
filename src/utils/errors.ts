@@ -21,9 +21,10 @@ export class AgentNotFoundError extends DecomposerError {
 
 export class PlanParsingError extends DecomposerError {
   constructor(message: string, content?: string, cause?: Error) {
-    const fullMessage = content !== undefined
-      ? `${message}\nContent: ${content.slice(0, 200)}${content.length > 200 ? '...' : ''}`
-      : message;
+    const fullMessage =
+      content !== undefined
+        ? `${message}\nContent: ${content.slice(0, 200)}${content.length > 200 ? '...' : ''}`
+        : message;
     super(fullMessage, cause);
     this.name = 'PlanParsingError';
   }
