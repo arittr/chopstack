@@ -449,7 +449,7 @@ export default [
 
   // Test files configuration (slightly relaxed)
   {
-    files: ['**/*.{test,spec}.{ts,tsx,js,jsx}', '**/tests/**/*', '**/__tests__/**/*'],
+    files: ['**/*.{test,spec}.{ts,tsx,js,jsx}', '**/tests/**/*', '**/__tests__/**/*', 'test/**/*'],
     languageOptions: {
       globals: {
         describe: 'readonly',
@@ -471,6 +471,7 @@ export default [
       '@typescript-eslint/no-unsafe-member-access': 'off',
       'unicorn/no-null': 'off',
       'unicorn/consistent-function-scoping': 'off',
+      'unicorn/prevent-abbreviations': 'off',
     },
   },
 
