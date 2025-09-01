@@ -19,7 +19,7 @@ export function isValidArray<T>(value: T[] | null | undefined): value is T[] {
 }
 
 export function isNonEmptyObject<T extends Record<string, unknown>>(
-  value: T | null | undefined
+  value: T | null | undefined,
 ): value is T {
   return isNonNullish(value) && Object.keys(value).length > 0;
 }
@@ -27,10 +27,7 @@ export function isNonEmptyObject<T extends Record<string, unknown>>(
 /**
  * Safe string comparison that handles nullish values
  */
-export function stringEquals(
-  a: string | null | undefined, 
-  b: string | null | undefined
-): boolean {
+export function stringEquals(a: string | null | undefined, b: string | null | undefined): boolean {
   return (a ?? '') === (b ?? '');
 }
 
@@ -39,7 +36,7 @@ export function stringEquals(
  */
 export function assertNonEmptyString(
   value: string | null | undefined,
-  message = 'Expected non-empty string'
+  message = 'Expected non-empty string',
 ): asserts value is string {
   if (!isNonEmptyString(value)) {
     throw new Error(message);

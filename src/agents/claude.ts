@@ -25,7 +25,6 @@ type ClaudeResponse = {
   type?: string;
 };
 
-
 export class ClaudeCodeDecomposer implements DecomposerAgent {
   async decompose(specContent: string, cwd: string): Promise<Plan> {
     try {
@@ -88,12 +87,12 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
     try {
       // stream-json format outputs one JSON object per line
       const lines = stdout.trim().split('\n');
-      
+
       for (const line of lines) {
         if (line.trim() === '') {
           continue;
         }
-        
+
         try {
           const json = JSON.parse(line) as ClaudeResponse;
           // Look for the final result object
@@ -106,7 +105,7 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
           continue;
         }
       }
-      
+
       return null;
     } catch {
       return null;

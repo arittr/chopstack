@@ -11,10 +11,12 @@ import { MockDecomposer } from './mock';
 /**
  * Create a decomposer agent after validating required dependencies
  */
-export async function createDecomposerAgent(agentType: AgentType | 'mock'): Promise<DecomposerAgent> {
+export async function createDecomposerAgent(
+  agentType: AgentType | 'mock',
+): Promise<DecomposerAgent> {
   // Validate agent capabilities before creating the instance
   await AgentValidator.validateAgentCapabilities(agentType);
-  
+
   return match(agentType)
     .with('claude', () => new ClaudeCodeDecomposer())
     .with('aider', () => new AiderDecomposer())
