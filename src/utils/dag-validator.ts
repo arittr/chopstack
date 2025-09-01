@@ -1,6 +1,6 @@
-import type { Graph } from 'graphlib';
+import type { Graph } from '@dagrejs/graphlib';
 
-import pkg from 'graphlib';
+import pkg from '@dagrejs/graphlib';
 
 import type { Plan, PlanMetrics, Task } from '../types/decomposer';
 
@@ -176,6 +176,7 @@ export class DagValidator {
 
   private static _detectFileConflicts(tasks: Task[]): string[] {
     const fileToTasks = new Map<string, string[]>();
+    const graph = this._buildDependencyGraph(tasks);
 
     // Group tasks by files they modify
     for (const task of tasks) {
@@ -190,15 +191,69 @@ export class DagValidator {
       }
     }
 
-    // Find files modified by multiple tasks
+    // Find files modified by multiple tasks that could run in parallel (true conflicts)
     const conflicts: string[] = [];
     for (const [file, taskIds] of fileToTasks) {
       if (taskIds.length > 1) {
-        conflicts.push(`${file} (modified by: ${taskIds.join(', ')})`);
+        // Check if any pair of tasks could run in parallel
+        const conflictingPairs: string[] = [];
+
+        for (let index = 0; index < taskIds.length; index++) {
+          for (let innerIndex = index + 1; innerIndex < taskIds.length; innerIndex++) {
+            const taskA = taskIds[index] as string;
+            const taskB = taskIds[innerIndex] as string;
+
+            // Check if there's a dependency path between these tasks
+            const hasPathAtoB = this._hasPath(graph, taskA, taskB);
+            const hasPathBtoA = this._hasPath(graph, taskB, taskA);
+
+            // If neither depends on the other, they could run in parallel - that's a conflict
+            if (!hasPathAtoB && !hasPathBtoA) {
+              conflictingPairs.push(`${taskA}, ${taskB}`);
+            }
+          }
+        }
+
+        if (conflictingPairs.length > 0) {
+          conflicts.push(`${file} (parallel conflicts: ${conflictingPairs.join('; ')})`);
+        }
       }
     }
 
     return conflicts;
+  }
+
+  /**
+   * Check if there's a path from taskA to taskB in the graph
+   */
+  private static _hasPath(graph: Graph, taskA: string, taskB: string): boolean {
+    // Use BFS to check if there's a path from taskA to taskB
+    const visited = new Set<string>();
+    const queue = [taskA];
+
+    while (queue.length > 0) {
+      const current = queue.shift() as string;
+
+      if (current === taskB) {
+        return true;
+      }
+
+      if (visited.has(current)) {
+        continue;
+      }
+
+      visited.add(current);
+
+      // Add all successors to the queue
+      const outEdges = graph.outEdges(current);
+      if (outEdges !== undefined) {
+        for (const edge of outEdges) {
+          queue.push(edge.w);
+        }
+      }
+    }
+
+    return false;
   }
 
   private static _detectMissingDependencies(tasks: Task[]): string[] {

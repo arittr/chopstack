@@ -31,8 +31,14 @@ export async function decomposeCommand(options: DecomposeOptions): Promise<numbe
     const plan = await agent.decompose(specContent, cwd);
     console.log(`📋 Generated plan with ${plan.tasks.length} tasks`);
 
-    // Validate the plan
+    // Calculate metrics (needed for output)
     const validator = new PlanValidator();
+    const metrics = validator.calculateMetrics(plan);
+
+    // Output the plan first, before validation
+    await PlanOutputter.outputPlan(plan, metrics, options.output);
+
+    // Now validate the plan
     const validation = validator.validatePlan(plan);
 
     if (!validation.valid) {
@@ -52,18 +58,13 @@ export async function decomposeCommand(options: DecomposeOptions): Promise<numbe
         }
       }
 
+      console.error('💡 The plan above was generated but has validation issues');
       return 1;
     }
 
     if (options.verbose === true) {
       console.log('✅ Plan validation passed');
     }
-
-    // Calculate metrics
-    const metrics = validator.calculateMetrics(plan);
-
-    // Output the plan
-    await PlanOutputter.outputPlan(plan, metrics, options.output);
 
     // Log metrics to stderr so they don't interfere with YAML output
     if (options.verbose === true) {

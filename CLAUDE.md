@@ -123,6 +123,7 @@ const response = match(error)
 - Use `const assertions` and `as const` for immutable data
 - Import file extensions are omitted (handled by build system)
 - Strict naming: camelCase for functions, PascalCase for types, kebab-case for files
+- Use utils/guards.ts for string comparisons, null checks, and other guard functions
 
 ### Import Organization
 
