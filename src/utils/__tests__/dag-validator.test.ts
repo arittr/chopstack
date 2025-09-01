@@ -182,6 +182,87 @@ describe('DagValidator', () => {
     });
   });
 
+  describe('file conflict detection', () => {
+    it('does not report conflicts for sequential tasks touching the same file', () => {
+      const tasks = [
+        createTask({
+          id: 'task-a',
+          title: 'Task A',
+          touches: ['file.txt'],
+          requires: [],
+        }),
+        createTask({
+          id: 'task-b',
+          title: 'Task B',
+          touches: ['file.txt'],
+          requires: ['task-a'],
+        }),
+      ];
+      const plan = createPlan(tasks);
+
+      const result = DagValidator.validatePlan(plan);
+      expect(result.valid).toBe(true);
+      expect(result.conflicts).toBeUndefined();
+    });
+
+    it('reports conflicts for parallel tasks touching the same file', () => {
+      const tasks = [
+        createTask({
+          id: 'task-a',
+          title: 'Task A',
+          touches: ['file.txt'],
+          requires: [],
+        }),
+        createTask({
+          id: 'task-b',
+          title: 'Task B',
+          touches: ['file.txt'],
+          requires: [],
+        }),
+      ];
+      const plan = createPlan(tasks);
+
+      const result = DagValidator.validatePlan(plan);
+      expect(result.valid).toBe(false);
+      expect(result.conflicts).toBeDefined();
+      expect(result.conflicts).toHaveLength(1);
+      expect(result.conflicts?.[0]).toContain('file.txt');
+      expect(result.conflicts?.[0]).toContain('task-a, task-b');
+    });
+
+    it('handles complex dependency chains with file conflicts', () => {
+      const tasks = [
+        createTask({
+          id: 'task-a',
+          title: 'Task A',
+          touches: ['shared.txt'],
+          requires: [],
+        }),
+        createTask({
+          id: 'task-b',
+          title: 'Task B',
+          touches: ['shared.txt'],
+          requires: ['task-a'],
+        }),
+        createTask({
+          id: 'task-c',
+          title: 'Task C',
+          touches: ['shared.txt'],
+          requires: [],
+        }),
+      ];
+      const plan = createPlan(tasks);
+
+      const result = DagValidator.validatePlan(plan);
+      expect(result.valid).toBe(false);
+      expect(result.conflicts).toBeDefined();
+      expect(result.conflicts).toHaveLength(1);
+      // Should detect conflicts between task-a & task-c, and task-b & task-c
+      expect(result.conflicts?.[0]).toContain('shared.txt');
+      expect(result.conflicts?.[0]).toMatch(/task-[ac], task-[ac]/);
+    });
+  });
+
   describe('complex scenarios', () => {
     it('handles diamond dependency pattern', () => {
       const tasks = [

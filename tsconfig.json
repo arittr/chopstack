@@ -6,7 +6,7 @@
     /* Bundler-style ESM build for tsup */
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist",
     "resolveJsonModule": true,
     /* Declarations & maps */
@@ -32,6 +32,6 @@
     /* Node types */
     "types": ["node", "jest"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts"],
   "exclude": ["node_modules", "dist", "build", "coverage", ".chopstack"]
 }
