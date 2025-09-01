@@ -449,10 +449,26 @@ export default [
 
   // Test files configuration (slightly relaxed)
   {
-    files: ['**/*.{test,spec}.{ts,tsx,js,jsx}', '**/tests/**/*'],
+    files: ['**/*.{test,spec}.{ts,tsx,js,jsx}', '**/tests/**/*', '**/__tests__/**/*'],
+    languageOptions: {
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        jest: 'readonly',
+        test: 'readonly',
+      },
+    },
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
       'unicorn/no-null': 'off',
       'unicorn/consistent-function-scoping': 'off',
     },

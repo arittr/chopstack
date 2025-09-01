@@ -13,7 +13,7 @@ export async function decomposeCommand(options: DecomposeOptions): Promise<numbe
     // Read the specification file
     const specPath = resolve(options.spec);
     console.log(`📄 Reading spec from: ${specPath}`);
-    
+
     const specContent = await readFile(specPath, 'utf8');
     console.log(`📄 Spec content length: ${specContent.length} characters`);
 

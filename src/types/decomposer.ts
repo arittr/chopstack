@@ -37,7 +37,9 @@ export type ValidationResult = {
 
 // Plan metrics
 export type PlanMetrics = {
+  criticalPathLength: number;
   estimatedSpeedup: number;
+  executionLayers: number;
   maxParallelization: number;
   taskCount: number;
   totalEstimatedLines: number;

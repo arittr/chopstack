@@ -30,7 +30,7 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     /* Node types */
-    "types": ["node"]
+    "types": ["node", "jest"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "build", "coverage", ".chopstack"]
