@@ -3,5 +3,13 @@ dist
 build
 coverage
 .chopstack
+.claude
 *.tsbuildinfo
 pnpm-lock.yaml
+*.md
+*.yaml
+*.yml
+*.json
+!package.json
+!tsconfig.json
+!.prettierrc.json
