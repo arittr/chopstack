@@ -38,6 +38,7 @@ export class TaskOrchestrator extends EventEmitter {
     prompt: string,
     files: string[],
     workdir?: string,
+    planMode = false,
   ): Promise<TaskResult> {
     // Mark task as running
     this.taskStatuses.set(taskId, 'running');
@@ -56,8 +57,14 @@ export class TaskOrchestrator extends EventEmitter {
     const filesList = files.length > 0 ? `\nRelevant files: ${files.join(', ')}` : '';
     const fullPrompt = `Task: ${title}\n\n${prompt}${filesList}\n\nPlease complete this task by modifying the necessary files.`;
 
-    // Use claude-code CLI (assuming it's available)
-    const claudeProcess = spawn('claude-code', ['--message', fullPrompt], {
+    // Build Claude CLI arguments
+    const args = planMode
+      ? ['-p', '--permission-mode', 'plan', '--output-format', 'json', fullPrompt]
+      : ['--message', fullPrompt];
+
+    // Use claude CLI (note: claude-code vs claude)
+    const commandName = 'claude';
+    const claudeProcess = spawn(commandName, args, {
       cwd: workdir ?? process.cwd(),
       env: { ...process.env },
       shell: true,
@@ -208,6 +215,7 @@ export class TaskOrchestrator extends EventEmitter {
           task.prompt,
           task.files,
           worktreePath,
+          false, // planMode
         );
         return { ...result, worktreePath } as TaskResult & { worktreePath: string };
       } catch (error) {
