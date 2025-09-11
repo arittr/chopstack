@@ -33,6 +33,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:e2e": "jest test/e2e",
+    "test:execution": "jest test/execution/orchestration-decisions.test.ts",
     "test:unit": "jest src",
     "prepublishOnly": "pnpm run clean && pnpm run build",
     "prepare": "husky"
@@ -57,6 +58,7 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-code": "^1.0.111",
     "@eslint/js": "^9.15.0",
     "@types/graphlib": "^2.1.12",
     "@types/jest": "^30.0.0",

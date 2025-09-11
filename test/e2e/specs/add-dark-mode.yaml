@@ -1,0 +1,118 @@
+tasks:
+  - id: create-theme-types
+    title: Create theme type definitions
+    description: Define TypeScript types for theme values and context
+    touches: []
+    produces:
+      - src/lib/types/theme.ts
+    requires: []
+    estimatedLines: 20
+    agentPrompt: Create TypeScript type definitions for theme system including ThemeMode ('light' |
+      'dark' | 'system'), ThemeContextType interface with theme state and setter functions
+  - id: create-theme-hook
+    title: Create useTheme custom hook
+    description: Implement custom hook for theme management with localStorage persistence
+    touches: []
+    produces:
+      - src/lib/hooks/useTheme.ts
+    requires:
+      - create-theme-types
+    estimatedLines: 80
+    agentPrompt: Create useTheme hook that manages theme state, handles localStorage persistence,
+      detects system preferences, and provides theme toggle functionality. Include SSR-safe
+      implementation with useEffect for client-side operations
+  - id: create-theme-context
+    title: Create Theme Context
+    description: Implement React Context for theme state management
+    touches: []
+    produces:
+      - src/lib/contexts/ThemeContext.tsx
+    requires:
+      - create-theme-types
+      - create-theme-hook
+    estimatedLines: 60
+    agentPrompt: Create ThemeContext and ThemeProvider component using the useTheme hook. Export
+      useThemeContext hook for consuming the context with proper error handling if used outside
+      provider
+  - id: create-theme-toggle-component
+    title: Create ThemeToggle component
+    description: Build accessible theme toggle button component
+    touches: []
+    produces:
+      - src/components/ThemeToggle.tsx
+      - src/components/ThemeToggle.module.css
+    requires:
+      - create-theme-context
+    estimatedLines: 120
+    agentPrompt: Create ThemeToggle component with accessible button, keyboard navigation support,
+      aria-labels, and three-state toggle (light/dark/system). Include icons using SVG for sun,
+      moon, and system icons. Add CSS module for styling with smooth transitions
+  - id: update-css-variables
+    title: Update CSS variables for manual theme control
+    description: Refactor CSS variables to support manual theme switching beyond media queries
+    touches:
+      - src/app/globals.css
+    produces: []
+    requires: []
+    estimatedLines: 150
+    agentPrompt: Refactor globals.css to use data-theme attribute on html element for manual theme
+      control. Keep existing CSS variables but reorganize to support [data-theme='light'] and
+      [data-theme='dark'] selectors while maintaining system preference fallback
+  - id: create-theme-script
+    title: Create theme initialization script
+    description: Add script to prevent flash of incorrect theme on page load
+    touches: []
+    produces:
+      - src/lib/scripts/theme-init.ts
+    requires: []
+    estimatedLines: 30
+    agentPrompt: Create a script that runs before React hydration to read localStorage and set initial
+      theme on html element to prevent flash. This script should be minimal and synchronous
+  - id: update-root-layout
+    title: Update root layout with theme provider
+    description: Integrate ThemeProvider and initialization script into root layout
+    touches:
+      - src/app/layout.tsx
+    produces: []
+    requires:
+      - create-theme-context
+      - create-theme-script
+      - update-css-variables
+    estimatedLines: 40
+    agentPrompt: Update layout.tsx to wrap children with ThemeProvider, add theme initialization script
+      to head, and ensure html element gets proper data-theme attribute. Make the component a client
+      component if needed
+  - id: add-theme-toggle-to-header
+    title: Add ThemeToggle to page header
+    description: Integrate theme toggle button into the main page layout
+    touches:
+      - src/app/page.tsx
+    produces: []
+    requires:
+      - create-theme-toggle-component
+      - update-root-layout
+    estimatedLines: 20
+    agentPrompt: Add ThemeToggle component to the page header area, positioning it in the top-right
+      corner of the description section for easy access
+  - id: update-page-module-styles
+    title: Update page module styles for dark mode
+    description: Ensure page-specific styles properly support dark mode
+    touches:
+      - src/app/page.module.css
+    produces: []
+    requires:
+      - update-css-variables
+    estimatedLines: 50
+    agentPrompt: Update page.module.css to ensure all component styles work with the new CSS variable
+      system, removing media query dependencies and using CSS variables consistently
+  - id: create-theme-utils
+    title: Create theme utility functions
+    description: Add utility functions for theme operations
+    touches: []
+    produces:
+      - src/lib/utils/theme.ts
+    requires:
+      - create-theme-types
+    estimatedLines: 40
+    agentPrompt: Create utility functions for theme operations including getSystemTheme(),
+      resolveTheme() to convert 'system' to actual theme, and isValidTheme() for validation
