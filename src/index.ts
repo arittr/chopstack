@@ -1,9 +1,15 @@
+// CLI exports for backward compatibility
 import { match } from 'ts-pattern';
 
 import type { AgentType, DecomposeOptions } from './types/decomposer';
 
 import { decomposeCommand } from './commands/decompose';
+// MCP Server export for FastMCP
+import { mcp } from './mcp/server.js';
 import { isNonEmptyString } from './utils/guards';
+// FastMCP expects a default export
+// eslint-disable-next-line import/no-default-export
+export default mcp;
 
 export type CliOptions = {
   command?: string;
