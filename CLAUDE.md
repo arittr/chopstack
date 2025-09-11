@@ -45,8 +45,11 @@ pnpm run format
 # Check formatting
 pnpm run format:check
 
-# Tests (placeholder - not implemented yet)
-pnpm run test
+# Tests
+pnpm run test           # All tests (unit + E2E + execution)
+pnpm run test:unit      # Unit tests only
+pnpm run test:e2e       # E2E integration tests
+pnpm run test:execution # Execution planning tests
 ```
 
 ### Running the CLI
@@ -73,6 +76,9 @@ This project has a dual-purpose architecture:
 
 - **Parser** (`src/parser/spec-parser.ts`): Parses markdown specifications into structured tasks with dependencies, files, priorities, and complexity estimates
 - **Types** (`src/types/decomposer.ts`): Core type definitions for tasks, DAG nodes, conflict resolution, and specifications
+- **MCP Server** (`src/mcp/server.ts`): FastMCP server with task orchestration tools
+- **Task Orchestrator** (`src/mcp/orchestrator.ts`): Manages parallel task execution using Claude Code CLI in plan mode
+- **Execution Testing** (`test/execution/`): Tests Claude's execution planning using `--permission-mode plan`
 - **Build System**: Uses `tsup` for ESM-only builds targeting Node.js 18+ with dual entry points
 
 ### Key Design Patterns
@@ -93,6 +99,8 @@ The codebase follows these architectural patterns:
 - **MCP Framework**: FastMCP (built on official MCP SDK)
 - **Pattern Matching**: ts-pattern for functional control flow
 - **Validation**: Zod for schema validation and runtime type checking
+- **External Types**: Official Claude Code SDK types from `@anthropic-ai/claude-code`
+- **Testing**: Jest for unit/E2E tests, custom execution testing framework
 
 ## Code Style Requirements
 
@@ -123,7 +131,12 @@ const response = match(error)
 - Use `const assertions` and `as const` for immutable data
 - Import file extensions are omitted (handled by build system)
 - Strict naming: camelCase for functions, PascalCase for types, kebab-case for files
-- Use utils/guards.ts for string comparisons, null checks, and other guard functions
+- **ALWAYS use `utils/guards.ts`** for type guards instead of inline checks:
+  - `isNonEmptyString()` for non-empty string checks
+  - `isNonNullish()` for null/undefined checks
+  - `hasContent()` for strings with actual content
+  - `isValidArray()` for non-empty arrays
+  - `isNonEmptyObject()` for objects with properties
 
 ### Import Organization
 
@@ -157,9 +170,49 @@ The project uses FastMCP for simplified MCP server development:
 ```
 src/
 ├── bin/           # CLI entry points
+├── agents/        # Agent implementations (Claude, Aider, Mock)
+├── commands/      # CLI command implementations
+├── mcp/           # MCP server and task orchestration
 ├── parser/        # Spec parsing logic
 ├── types/         # TypeScript type definitions
+├── utils/         # Utility functions and guards
 └── index.ts       # Main MCP server export
+
+test/
+├── e2e/           # End-to-end integration tests
+├── execution/     # Execution planning tests (using --permission-mode plan)
+└── unit/          # Unit tests (if any)
+```
+
+## Execution Testing Framework
+
+The project includes a unique execution testing framework that validates Claude's task execution approach without expensive API calls:
+
+### How It Works
+
+1. **Plan Generation**: Uses `chopstack decompose` to generate task DAGs from markdown specs
+2. **Execution Planning**: Tests each task using `claude --permission-mode plan` to get execution plans
+3. **Quality Analysis**: Analyzes plans for complexity, file operations, technical accuracy, and completeness
+4. **Cost Efficiency**: ~$0.10-0.20 per task vs $2-5+ for full implementation testing
+
+### Key Components
+
+- **ExecutionPlanAnalyzer** (`src/utils/execution-plan-analyzer.ts`): Uses official Claude Code SDK types
+- **TaskOrchestrator** (`src/mcp/orchestrator.ts`): Enhanced with `planMode` parameter
+- **Test Suite** (`test/execution/plan-execution.test.ts`): Comprehensive execution planning validation
+
+### Usage
+
+```bash
+# Run execution tests only
+pnpm run test:execution
+
+# Tests validate:
+# - Plan structure and quality (0-100 score)
+# - Technical detail accuracy
+# - File operation mapping
+# - Technology detection (React, TypeScript, etc.)
+# - Comparative analysis across tasks
 ```
 
 ## Development Notes
@@ -168,4 +221,5 @@ src/
 - Build targets Node.js 18+ with ESM-only output
 - Uses incremental TypeScript builds for performance
 - ESLint configuration is very strict with comprehensive rules for TypeScript, imports, and code quality
+- Uses official Claude Code SDK types from `@anthropic-ai/claude-code` package
 - README.md is minimal (placeholder), main documentation is in .cursorrules
