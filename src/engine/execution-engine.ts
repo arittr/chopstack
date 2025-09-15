@@ -309,15 +309,13 @@ export class ExecutionEngine extends EventEmitter {
   private async _executeTaskWithMode(request: TaskExecutionRequest): Promise<TaskExecutionResult> {
     const { task, mode, workdir } = request;
 
-    const planMode = mode === 'plan';
-
     const result = await this.orchestrator.executeClaudeTask(
       task.id,
       task.title,
       task.agentPrompt,
       task.touches,
       workdir,
-      planMode,
+      mode,
     );
 
     return {
@@ -340,7 +338,7 @@ export class ExecutionEngine extends EventEmitter {
       task.agentPrompt,
       task.touches,
       options.workdir,
-      true,
+      'plan',
     );
 
     return {
