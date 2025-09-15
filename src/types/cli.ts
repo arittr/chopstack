@@ -16,12 +16,6 @@ export const DecomposeCommandOptionsSchema = z.object({
 });
 export type DecomposeCommandOptions = z.infer<typeof DecomposeCommandOptionsSchema>;
 
-// Execute command options schema - extends ExecutionOptions with plan file
-export const ExecuteCommandOptionsSchema = ExecutionOptionsSchema.extend({
-  plan: z.string().min(1, 'Plan file path cannot be empty'),
-});
-export type ExecuteCommandOptions = z.infer<typeof ExecuteCommandOptionsSchema>;
-
 // Run command options schema - supports both spec and plan inputs
 export const RunCommandOptionsSchema = ExecutionOptionsSchema.extend({
   agent: AgentTypeSchema.optional(),
@@ -36,10 +30,6 @@ export type RunCommandOptions = z.infer<typeof RunCommandOptionsSchema>;
 // Helper functions for validation
 export function validateDecomposeArgs(raw: unknown): DecomposeOptions {
   return DecomposeOptionsSchema.parse(raw);
-}
-
-export function validateExecuteArgs(raw: unknown): ExecuteCommandOptions {
-  return ExecuteCommandOptionsSchema.parse(raw);
 }
 
 export function validateRunArgs(raw: unknown): RunCommandOptions {
