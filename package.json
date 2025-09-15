@@ -83,6 +83,7 @@
   "dependencies": {
     "@dagrejs/graphlib": "^2.2.4",
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "commander": "^14.0.1",
     "fastmcp": "^3.16.0",
     "ts-pattern": "^5.8.0",
     "yaml": "^2.8.1",
