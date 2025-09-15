@@ -1,18 +1,24 @@
+import { z } from 'zod';
+
 import type { Plan, Task } from './decomposer';
 
-export type ExecutionMode = 'plan' | 'dry-run' | 'execute' | 'validate';
+export const ExecutionModeSchema = z.enum(['plan', 'dry-run', 'execute', 'validate']);
+export type ExecutionMode = z.infer<typeof ExecutionModeSchema>;
 
-export type TaskState =
-  | 'pending' // Initial state
-  | 'ready' // Dependencies satisfied
-  | 'queued' // Scheduled for execution
-  | 'running' // Currently executing
-  | 'completed' // Successfully finished
-  | 'failed' // Execution failed
-  | 'blocked' // Waiting on dependencies
-  | 'skipped'; // Conditionally skipped
+export const TaskStateSchema = z.enum([
+  'pending', // Initial state
+  'ready', // Dependencies satisfied
+  'queued', // Scheduled for execution
+  'running', // Currently executing
+  'completed', // Successfully finished
+  'failed', // Execution failed
+  'blocked', // Waiting on dependencies
+  'skipped', // Conditionally skipped
+]);
+export type TaskState = z.infer<typeof TaskStateSchema>;
 
-export type ExecutionStrategy = 'serial' | 'parallel' | 'hybrid';
+export const ExecutionStrategySchema = z.enum(['serial', 'parallel', 'hybrid']);
+export type ExecutionStrategy = z.infer<typeof ExecutionStrategySchema>;
 
 export type TaskStateTransition = {
   from: TaskState;
@@ -49,21 +55,22 @@ export type ExecutionPlan = {
   tasks: Map<string, ExecutionTask>;
 };
 
-export type ExecutionOptions = {
-  cleanupOnFailure?: boolean | undefined;
-  continueOnError?: boolean | undefined;
-  dryRun?: boolean | undefined;
-  gitSpice?: boolean | undefined;
-  maxParallelTasks?: number | undefined;
-  mode: ExecutionMode;
-  parallel?: boolean | undefined;
-  retryAttempts?: number | undefined;
-  retryDelay?: number | undefined;
-  strategy?: ExecutionStrategy | undefined;
-  timeout?: number | undefined;
-  verbose?: boolean | undefined;
-  workdir?: string | undefined;
-};
+export const ExecutionOptionsSchema = z.object({
+  cleanupOnFailure: z.boolean().optional(),
+  continueOnError: z.boolean().optional(),
+  dryRun: z.boolean().optional(),
+  gitSpice: z.boolean().optional(),
+  maxParallelTasks: z.number().int().min(1).optional(),
+  mode: ExecutionModeSchema,
+  parallel: z.boolean().optional(),
+  retryAttempts: z.number().int().min(0).optional(),
+  retryDelay: z.number().int().min(0).optional(),
+  strategy: ExecutionStrategySchema.optional(),
+  timeout: z.number().int().min(1).optional(),
+  verbose: z.boolean().optional(),
+  workdir: z.string().optional(),
+});
+export type ExecutionOptions = z.infer<typeof ExecutionOptionsSchema>;
 
 export type ExecutionResult = {
   duration: number;
