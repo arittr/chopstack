@@ -2,8 +2,8 @@ import { Command } from 'commander';
 import { ZodError } from 'zod';
 
 import { decomposeCommand } from './commands/decompose';
-import { executeCommand } from './commands/execute';
-import { validateDecomposeArgs, validateExecuteArgs } from './types/cli';
+import { runCommand } from './commands/run';
+import { validateDecomposeArgs, validateRunArgs } from './types/cli';
 
 const program = new Command();
 
@@ -38,14 +38,16 @@ program
     }
   });
 
-// Execute command
+// Run command - matches SNU-46 specification
 program
-  .command('execute')
-  .description('Execute a task plan using the execution engine')
-  .requiredOption('--plan <file>', 'Path to plan file (JSON)')
+  .command('run')
+  .description('Execute a task plan from spec or plan file')
+  .option('--spec <file>', 'Path to specification file (.md)')
+  .option('--plan <file>', 'Path to plan file (JSON/YAML) - if not provided, will decompose spec')
   .option('--mode <mode>', 'Execution mode: plan|dry-run|execute|validate', 'dry-run')
   .option('--workdir <path>', 'Working directory for execution', process.cwd())
-  .option('--strategy <strategy>', 'Execution strategy: parallel|serial', 'parallel')
+  .option('--strategy <strategy>', 'Execution strategy: parallel|serial|hybrid', 'parallel')
+  .option('--agent <type>', 'Agent for decomposition: claude|aider|mock', 'claude')
   .option('--git-spice', 'Create git-spice stack after execution', false)
   .option('--continue-on-error', 'Continue execution even if tasks fail', false)
   .option('--timeout <ms>', 'Task timeout in milliseconds', (value) => Number.parseInt(value, 10))
@@ -64,14 +66,14 @@ program
   .option('--verbose, -v', 'Verbose output', false)
   .action(async (options: unknown) => {
     try {
-      const validatedOptions = validateExecuteArgs(options);
-      const exitCode = await executeCommand(validatedOptions);
+      const validatedOptions = validateRunArgs(options);
+      const exitCode = await runCommand(validatedOptions);
       if (exitCode !== 0) {
-        throw new Error(`Execute command failed with exit code ${exitCode}`);
+        throw new Error(`Run command failed with exit code ${exitCode}`);
       }
     } catch (error) {
       if (error instanceof ZodError) {
-        throw new TypeError(`Invalid execute options: ${error.message}`);
+        throw new TypeError(`Invalid run options: ${error.message}`);
       }
       if (error instanceof Error) {
         throw error;
