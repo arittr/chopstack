@@ -5,9 +5,9 @@ import { match } from 'ts-pattern';
 
 import type { DecomposerAgent, Plan } from '../types/decomposer';
 
-import { PromptBuilder } from '../types/prompts';
 import { AgentNotFoundError, PlanParsingError } from '../utils/errors';
 import { isNonEmptyString, isNonNullish } from '../utils/guards';
+import { PromptBuilder } from '../utils/prompts';
 import { type ParsedContent, YamlPlanParser } from '../utils/yaml-parser';
 
 type StreamingMessage = {

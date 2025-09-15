@@ -3,9 +3,9 @@ import { promisify } from 'node:util';
 
 import type { DecomposerAgent, Plan } from '../types/decomposer';
 
-import { PromptBuilder } from '../types/prompts';
 import { AgentNotFoundError, PlanParsingError } from '../utils/errors';
 import { hasContent } from '../utils/guards';
+import { PromptBuilder } from '../utils/prompts';
 import { YamlPlanParser } from '../utils/yaml-parser';
 
 const execAsync = promisify(exec);
