@@ -3,7 +3,9 @@ import { promisify } from 'node:util';
 
 import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 
-import { hasContent, isNonEmptyString } from './guards';
+import { hasContent, isNonEmptyString } from '../utils/guards';
+
+import type { VcsBackend } from './index';
 
 const execAsync = promisify(exec);
 
@@ -19,13 +21,15 @@ export class GitSpiceError extends Error {
 }
 
 /**
- * Git-spice integration utilities for creating PR stacks from task execution
+ * Git-spice VCS backend implementation
  */
-export class GitSpiceIntegration {
+export class GitSpiceBackend implements VcsBackend {
+  constructor(private readonly _options?: Record<string, unknown>) {}
+
   /**
    * Check if git-spice is available in the system
    */
-  static async isAvailable(): Promise<boolean> {
+  async isAvailable(): Promise<boolean> {
     try {
       await execAsync('gs --version', { timeout: 5000 });
       return true;
@@ -37,7 +41,7 @@ export class GitSpiceIntegration {
   /**
    * Initialize git-spice in the repository if not already initialized
    */
-  static async initialize(workdir: string): Promise<void> {
+  async initialize(workdir: string): Promise<void> {
     try {
       const { stdout } = await execAsync('git config --get spice.root', {
         cwd: workdir,
@@ -67,7 +71,7 @@ export class GitSpiceIntegration {
   /**
    * Create a git-spice stack from executed tasks
    */
-  static async createStack(
+  async createStack(
     tasks: ExecutionTask[],
     workdir: string,
     baseRef = 'main',
@@ -145,7 +149,7 @@ export class GitSpiceIntegration {
   /**
    * Submit the stack to GitHub as pull requests
    */
-  static async submitStack(workdir: string): Promise<string[]> {
+  async submitStack(workdir: string): Promise<string[]> {
     try {
       const { stdout } = await execAsync('gs stack submit --draft', {
         cwd: workdir,
@@ -172,7 +176,7 @@ export class GitSpiceIntegration {
   /**
    * Generate a consistent branch name from a task
    */
-  private static _generateBranchName(task: ExecutionTask): string {
+  private _generateBranchName(task: ExecutionTask): string {
     // Use task ID as base, ensure it's git-branch safe
     const safeName = task.id.toLowerCase().replaceAll(/[^\w-]/g, '-');
     return `feature/${safeName}`;
@@ -181,7 +185,7 @@ export class GitSpiceIntegration {
   /**
    * Find the appropriate parent branch for a task based on dependencies
    */
-  private static _findParentBranch(
+  private _findParentBranch(
     task: ExecutionTask,
     existingBranches: GitSpiceStackInfo['branches'],
     baseRef: string,
@@ -206,7 +210,7 @@ export class GitSpiceIntegration {
   /**
    * Extract PR URLs from git-spice output
    */
-  private static _extractPrUrls(output: string): string[] {
+  private _extractPrUrls(output: string): string[] {
     const prUrlRegex = /https:\/\/github\.com\/\S+\/pull\/\d+/g;
     return output.match(prUrlRegex) ?? [];
   }
