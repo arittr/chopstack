@@ -1,46 +1,59 @@
-export type TaskExecutionStrategy = 'serial' | 'parallel';
+import { z } from 'zod';
 
-export type TaskExecutionParams = {
-  files: string[];
-  prompt: string;
-  strategy: TaskExecutionStrategy;
-  taskId: string;
-  title: string;
-  workdir?: string;
-};
+import { ExecutionStrategySchema } from './execution';
 
-export type ParallelTask = {
-  files: string[];
-  id: string;
-  prompt: string;
-  title: string;
-};
+// MCP-specific strategy (subset of full ExecutionStrategy)
+export const TaskExecutionStrategySchema = ExecutionStrategySchema.exclude(['hybrid']);
+export type TaskExecutionStrategy = z.infer<typeof TaskExecutionStrategySchema>;
 
-export type TaskExecutionResult = {
-  exitCode: number;
-  output: string;
-  status: 'completed' | 'failed';
-  taskId: string;
-};
+export const TaskExecutionParamsSchema = z.object({
+  files: z.array(z.string()),
+  prompt: z.string().min(1),
+  strategy: TaskExecutionStrategySchema,
+  taskId: z.string().min(1),
+  title: z.string().min(1),
+  workdir: z.string().optional(),
+});
+export type TaskExecutionParams = z.infer<typeof TaskExecutionParamsSchema>;
 
-export type WorktreeResult = {
-  branchName: string;
-  status: 'created';
-  taskId: string;
-  worktreePath: string;
-};
+export const ParallelTaskSchema = z.object({
+  files: z.array(z.string()),
+  id: z.string().min(1),
+  prompt: z.string().min(1),
+  title: z.string().min(1),
+});
+export type ParallelTask = z.infer<typeof ParallelTaskSchema>;
 
-export type BranchResult = {
-  branchName: string;
-  parentBranch?: string;
-  status: 'created';
-  tool: 'git-spice' | 'git';
-};
+export const McpTaskResultSchema = z.object({
+  exitCode: z.number().int(),
+  output: z.string(),
+  status: z.enum(['completed', 'failed']),
+  taskId: z.string().min(1),
+});
+export type McpTaskResult = z.infer<typeof McpTaskResultSchema>;
 
-export type MergeResult = {
-  branch: string;
-  error?: string;
-  status: 'merged' | 'failed';
-};
+export const WorktreeResultSchema = z.object({
+  branchName: z.string().min(1),
+  status: z.literal('created'),
+  taskId: z.string().min(1),
+  worktreePath: z.string().min(1),
+});
+export type WorktreeResult = z.infer<typeof WorktreeResultSchema>;
 
-export type MergeStrategy = 'merge' | 'rebase';
+export const BranchResultSchema = z.object({
+  branchName: z.string().min(1),
+  parentBranch: z.string().optional(),
+  status: z.literal('created'),
+  tool: z.enum(['git-spice', 'git']),
+});
+export type BranchResult = z.infer<typeof BranchResultSchema>;
+
+export const MergeResultSchema = z.object({
+  branch: z.string().min(1),
+  error: z.string().optional(),
+  status: z.enum(['merged', 'failed']),
+});
+export type MergeResult = z.infer<typeof MergeResultSchema>;
+
+export const MergeStrategySchema = z.enum(['merge', 'rebase']);
+export type MergeStrategy = z.infer<typeof MergeStrategySchema>;

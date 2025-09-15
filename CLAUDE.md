@@ -138,6 +138,7 @@ const response = match(error)
   - `isValidArray()` for non-empty arrays
   - `isNonEmptyObject()` for objects with properties
 - Follow `@typescript-eslint/naming-convention` including leading underscore for private members
+- Avoid non-null assertions (`!`) and use `isNonNullish()` instead
 
 ### Import Organization
 
