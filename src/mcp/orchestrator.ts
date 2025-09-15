@@ -4,6 +4,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 
+import type { ExecutionMode } from '../types/execution';
+
 const exec = promisify(execCallback);
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
@@ -13,10 +15,17 @@ export type TaskResult = {
   endTime?: Date;
   error?: string;
   exitCode?: number;
+  filesChanged?: string[];
+  mode: ExecutionMode;
   output?: string;
   startTime?: Date;
   status: TaskStatus;
   taskId: string;
+  validationResults?: {
+    canProceed: boolean;
+    errors: string[];
+    warnings: string[];
+  };
 };
 
 export type StreamingUpdate = {
@@ -32,13 +41,113 @@ export class TaskOrchestrator extends EventEmitter {
   private readonly taskOutputs: Map<string, string[]> = new Map();
   private readonly taskStartTimes: Map<string, Date> = new Map();
 
+  /**
+   * Build Claude CLI arguments based on execution mode
+   */
+  private _buildClaudeArgs(mode: ExecutionMode, prompt: string): string[] {
+    switch (mode) {
+      case 'plan': {
+        return ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt];
+      }
+      case 'dry-run': {
+        return ['--dry-run', '--message', prompt];
+      }
+      case 'execute': {
+        return ['--message', prompt];
+      }
+      case 'validate': {
+        return ['--validate-only', '--message', prompt];
+      }
+      default: {
+        throw new Error(`Unsupported execution mode: ${String(mode)}`);
+      }
+    }
+  }
+
+  /**
+   * Process mode-specific results from Claude CLI output
+   */
+  private _processModeSpecificResults(
+    mode: ExecutionMode,
+    output: string,
+    success: boolean,
+  ): Partial<TaskResult> {
+    const results: Partial<TaskResult> = {};
+
+    switch (mode) {
+      case 'plan': {
+        // Plan mode returns JSON with execution plan details
+        try {
+          if (output.trim() !== '') {
+            const planData = JSON.parse(output) as Record<string, unknown>;
+            const filesChanged = planData.files_changed as string[] | undefined;
+            if (filesChanged !== undefined) {
+              results.filesChanged = filesChanged;
+            }
+          }
+        } catch {
+          // If JSON parsing fails, continue without file change info
+        }
+        break;
+      }
+
+      case 'dry-run': {
+        // Dry-run mode shows what would be changed without actually doing it
+        const fileMatches = output.match(/would (?:create|modify|update): (.+)/gi);
+        if (fileMatches !== null) {
+          results.filesChanged = fileMatches.map((match) =>
+            match.replace(/^would (?:create|modify|update): /i, '').trim(),
+          );
+        }
+        break;
+      }
+
+      case 'validate': {
+        // Validate mode checks dependencies and readiness
+        const errors: string[] = [];
+        const warnings: string[] = [];
+
+        // Parse validation output for errors and warnings
+        const errorMatches = output.match(/error: (.+)/gi);
+        const warningMatches = output.match(/warning: (.+)/gi);
+
+        if (errorMatches !== null) {
+          errors.push(...errorMatches.map((match) => match.replace(/^error: /i, '').trim()));
+        }
+        if (warningMatches !== null) {
+          warnings.push(...warningMatches.map((match) => match.replace(/^warning: /i, '').trim()));
+        }
+
+        results.validationResults = {
+          canProceed: success && errors.length === 0,
+          errors,
+          warnings,
+        };
+        break;
+      }
+
+      case 'execute': {
+        // Execute mode - extract actual file changes from output
+        const executeFileMatches = output.match(/(?:created|modified|updated): (.+)/gi);
+        if (executeFileMatches !== null) {
+          results.filesChanged = executeFileMatches.map((match) =>
+            match.replace(/^(?:created|modified|updated): /i, '').trim(),
+          );
+        }
+        break;
+      }
+    }
+
+    return results;
+  }
+
   async executeClaudeTask(
     taskId: string,
     title: string,
     prompt: string,
     files: string[],
     workdir?: string,
-    planMode = false,
+    mode: ExecutionMode = 'execute',
   ): Promise<TaskResult> {
     // Mark task as running
     this.taskStatuses.set(taskId, 'running');
@@ -57,10 +166,8 @@ export class TaskOrchestrator extends EventEmitter {
     const filesList = files.length > 0 ? `\nRelevant files: ${files.join(', ')}` : '';
     const fullPrompt = `Task: ${title}\n\n${prompt}${filesList}\n\nPlease complete this task by modifying the necessary files.`;
 
-    // Build Claude CLI arguments
-    const args = planMode
-      ? ['-p', '--permission-mode', 'plan', '--output-format', 'json', fullPrompt]
-      : ['--message', fullPrompt];
+    // Build Claude CLI arguments based on execution mode
+    const args = this._buildClaudeArgs(mode, fullPrompt);
 
     // Use claude CLI (note: claude-code vs claude)
     const commandName = 'claude';
@@ -109,14 +216,19 @@ export class TaskOrchestrator extends EventEmitter {
         this.runningTasks.delete(taskId);
         const output = this.taskOutputs.get(taskId)?.join('\n') ?? '';
 
+        // Process mode-specific results
+        const modeSpecificResults = this._processModeSpecificResults(mode, output, code === 0);
+
         const result: TaskResult = {
           taskId,
+          mode,
           status: code === 0 ? 'completed' : 'failed',
           output,
           ...(code !== null ? { exitCode: code } : {}),
           ...(startTime !== undefined && { startTime }),
           endTime,
           ...(duration !== undefined && { duration }),
+          ...modeSpecificResults,
         };
 
         this.taskStatuses.set(taskId, result.status);
@@ -148,6 +260,7 @@ export class TaskOrchestrator extends EventEmitter {
 
         const result: TaskResult = {
           taskId,
+          mode,
           status: 'failed',
           error: error.message,
           ...(startTime !== undefined && { startTime }),
@@ -197,6 +310,7 @@ export class TaskOrchestrator extends EventEmitter {
       title: string;
     }>,
     baseRef: string,
+    mode: ExecutionMode = 'execute',
   ): Promise<TaskResult[]> {
     // Create worktrees for all tasks
     const worktreeSetup = await Promise.all(
@@ -215,7 +329,7 @@ export class TaskOrchestrator extends EventEmitter {
           task.prompt,
           task.files,
           worktreePath,
-          false, // planMode
+          mode,
         );
         return { ...result, worktreePath } as TaskResult & { worktreePath: string };
       } catch (error) {
@@ -234,9 +348,8 @@ export class TaskOrchestrator extends EventEmitter {
       }
       return {
         taskId: task?.id ?? `task-${index}`,
-
+        mode,
         status: 'failed' as TaskStatus,
-
         error: (result.reason as TaskResult | undefined)?.error ?? 'Unknown error',
       };
     });
