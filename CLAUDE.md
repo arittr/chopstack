@@ -137,6 +137,7 @@ const response = match(error)
   - `hasContent()` for strings with actual content
   - `isValidArray()` for non-empty arrays
   - `isNonEmptyObject()` for objects with properties
+- Follow `@typescript-eslint/naming-convention` including leading underscore for private members
 
 ### Import Organization
 
