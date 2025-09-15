@@ -18,6 +18,10 @@ export function isValidArray<T>(value: T[] | null | undefined): value is T[] {
   return Array.isArray(value) && value.length > 0;
 }
 
+export function isNonEmptyArray<T>(value: T[] | null | undefined): value is T[] {
+  return Array.isArray(value) && value.length > 0;
+}
+
 export function isNonEmptyObject<T extends Record<string, unknown>>(
   value: T | null | undefined,
 ): value is T {
