@@ -75,6 +75,7 @@ export const ExecutionPlanSchema = z.object({
       ),
     }),
   ), // Using z.lazy to avoid circular dependency while maintaining type safety
+  prUrls: z.array(z.string().url()).optional(),
   startedAt: z.date().optional(),
   status: ExecutionPlanStatusSchema,
   strategy: ExecutionStrategySchema,

@@ -1,4 +1,3 @@
-import { execSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 import { match } from 'ts-pattern';
@@ -14,6 +13,7 @@ import type {
 } from '../types/execution';
 
 import { TaskOrchestrator } from '../mcp/orchestrator';
+import { GitSpiceIntegration } from '../utils/git-spice';
 
 import { ExecutionMonitor } from './execution-monitor';
 import { ExecutionPlanner } from './execution-planner';
@@ -149,7 +149,7 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     if (options.gitSpice ?? false) {
-      this._createGitSpiceStack(plan);
+      await this._createGitSpiceStack(plan, options);
     }
 
     return this._createExecutionResult(plan);
@@ -353,33 +353,51 @@ export class ExecutionEngine extends EventEmitter {
     };
   }
 
-  private _createGitSpiceStack(plan: ExecutionPlan): void {
+  private async _createGitSpiceStack(
+    plan: ExecutionPlan,
+    options: ExecutionOptions,
+  ): Promise<void> {
     console.log('[chopstack] Creating git-spice stack...');
 
-    for (const layer of plan.executionLayers) {
-      for (const task of layer) {
-        if (task.state !== 'completed' || (task.worktreePath ?? '').length === 0) {
-          continue;
-        }
+    try {
+      // Get completed tasks with commits
+      const completedTasks = [...plan.tasks.values()].filter((task) => task.state === 'completed');
 
-        const parent = task.requires[0] ?? 'main';
-        const branchName = `feature/${task.id}`;
-
-        try {
-          execSync(`gs branch create ${branchName} --onto ${parent}`, { stdio: 'pipe' });
-
-          if ((task.commitHash ?? '').length > 0) {
-            execSync(`git cherry-pick ${task.commitHash}`, { stdio: 'pipe' });
-          }
-
-          console.log(`[chopstack]   ✓ Created branch ${branchName}`);
-        } catch (error) {
-          console.error(`[chopstack]   ✗ Failed to create branch for ${task.id}: ${String(error)}`);
-        }
+      if (completedTasks.length === 0) {
+        console.log('[chopstack] No completed tasks to create stack from');
+        return;
       }
-    }
 
-    console.log('[chopstack] Stack created. Run "gs stack submit" to create PRs');
+      // Create the stack using GitSpiceIntegration
+      const stackInfo = await GitSpiceIntegration.createStack(
+        completedTasks,
+        options.workdir ?? process.cwd(),
+      );
+
+      console.log('[chopstack] Stack created with branches:');
+      for (const branch of stackInfo.branches) {
+        console.log(`[chopstack]   └─ ${branch.name} (task: ${branch.taskId})`);
+      }
+
+      // Submit stack to GitHub if requested
+      try {
+        const prUrls = await GitSpiceIntegration.submitStack(options.workdir ?? process.cwd());
+        if (prUrls.length > 0) {
+          // Update execution result with PR URLs
+          plan.prUrls = prUrls;
+        }
+      } catch (error) {
+        console.warn(
+          `[chopstack] Stack created but submission failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+        console.log(`[chopstack] Run 'gs stack submit' manually to create PRs`);
+      }
+    } catch (error) {
+      console.error(
+        `[chopstack] Failed to create git-spice stack: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      // Don't throw - git-spice failure shouldn't fail the entire execution
+    }
   }
 
   private _createExecutionResult(plan: ExecutionPlan): ExecutionResult {
@@ -400,6 +418,8 @@ export class ExecutionEngine extends EventEmitter {
       tasks: [...plan.tasks.values()],
       success: stats.failed === 0,
       error: stats.failed > 0 ? `${stats.failed} tasks failed` : undefined,
+      gitBranches: plan.prUrls !== undefined ? [] : undefined, // Will be populated by git-spice integration
+      stackUrl: plan.prUrls?.[0], // First PR URL as stack URL
     };
   }
 
