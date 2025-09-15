@@ -27,23 +27,25 @@ export type RawPlan = {
 };
 
 // Validation results
-export type ValidationResult = {
-  circularDependencies?: string[];
-  conflictingTasks?: Task[];
-  conflicts?: string[];
-  errors?: string[];
-  valid: boolean;
-};
+export const ValidationResultSchema = z.object({
+  circularDependencies: z.array(z.string()).optional(),
+  conflictingTasks: z.array(TaskSchema).optional(),
+  conflicts: z.array(z.string()).optional(),
+  errors: z.array(z.string()).optional(),
+  valid: z.boolean(),
+});
+export type ValidationResult = z.infer<typeof ValidationResultSchema>;
 
 // Plan metrics
-export type PlanMetrics = {
-  criticalPathLength: number;
-  estimatedSpeedup: number;
-  executionLayers: number;
-  maxParallelization: number;
-  taskCount: number;
-  totalEstimatedLines: number;
-};
+export const PlanMetricsSchema = z.object({
+  criticalPathLength: z.number().int().min(0),
+  estimatedSpeedup: z.number().min(1),
+  executionLayers: z.number().int().min(1),
+  maxParallelization: z.number().int().min(1),
+  taskCount: z.number().int().min(0),
+  totalEstimatedLines: z.number().int().min(0),
+});
+export type PlanMetrics = z.infer<typeof PlanMetricsSchema>;
 
 // Agent types
 export const AgentTypeSchema = z.enum(['claude', 'aider', 'mock']);

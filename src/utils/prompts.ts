@@ -27,7 +27,7 @@ tasks:
     agentPrompt: string (specific prompt for implementing this task)
 \`\`\`
 
-IMPORTANT: 
+IMPORTANT:
 - Output ONLY the YAML plan, no other text or edits
 - Always quote file paths that contain special characters like brackets [] or spaces
 - Example: "packages/app/src/app/api/users/[id]/route.ts" (quoted because of [])
