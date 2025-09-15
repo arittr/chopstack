@@ -22,6 +22,17 @@ export const ExecuteCommandOptionsSchema = ExecutionOptionsSchema.extend({
 });
 export type ExecuteCommandOptions = z.infer<typeof ExecuteCommandOptionsSchema>;
 
+// Run command options schema - supports both spec and plan inputs
+export const RunCommandOptionsSchema = ExecutionOptionsSchema.extend({
+  agent: AgentTypeSchema.optional(),
+  plan: z.string().optional(),
+  spec: z.string().optional(),
+}).refine((data) => data.spec !== undefined || data.plan !== undefined, {
+  message: 'Either --spec or --plan must be provided',
+  path: ['spec', 'plan'],
+});
+export type RunCommandOptions = z.infer<typeof RunCommandOptionsSchema>;
+
 // Helper functions for validation
 export function validateDecomposeArgs(raw: unknown): DecomposeOptions {
   return DecomposeOptionsSchema.parse(raw);
@@ -29,4 +40,8 @@ export function validateDecomposeArgs(raw: unknown): DecomposeOptions {
 
 export function validateExecuteArgs(raw: unknown): ExecuteCommandOptions {
   return ExecuteCommandOptionsSchema.parse(raw);
+}
+
+export function validateRunArgs(raw: unknown): RunCommandOptions {
+  return RunCommandOptionsSchema.parse(raw);
 }
