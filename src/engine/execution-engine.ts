@@ -13,7 +13,7 @@ import type {
 } from '../types/execution';
 
 import { TaskOrchestrator } from '../mcp/orchestrator';
-import { GitSpiceIntegration } from '../utils/git-spice';
+import { createVcsBackend, detectAvailableVcsBackend } from '../vcs';
 
 import { ExecutionMonitor } from './execution-monitor';
 import { ExecutionPlanner } from './execution-planner';
@@ -149,7 +149,7 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     if (options.gitSpice ?? false) {
-      await this._createGitSpiceStack(plan, options);
+      await this._createVcsStack(plan, options);
     }
 
     return this._createExecutionResult(plan);
@@ -353,13 +353,22 @@ export class ExecutionEngine extends EventEmitter {
     };
   }
 
-  private async _createGitSpiceStack(
-    plan: ExecutionPlan,
-    options: ExecutionOptions,
-  ): Promise<void> {
-    console.log('[chopstack] Creating git-spice stack...');
+  private async _createVcsStack(plan: ExecutionPlan, options: ExecutionOptions): Promise<void> {
+    console.log('[chopstack] Creating VCS stack...');
 
     try {
+      // Detect available VCS backend
+      const backendType = await detectAvailableVcsBackend();
+      if (backendType === null) {
+        console.warn('[chopstack] No VCS backend available (git-spice, jj, graphite)');
+        return;
+      }
+
+      console.log(`[chopstack] Using VCS backend: ${backendType}`);
+
+      // Create backend instance
+      const vcsBackend = await createVcsBackend(backendType);
+
       // Get completed tasks with commits
       const completedTasks = [...plan.tasks.values()].filter((task) => task.state === 'completed');
 
@@ -368,8 +377,8 @@ export class ExecutionEngine extends EventEmitter {
         return;
       }
 
-      // Create the stack using GitSpiceIntegration
-      const stackInfo = await GitSpiceIntegration.createStack(
+      // Create the stack using VCS backend
+      const stackInfo = await vcsBackend.createStack(
         completedTasks,
         options.workdir ?? process.cwd(),
       );
@@ -379,9 +388,9 @@ export class ExecutionEngine extends EventEmitter {
         console.log(`[chopstack]   └─ ${branch.name} (task: ${branch.taskId})`);
       }
 
-      // Submit stack to GitHub if requested
+      // Submit stack to remote if requested
       try {
-        const prUrls = await GitSpiceIntegration.submitStack(options.workdir ?? process.cwd());
+        const prUrls = await vcsBackend.submitStack(options.workdir ?? process.cwd());
         if (prUrls.length > 0) {
           // Update execution result with PR URLs
           plan.prUrls = prUrls;
@@ -390,13 +399,15 @@ export class ExecutionEngine extends EventEmitter {
         console.warn(
           `[chopstack] Stack created but submission failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         );
-        console.log(`[chopstack] Run 'gs stack submit' manually to create PRs`);
+        console.log(
+          `[chopstack] Run '${backendType === 'git-spice' ? 'gs stack submit' : 'stack submit'} manually to create PRs`,
+        );
       }
     } catch (error) {
       console.error(
-        `[chopstack] Failed to create git-spice stack: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `[chopstack] Failed to create VCS stack: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
-      // Don't throw - git-spice failure shouldn't fail the entire execution
+      // Don't throw - VCS failure shouldn't fail the entire execution
     }
   }
 

@@ -6,7 +6,7 @@ import type { Plan } from '../types/decomposer';
 
 import { createDecomposerAgent } from '../agents';
 import { ExecutionEngine } from '../engine/execution-engine';
-import { PlanValidator } from '../types/validator';
+import { DagValidator } from '../utils/dag-validator';
 import { isNonEmptyString } from '../utils/guards';
 import { YamlPlanParser } from '../utils/yaml-parser';
 
@@ -56,15 +56,12 @@ export async function runCommand(options: RunCommandOptions): Promise<number> {
     }
 
     // Validate the plan
-    const validator = new PlanValidator();
-    const validation = validator.validatePlan(plan);
+    const validation = DagValidator.validatePlan(plan);
 
     if (!validation.valid) {
       console.error('❌ Plan validation failed:');
-      if (validation.errors !== undefined) {
-        for (const error of validation.errors) {
-          console.error(`  Error: ${error}`);
-        }
+      for (const error of validation.errors) {
+        console.error(`  Error: ${error}`);
       }
       return 1;
     }
