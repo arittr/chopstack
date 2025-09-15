@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 import type { DecomposeOptions } from '../types/decomposer';
 
 import { createDecomposerAgent } from '../agents';
-import { PlanValidator } from '../types/validator';
+import { DagValidator } from '../utils/dag-validator';
 import { isValidArray } from '../utils/guards';
-import { PlanOutputter } from '../utils/output/plan-outputter';
+import { PlanOutputter } from '../utils/plan-outputter';
 
 export async function decomposeCommand(options: DecomposeOptions): Promise<number> {
   try {
@@ -32,14 +32,13 @@ export async function decomposeCommand(options: DecomposeOptions): Promise<numbe
     console.log(`📋 Generated plan with ${plan.tasks.length} tasks`);
 
     // Calculate metrics (needed for output)
-    const validator = new PlanValidator();
-    const metrics = validator.calculateMetrics(plan);
+    const metrics = DagValidator.calculateMetrics(plan);
 
     // Output the plan first, before validation
     await PlanOutputter.outputPlan(plan, metrics, options.output);
 
     // Now validate the plan
-    const validation = validator.validatePlan(plan);
+    const validation = DagValidator.validatePlan(plan);
 
     if (!validation.valid) {
       console.error('❌ Plan validation failed:');
