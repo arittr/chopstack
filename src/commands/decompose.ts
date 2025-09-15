@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 import type { DecomposeOptions } from '../types/decomposer';
 
 import { createDecomposerAgent } from '../agents';
-import { PlanOutputter } from '../types/output';
 import { PlanValidator } from '../types/validator';
 import { isValidArray } from '../utils/guards';
+import { PlanOutputter } from '../utils/output/plan-outputter';
 
 export async function decomposeCommand(options: DecomposeOptions): Promise<number> {
   try {
