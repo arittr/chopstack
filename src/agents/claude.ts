@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { clearTimeout, setTimeout } from 'node:timers';
 
+import chalk from 'chalk';
+import ora, { type Ora } from 'ora';
 import { match } from 'ts-pattern';
 
 import type { DecomposerAgent, Plan } from '../types/decomposer';
@@ -60,6 +62,7 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
       );
 
       const handler = new ClaudeStreamHandler(resolve, reject);
+      handler.startInitialSpinner(); // Start spinner immediately
       handler.attachToProcess(child);
       handler.sendPrompt(child, prompt);
     });
@@ -173,11 +176,21 @@ class ClaudeStreamHandler {
   private _contentOutput = '';
   private _errorOutput = '';
   private _timeout: ReturnType<typeof setTimeout> | null = null;
+  private _spinner: Ora | null = null;
+  private _progressDots = 0;
 
   constructor(
     private readonly _resolve: (value: string) => void,
     private readonly _reject: (error: Error) => void,
   ) {}
+
+  startInitialSpinner(): void {
+    this._spinner ??= ora({
+      text: 'Claude is analyzing the codebase',
+      spinner: 'dots',
+      color: 'cyan',
+    }).start();
+  }
 
   attachToProcess(child: ReturnType<typeof spawn>): void {
     this._timeout = setTimeout(() => {
@@ -208,11 +221,15 @@ class ClaudeStreamHandler {
     const chunk = data.toString();
     this._fullOutput += chunk;
 
-    // Show the raw chunk for immediate feedback (streaming feel)
+    // Update spinner with progress - ensure spinner exists
     if (chunk.trim() !== '') {
-      process.stdout.write('.');
-      if ('flush' in process.stdout && typeof process.stdout.flush === 'function') {
-        (process.stdout.flush as () => void)();
+      if (this._spinner === null) {
+        this.startInitialSpinner();
+      }
+      if (this._spinner !== null) {
+        this._progressDots++;
+        const dots = '.'.repeat(Math.min(this._progressDots % 4, 3));
+        this._spinner.text = `Analyzing codebase${dots}`;
       }
     }
 
@@ -246,20 +263,42 @@ class ClaudeStreamHandler {
 
     match(type)
       .with('message_start', () => {
-        console.log('\n🤖 Claude is analyzing the codebase...');
+        if (this._spinner === null) {
+          this._spinner = ora({
+            text: 'Claude is analyzing the codebase',
+            spinner: 'dots',
+            color: 'cyan',
+          }).start();
+        } else {
+          this._spinner.text = 'Claude is analyzing the codebase';
+        }
       })
       .with('message_stop', () => {
-        console.log('\n✅ Claude finished generating response');
+        if (isNonNullish(this._spinner)) {
+          this._spinner.succeed('Claude finished generating response');
+          this._spinner = null;
+        }
       })
       .with('content_block_start', () => {
-        console.log('📝 Claude is writing the plan...');
+        if (isNonNullish(this._spinner)) {
+          this._spinner.text = 'Claude is writing the plan';
+        }
       })
       .with('error', () => {
         const errorMessage = error?.message ?? 'Unknown error';
-        console.error(`\n❌ Claude error: ${errorMessage}`);
+        if (isNonNullish(this._spinner)) {
+          this._spinner.fail(`Claude error: ${errorMessage}`);
+          this._spinner = null;
+        } else {
+          console.error(chalk.red(`❌ Claude error: ${errorMessage}`));
+        }
       })
       .with('rate_limit', () => {
-        console.warn(`\n⚠️ Rate limit: ${JSON.stringify(json)}`);
+        if (isNonNullish(this._spinner)) {
+          this._spinner.warn(`Rate limit: ${JSON.stringify(json)}`);
+        } else {
+          console.warn(chalk.yellow(`⚠️ Rate limit: ${JSON.stringify(json)}`));
+        }
       })
       .otherwise(() => {
         // Ignore other message types
@@ -267,9 +306,10 @@ class ClaudeStreamHandler {
   }
 
   private _showProgress(): void {
-    process.stdout.write('.');
-    if ('flush' in process.stdout && typeof process.stdout.flush === 'function') {
-      (process.stdout.flush as () => void)();
+    if (isNonNullish(this._spinner)) {
+      this._progressDots++;
+      const dots = '.'.repeat(Math.min(this._progressDots % 4, 3));
+      this._spinner.text = `Processing response${dots}`;
     }
   }
 
@@ -279,16 +319,25 @@ class ClaudeStreamHandler {
 
   private _handleError(error: Error): void {
     this._clearTimeout();
+    if (this._spinner !== null) {
+      this._spinner.fail('Failed to start Claude');
+      this._spinner = null;
+    }
     this._reject(new Error(`Failed to spawn Claude: ${error.message}`));
   }
 
   private _handleClose(code: number | null): void {
     this._clearTimeout();
 
+    if (isNonNullish(this._spinner)) {
+      this._spinner.stop();
+      this._spinner = null;
+    }
+
     if (code !== 0) {
-      console.error(`\n❌ Claude exited with code ${code}`);
+      console.error(chalk.red(`❌ Claude exited with code ${code}`));
       if (this._errorOutput !== '') {
-        console.error(`Stderr: ${this._errorOutput}`);
+        console.error(chalk.dim(`Stderr: ${this._errorOutput}`));
       }
       this._reject(new Error(`Claude exited with code ${code}`));
     } else {
