@@ -22,10 +22,6 @@ export class AgentValidator {
         await this._validateClaudeCLI();
         break;
       }
-      case 'aider': {
-        await this._validateAiderCLI();
-        break;
-      }
       case 'codex': {
         await this._validateCodexCLI();
         break;
