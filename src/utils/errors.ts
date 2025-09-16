@@ -36,3 +36,26 @@ export class PlanValidationError extends DecomposerError {
     this.name = 'PlanValidationError';
   }
 }
+
+/**
+ * Normalize unknown error-like values to a human-readable message.
+ */
+export function toErrorMessage(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value instanceof Error) {
+    return value.message;
+  }
+  if (value !== null && typeof value === 'object' && 'error' in value) {
+    const candidate = (value as { error?: unknown }).error;
+    if (typeof candidate === 'string') {
+      return candidate;
+    }
+  }
+  try {
+    return String(value);
+  } catch {
+    return 'Unknown error';
+  }
+}
