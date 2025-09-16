@@ -28,10 +28,14 @@ type ClaudeResponse = {
 };
 
 export class ClaudeCodeDecomposer implements DecomposerAgent {
-  async decompose(specContent: string, cwd: string): Promise<Plan> {
+  async decompose(
+    specContent: string,
+    cwd: string,
+    options?: { verbose?: boolean },
+  ): Promise<Plan> {
     try {
       const prompt = PromptBuilder.buildDecompositionPrompt(specContent);
-      const stdout = await this._executeClaudeCommand(prompt, cwd);
+      const stdout = await this._executeClaudeCommand(prompt, cwd, options?.verbose ?? false);
       const parsedContent = this._parseClaudeResponse(stdout);
       const plan = this._validateAndReturnPlan(parsedContent);
 
@@ -47,7 +51,11 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
     }
   }
 
-  private async _executeClaudeCommand(prompt: string, cwd: string): Promise<string> {
+  private async _executeClaudeCommand(
+    prompt: string,
+    cwd: string,
+    verbose: boolean,
+  ): Promise<string> {
     console.log('🔍 Running Claude with stdin input...');
     console.log(`📁 Working directory: ${cwd}`);
 
@@ -61,8 +69,10 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
         },
       );
 
-      const handler = new ClaudeStreamHandler(resolve, reject);
-      handler.startInitialSpinner(); // Start spinner immediately
+      const handler = new ClaudeStreamHandler(resolve, reject, verbose);
+      if (!verbose) {
+        handler.startInitialSpinner(); // Start spinner only in non-verbose mode
+      }
       handler.attachToProcess(child);
       handler.sendPrompt(child, prompt);
     });
@@ -182,6 +192,7 @@ class ClaudeStreamHandler {
   constructor(
     private readonly _resolve: (value: string) => void,
     private readonly _reject: (error: Error) => void,
+    private readonly _verbose: boolean = false,
   ) {}
 
   startInitialSpinner(): void {
@@ -221,8 +232,11 @@ class ClaudeStreamHandler {
     const chunk = data.toString();
     this._fullOutput += chunk;
 
-    // Update spinner with progress - ensure spinner exists
-    if (chunk.trim() !== '') {
+    if (this._verbose) {
+      // In verbose mode, stream raw output directly
+      process.stdout.write(chunk);
+    } else if (chunk.trim() !== '') {
+      // In standard mode, use spinner with progress
       if (this._spinner === null) {
         this.startInitialSpinner();
       }
@@ -261,52 +275,55 @@ class ClaudeStreamHandler {
       return;
     }
 
-    match(type)
-      .with('message_start', () => {
-        if (this._spinner === null) {
-          this._spinner = ora({
-            text: 'Claude is analyzing the codebase',
-            spinner: 'dots',
-            color: 'cyan',
-          }).start();
-        } else {
-          this._spinner.text = 'Claude is analyzing the codebase';
-        }
-      })
-      .with('message_stop', () => {
-        if (isNonNullish(this._spinner)) {
-          this._spinner.succeed('Claude finished generating response');
-          this._spinner = null;
-        }
-      })
-      .with('content_block_start', () => {
-        if (isNonNullish(this._spinner)) {
-          this._spinner.text = 'Claude is writing the plan';
-        }
-      })
-      .with('error', () => {
-        const errorMessage = error?.message ?? 'Unknown error';
-        if (isNonNullish(this._spinner)) {
-          this._spinner.fail(`Claude error: ${errorMessage}`);
-          this._spinner = null;
-        } else {
-          console.error(chalk.red(`❌ Claude error: ${errorMessage}`));
-        }
-      })
-      .with('rate_limit', () => {
-        if (isNonNullish(this._spinner)) {
-          this._spinner.warn(`Rate limit: ${JSON.stringify(json)}`);
-        } else {
-          console.warn(chalk.yellow(`⚠️ Rate limit: ${JSON.stringify(json)}`));
-        }
-      })
-      .otherwise(() => {
-        // Ignore other message types
-      });
+    // Only handle spinner messages in non-verbose mode
+    if (!this._verbose) {
+      match(type)
+        .with('message_start', () => {
+          if (this._spinner === null) {
+            this._spinner = ora({
+              text: 'Claude is analyzing the codebase',
+              spinner: 'dots',
+              color: 'cyan',
+            }).start();
+          } else {
+            this._spinner.text = 'Claude is analyzing the codebase';
+          }
+        })
+        .with('message_stop', () => {
+          if (isNonNullish(this._spinner)) {
+            this._spinner.succeed('Claude finished generating response');
+            this._spinner = null;
+          }
+        })
+        .with('content_block_start', () => {
+          if (isNonNullish(this._spinner)) {
+            this._spinner.text = 'Claude is writing the plan';
+          }
+        })
+        .with('error', () => {
+          const errorMessage = error?.message ?? 'Unknown error';
+          if (isNonNullish(this._spinner)) {
+            this._spinner.fail(`Claude error: ${errorMessage}`);
+            this._spinner = null;
+          } else {
+            console.error(chalk.red(`❌ Claude error: ${errorMessage}`));
+          }
+        })
+        .with('rate_limit', () => {
+          if (isNonNullish(this._spinner)) {
+            this._spinner.warn(`Rate limit: ${JSON.stringify(json)}`);
+          } else {
+            console.warn(chalk.yellow(`⚠️ Rate limit: ${JSON.stringify(json)}`));
+          }
+        })
+        .otherwise(() => {
+          // Ignore other message types
+        });
+    }
   }
 
   private _showProgress(): void {
-    if (isNonNullish(this._spinner)) {
+    if (!this._verbose && isNonNullish(this._spinner)) {
       this._progressDots++;
       const dots = '.'.repeat(Math.min(this._progressDots % 4, 3));
       this._spinner.text = `Processing response${dots}`;
