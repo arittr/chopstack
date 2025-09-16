@@ -59,7 +59,12 @@ export class YamlPlanParser {
     switch (parsedContent.source) {
       case 'yaml':
       case 'raw': {
-        return parseYaml(parsedContent.content) as unknown;
+        // Use yaml parser with proper options for handling long strings
+        return parseYaml(parsedContent.content, {
+          strict: false,
+          mapAsMap: false,
+          maxAliasCount: -1,
+        }) as unknown;
       }
       case 'json': {
         return JSON.parse(parsedContent.content) as unknown;
