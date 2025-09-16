@@ -48,12 +48,12 @@ export const PlanMetricsSchema = z.object({
 export type PlanMetrics = z.infer<typeof PlanMetricsSchema>;
 
 // Agent types
-export const AgentTypeSchema = z.enum(['claude', 'aider', 'codex', 'mock']);
+export const AgentTypeSchema = z.enum(['claude', 'codex', 'mock']);
 export type AgentType = z.infer<typeof AgentTypeSchema>;
 
 // Decomposer agent interface
 export type DecomposerAgent = {
-  decompose(specContent: string, cwd: string): Promise<Plan>;
+  decompose(specContent: string, cwd: string, options?: { verbose?: boolean }): Promise<Plan>;
 };
 
 // CLI options for decompose command schema

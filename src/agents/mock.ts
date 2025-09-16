@@ -1,8 +1,8 @@
 import type { DecomposerAgent, Plan } from '../types/decomposer';
 
 export class MockDecomposer implements DecomposerAgent {
-  // eslint-disable-next-line @typescript-eslint/require-await, no-unused-vars
-  async decompose(_specContent: string, _cwd: string): Promise<Plan> {
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async decompose(): Promise<Plan> {
     // Mock implementation for testing
     const plan: Plan = {
       tasks: [
