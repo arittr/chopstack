@@ -8,6 +8,7 @@ import { createDecomposerAgent } from '../agents';
 import { ExecutionEngine } from '../engine/execution-engine';
 import { DagValidator } from '../utils/dag-validator';
 import { isNonEmptyString } from '../utils/guards';
+import { generatePlanWithRetry } from '../utils/plan-generator';
 import { YamlPlanParser } from '../utils/yaml-parser';
 
 export async function runCommand(options: RunCommandOptions): Promise<number> {
@@ -25,10 +26,19 @@ export async function runCommand(options: RunCommandOptions): Promise<number> {
 
       const agent = await createDecomposerAgent(options.agent ?? 'claude');
       console.log(`🤖 Using agent: ${options.agent ?? 'claude'}`);
-      console.log('🔍 Analyzing codebase and generating plan...');
 
-      plan = await agent.decompose(specContent, cwd);
-      console.log(`📋 Generated plan with ${plan.tasks.length} tasks`);
+      // Generate plan with retry logic
+      const result = await generatePlanWithRetry(agent, specContent, cwd, {
+        maxRetries: 3,
+        verbose: options.verbose ?? false,
+      });
+
+      if (!result.success) {
+        console.error('❌ Failed to generate a valid plan after retries');
+        return 1;
+      }
+
+      ({ plan } = result);
     } else if (isNonEmptyString(options.plan)) {
       console.log(`📋 Loading plan from: ${resolve(options.plan)}`);
 
