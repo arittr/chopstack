@@ -6,6 +6,7 @@ import type { DecomposeOptions } from '../types/decomposer';
 import { createDecomposerAgent } from '../agents';
 import { DagValidator } from '../utils/dag-validator';
 import { isValidArray } from '../utils/guards';
+import { generatePlanWithRetry } from '../utils/plan-generator';
 import { PlanOutputter } from '../utils/plan-outputter';
 
 export async function decomposeCommand(options: DecomposeOptions): Promise<number> {
@@ -25,38 +26,31 @@ export async function decomposeCommand(options: DecomposeOptions): Promise<numbe
     // Get current working directory
     const cwd = process.cwd();
 
-    console.log('🔍 Analyzing codebase and generating plan...');
+    // Generate plan with retry logic
+    const result = await generatePlanWithRetry(agent, specContent, cwd, {
+      maxRetries: 3,
+      verbose: options.verbose ?? false,
+    });
 
-    // Decompose the specification into a plan
-    const plan = await agent.decompose(specContent, cwd);
-    console.log(`📋 Generated plan with ${plan.tasks.length} tasks`);
+    // Calculate metrics and output the plan
+    const metrics = DagValidator.calculateMetrics(result.plan);
+    await PlanOutputter.outputPlan(result.plan, metrics, options.output);
 
-    // Calculate metrics (needed for output)
-    const metrics = DagValidator.calculateMetrics(plan);
-
-    // Output the plan first, before validation
-    await PlanOutputter.outputPlan(plan, metrics, options.output);
-
-    // Now validate the plan
-    const validation = DagValidator.validatePlan(plan);
-
-    if (!validation.valid) {
-      console.error('❌ Plan validation failed:');
-
+    if (!result.success) {
+      // Final validation failed
+      const validation = DagValidator.validatePlan(result.plan);
+      console.error('❌ Plan validation failed after all retry attempts:');
       if (isValidArray(validation.conflicts)) {
         console.error('  File conflicts:', validation.conflicts.join(', '));
       }
-
       if (isValidArray(validation.circularDependencies)) {
         console.error('  Circular dependencies:', validation.circularDependencies.join(' -> '));
       }
-
       if (isValidArray(validation.errors)) {
         for (const error of validation.errors) {
           console.error(`  Error: ${error}`);
         }
       }
-
       console.error('💡 The plan above was generated but has validation issues');
       return 1;
     }
