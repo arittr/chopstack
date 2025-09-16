@@ -91,8 +91,13 @@ export class ExecutionEngine extends EventEmitter {
       const layerPromises = layer.map(async (task) => {
         console.log(`[chopstack] Planning: ${task.id} - ${task.title}`);
 
+        // Proper state transition: ready → queued → running
+        if (task.state === 'ready') {
+          this.stateManager.transitionTask(task, 'queued');
+        }
+        const previousState = task.state;
         this.stateManager.transitionTask(task, 'running');
-        this.monitor.onTaskStateChange(plan, task, 'ready', 'running');
+        this.monitor.onTaskStateChange(plan, task, previousState, 'running');
 
         try {
           const result = await this._executeTaskInPlanMode(task, options);
@@ -265,6 +270,10 @@ export class ExecutionEngine extends EventEmitter {
     // Mark all tasks as running and notify monitor
     for (const task of layer) {
       const previousState = task.state;
+      // Proper state transition: ready → queued → running
+      if (task.state === 'ready') {
+        this.stateManager.transitionTask(task, 'queued');
+      }
       this.stateManager.transitionTask(task, 'running');
       this.monitor.onTaskStateChange(plan, task, previousState, 'running');
     }
