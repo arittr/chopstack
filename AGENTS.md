@@ -14,3 +14,6 @@ Jest drives the suite. Use `pnpm test` for the full matrix, `pnpm test:unit` whi
 
 ## Commit & Pull Request Guidelines
 Recent history favors concise, imperative commit subjects (for example, `add better test infra`). Keep bodies optional but use them to summarize rationale or mention follow-ups. For pull requests, include: a short problem/solution summary, references to tracking issues, validation evidence (command output or screenshots for CLI UX), and call out any skipped tests or remaining TODOs. Request review once CI and `pnpm lint`+`pnpm test` succeed locally.
+
+## Agent Setup & CLI Dependencies
+Install the codex CLI via `npm install -g @openai/codex` (or `brew install codex`) before running `pnpm decompose --agent codex --spec path/to/spec.md`. Configure overrides with `CODEX_CLI_COMMAND` (binary path) and either `CODEX_CLI_ARGS_JSON` (preferred JSON array) or `CODEX_CLI_ARGS` (shell-style string) if you need custom flags. Claude still requires `claude --version` to succeed; Claude and Codex both stream plans over stdin, so ensure API credentials or ChatGPT login are active in your shell session. Keep AGENTS.md updated so Codex inherits the same guidance as Claude during decomposition.

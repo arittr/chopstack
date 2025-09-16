@@ -6,6 +6,7 @@ import { AgentValidator } from '../utils/agent-validator';
 
 import { AiderDecomposer } from './aider';
 import { ClaudeCodeDecomposer } from './claude';
+import { CodexDecomposer } from './codex';
 import { MockDecomposer } from './mock';
 
 /**
@@ -20,9 +21,10 @@ export async function createDecomposerAgent(
   return match(agentType)
     .with('claude', () => new ClaudeCodeDecomposer())
     .with('aider', () => new AiderDecomposer())
+    .with('codex', () => new CodexDecomposer())
     .with('mock', () => new MockDecomposer())
     .exhaustive();
 }
 
-export { AiderDecomposer, ClaudeCodeDecomposer };
+export { AiderDecomposer, ClaudeCodeDecomposer, CodexDecomposer };
 export type { DecomposerAgent };
