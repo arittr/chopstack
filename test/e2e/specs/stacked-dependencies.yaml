@@ -1,0 +1,27 @@
+tasks:
+  - id: base-config
+    title: Create base configuration
+    description: Create initial configuration file
+    touches: []
+    produces: [chopstack-test-config.json]
+    requires: []
+    estimatedLines: 10
+    agentPrompt: Create a chopstack-test-config.json file with basic configuration {"project": "chopstack-test", "version": "1.0.0", "features": {}}
+
+  - id: add-feature-auth
+    title: Add authentication feature
+    description: Add authentication configuration
+    touches: [chopstack-test-config.json]
+    produces: []
+    requires: [base-config]
+    estimatedLines: 5
+    agentPrompt: Update chopstack-test-config.json to add "auth": true to the features object
+
+  - id: add-feature-api
+    title: Add API feature
+    description: Add API configuration that depends on auth
+    touches: [chopstack-test-config.json]
+    produces: []
+    requires: [add-feature-auth]
+    estimatedLines: 5
+    agentPrompt: Update chopstack-test-config.json to add "api": {"enabled": true, "auth_required": true} to the features object
