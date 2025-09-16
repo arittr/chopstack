@@ -91,10 +91,10 @@ program
   .option('--no-create-stack', 'Do not create git-spice stack, just commit', true)
   .option('--message <msg>', 'Custom commit message (optional)')
   .option('--verbose, -v', 'Verbose output', false)
-  .action(async (options: unknown) => {
+  .action((options: unknown) => {
     try {
       const validatedOptions = validateStackArgs(options);
-      const exitCode = await stackCommand(validatedOptions);
+      const exitCode = stackCommand(validatedOptions);
       if (exitCode !== 0) {
         throw new Error(`Stack command failed with exit code ${exitCode}`);
       }
