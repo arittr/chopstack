@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(ls)",
+      "Shell(cd)",
+      "Shell(pnpm run)",
+      "Write(/Users/drewritter/projects/chopstack-mcp/.cursorrules)"
+    ],
+    "deny": []
+  }
+}
