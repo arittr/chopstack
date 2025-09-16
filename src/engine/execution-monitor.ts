@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 
+import chalk from 'chalk';
 import { match } from 'ts-pattern';
 
 import type {
@@ -11,18 +12,28 @@ import type {
   TaskState,
 } from '../types/execution';
 
+import {
+  createProgressLine,
+  ProgressFormatter,
+  TaskProgressManager,
+} from '../utils/progress-formatter';
+
 import { StateManager } from './state-manager';
 
 export class ExecutionMonitor extends EventEmitter {
   private readonly stateManager: StateManager;
   private readonly metricsHistory: Map<string, ExecutionMetrics[]>;
   private readonly startTimes: Map<string, number>;
+  private readonly progressManager: TaskProgressManager;
+  private readonly formatter: ProgressFormatter;
 
   constructor() {
     super();
     this.stateManager = new StateManager();
     this.metricsHistory = new Map();
     this.startTimes = new Map();
+    this.progressManager = new TaskProgressManager();
+    this.formatter = new ProgressFormatter();
   }
 
   startMonitoring(plan: ExecutionPlan): void {
@@ -83,10 +94,10 @@ export class ExecutionMonitor extends EventEmitter {
         this._logTaskStart(plan, task);
       })
       .with('completed', () => {
-        this._logTaskCompletion(plan, task);
+        this._logTaskCompletion(task);
       })
       .with('failed', () => {
-        this._logTaskFailure(plan, task);
+        this._logTaskFailure(task);
       })
       .otherwise(() => {});
 
@@ -97,28 +108,35 @@ export class ExecutionMonitor extends EventEmitter {
   private _logTaskStart(plan: ExecutionPlan, task: ExecutionTask): void {
     const currentLayer = this._getCurrentLayer(plan);
     const totalLayers = plan.executionLayers.length;
+    const layerInfo = chalk.cyan(`Layer ${currentLayer}/${totalLayers}`);
 
-    console.log(
-      `[chopstack] Layer ${currentLayer}/${totalLayers}: Starting ${task.id} - ${task.title}`,
-    );
+    this.progressManager.startTask(task.id, `${layerInfo} ${chalk.bold(task.id)} - ${task.title}`);
   }
 
-  private _logTaskCompletion(plan: ExecutionPlan, task: ExecutionTask): void {
+  private _logTaskCompletion(task: ExecutionTask): void {
     const durationInSeconds =
       typeof task.duration === 'number' && !Number.isNaN(task.duration)
         ? (task.duration / 1000).toFixed(1)
         : undefined;
     const duration = durationInSeconds !== undefined ? `${durationInSeconds}s` : 'unknown';
-    console.log(`[chopstack] ✓ ${task.id} complete (${duration})`);
+
+    this.progressManager.completeTask(
+      task.id,
+      `${chalk.bold(task.id)} complete ${chalk.dim(`(${duration})`)}`,
+    );
   }
 
-  private _logTaskFailure(plan: ExecutionPlan, task: ExecutionTask): void {
+  private _logTaskFailure(task: ExecutionTask): void {
     const errorMessage = this._formatErrorMessage(task.error);
-    console.error(`[chopstack] ✗ ${task.id} failed: ${errorMessage}`);
+
+    this.progressManager.failTask(
+      task.id,
+      `${chalk.bold(task.id)} failed: ${chalk.red(errorMessage)}`,
+    );
 
     if (task.retryCount < task.maxRetries) {
       console.log(
-        `[chopstack] Will retry ${task.id} (attempt ${task.retryCount + 1}/${task.maxRetries})`,
+        chalk.yellow(`⟳ Will retry ${task.id} (attempt ${task.retryCount + 1}/${task.maxRetries})`),
       );
     }
   }
@@ -220,20 +238,29 @@ export class ExecutionMonitor extends EventEmitter {
   }
 
   private _logProgress(progress: ExecutionProgressUpdate): void {
-    const { currentLayer, totalLayers, tasksInProgress } = progress;
+    const {
+      currentLayer,
+      totalLayers,
+      tasksInProgress,
+      tasksCompleted,
+      tasksFailed,
+      estimatedTimeRemaining,
+    } = progress;
 
-    if (tasksInProgress.length > 0) {
-      console.log(
-        `[chopstack] Layer ${currentLayer}/${totalLayers}: ${tasksInProgress.length} tasks running...`,
+    const totalTasks = tasksInProgress.length + tasksCompleted.length + tasksFailed.length;
+
+    if (totalTasks > 0) {
+      const progressLine = createProgressLine(
+        tasksCompleted.length,
+        totalTasks,
+        tasksInProgress,
+        tasksFailed.length,
+        currentLayer,
+        totalLayers,
+        estimatedTimeRemaining ?? -1,
       );
 
-      for (const taskId of tasksInProgress.slice(0, 3)) {
-        console.log(`[chopstack]   ├─ ${taskId}`);
-      }
-
-      if (tasksInProgress.length > 3) {
-        console.log(`[chopstack]   └─ ... and ${tasksInProgress.length - 3} more`);
-      }
+      this.progressManager.updateMainProgress(progressLine);
     }
   }
 
@@ -334,32 +361,41 @@ export class ExecutionMonitor extends EventEmitter {
     const metrics = this._calculateFinalMetrics(plan);
     const duration = (metrics.totalDuration / 1000).toFixed(1);
 
-    const lines = [
-      '',
-      '[chopstack] Execution Summary',
-      '[chopstack] ═══════════════════════════════════════',
-      `[chopstack] Mode: ${plan.mode}`,
-      `[chopstack] Strategy: ${plan.strategy}`,
-      `[chopstack] Total Duration: ${duration}s`,
-      `[chopstack] Tasks: ${metrics.completedCount}/${metrics.taskCount} completed`,
+    this.progressManager.stopAll();
+
+    const summaryLines = [
+      `Mode: ${chalk.bold(plan.mode)}`,
+      `Strategy: ${chalk.bold(plan.strategy)}`,
+      `Total Duration: ${chalk.cyan(`${duration}s`)}`,
+      `Tasks: ${chalk.green(`${metrics.completedCount}/${metrics.taskCount}`)} completed`,
     ];
 
     if (metrics.failedCount > 0) {
-      lines.push(`[chopstack] Failed: ${metrics.failedCount} tasks`);
+      summaryLines.push(`Failed: ${chalk.red(`${metrics.failedCount} tasks`)}`);
     }
 
     if (metrics.skippedCount > 0) {
-      lines.push(`[chopstack] Skipped: ${metrics.skippedCount} tasks`);
+      summaryLines.push(`Skipped: ${chalk.yellow(`${metrics.skippedCount} tasks`)}`);
     }
 
-    if (plan.strategy !== 'serial') {
-      lines.push(
-        `[chopstack] Parallelization Efficiency: ${(metrics.parallelizationEfficiency * 100).toFixed(0)}%`,
-      );
+    const metricsData: {
+      averageTaskDuration?: number;
+      criticalPathDuration?: number;
+      parallelizationEfficiency?: number;
+    } = {};
+
+    if (metrics.averageTaskDuration > 0) {
+      metricsData.averageTaskDuration = metrics.averageTaskDuration;
+    }
+    if (metrics.criticalPathDuration > 0) {
+      metricsData.criticalPathDuration = metrics.criticalPathDuration;
+    }
+    if (plan.strategy !== 'serial' && metrics.parallelizationEfficiency > 0) {
+      metricsData.parallelizationEfficiency = metrics.parallelizationEfficiency;
     }
 
-    lines.push('[chopstack] ═══════════════════════════════════════', '');
+    const metricsLines = this.formatter.formatMetrics(metricsData);
 
-    return lines.join('\n');
+    return `\n${this.formatter.formatSummaryBox('Execution Summary', [...summaryLines, ...metricsLines])}\n`;
   }
 }
