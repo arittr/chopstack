@@ -27,6 +27,15 @@ export const RunCommandOptionsSchema = ExecutionOptionsSchema.extend({
 });
 export type RunCommandOptions = z.infer<typeof RunCommandOptionsSchema>;
 
+// Stack command options schema
+export const StackCommandOptionsSchema = z.object({
+  autoAdd: z.boolean().default(true),
+  createStack: z.boolean().default(true),
+  message: z.string().optional(),
+  verbose: z.boolean().default(false),
+});
+export type StackArgs = z.infer<typeof StackCommandOptionsSchema>;
+
 // Helper functions for validation
 export function validateDecomposeArgs(raw: unknown): DecomposeOptions {
   return DecomposeOptionsSchema.parse(raw);
@@ -34,4 +43,8 @@ export function validateDecomposeArgs(raw: unknown): DecomposeOptions {
 
 export function validateRunArgs(raw: unknown): RunCommandOptions {
   return RunCommandOptionsSchema.parse(raw);
+}
+
+export function validateStackArgs(raw: unknown): StackArgs {
+  return StackCommandOptionsSchema.parse(raw);
 }
