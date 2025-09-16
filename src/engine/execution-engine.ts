@@ -120,7 +120,16 @@ export class ExecutionEngine extends EventEmitter {
         console.log(`[chopstack]   - ${task.id}: ${task.title}`);
         console.log(`[chopstack]     Files: ${task.touches.join(', ')}`);
 
-        this.stateManager.transitionTask(task, 'completed');
+        // Follow proper state transitions for dry-run
+        if (task.state === 'ready') {
+          this.stateManager.transitionTask(task, 'queued');
+        }
+        if (task.state === 'queued') {
+          this.stateManager.transitionTask(task, 'running');
+        }
+        if (task.state === 'running') {
+          this.stateManager.transitionTask(task, 'completed');
+        }
         task.output = '[Dry run - no actual execution]';
       }
     }
