@@ -26,6 +26,10 @@ export class AgentValidator {
         await this._validateAiderCLI();
         break;
       }
+      case 'codex': {
+        await this._validateCodexCLI();
+        break;
+      }
       case 'mock': {
         // Mock agent has no external dependencies
         break;
@@ -46,6 +50,19 @@ export class AgentValidator {
       console.warn('⚠️ Claude CLI not found. Please install the Claude CLI first.');
       console.warn('⚠️ You can install it from: https://github.com/anthropics/claude-cli');
       throw new AgentNotFoundError('claude', error instanceof Error ? error : undefined);
+    }
+  }
+
+  private static async _validateCodexCLI(): Promise<void> {
+    console.log('🔍 Checking if Codex CLI is available...');
+
+    try {
+      await execAsync('codex --version', { timeout: this.CLI_CHECK_TIMEOUT });
+      console.log('✅ Codex CLI is available');
+    } catch (error) {
+      console.warn('⚠️ Codex CLI not found. Please install Codex CLI first.');
+      console.warn('⚠️ Install via `npm install -g @openai/codex` or `brew install codex`.');
+      throw new AgentNotFoundError('codex', error instanceof Error ? error : undefined);
     }
   }
 

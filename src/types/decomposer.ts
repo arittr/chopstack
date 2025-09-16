@@ -48,7 +48,7 @@ export const PlanMetricsSchema = z.object({
 export type PlanMetrics = z.infer<typeof PlanMetricsSchema>;
 
 // Agent types
-export const AgentTypeSchema = z.enum(['claude', 'aider', 'mock']);
+export const AgentTypeSchema = z.enum(['claude', 'aider', 'codex', 'mock']);
 export type AgentType = z.infer<typeof AgentTypeSchema>;
 
 // Decomposer agent interface
