@@ -130,14 +130,11 @@ export class ExecutionEngine extends EventEmitter {
     console.log('[chopstack] Running in dry-run mode (no actual changes)...');
 
     for (const layer of plan.executionLayers) {
-      console.log(`[chopstack] Would execute ${layer.length} tasks in parallel:`);
-
       for (const task of layer) {
-        console.log(`[chopstack]   - ${task.id}: ${task.title}`);
-        console.log(`[chopstack]     Files: ${task.touches.join(', ')}`);
+        // Simulate task execution with proper monitoring
+        const previousState = task.state;
 
-        // In dry-run mode, simulate the full execution flow
-        // Ensure all tasks reach completed state regardless of initial state
+        // Ensure we can transition to running from any state
         if (task.state === 'pending') {
           this.stateManager.transitionTask(task, 'ready');
         }
@@ -147,11 +144,23 @@ export class ExecutionEngine extends EventEmitter {
         if (task.state === 'queued') {
           this.stateManager.transitionTask(task, 'running');
         }
-        if (task.state === 'running') {
-          this.stateManager.transitionTask(task, 'completed');
-        }
+
+        this.monitor.onTaskStateChange(plan, task, previousState, 'running');
+
+        // Simulate some execution time
+        task.startTime = new Date();
+
+        // Mark as completed
+        task.endTime = new Date();
+        task.duration = task.endTime.getTime() - task.startTime.getTime();
         task.output = '[Dry run - no actual execution]';
+
+        this.stateManager.transitionTask(task, 'completed');
+        this.monitor.onTaskStateChange(plan, task, 'running', 'completed');
       }
+
+      // Update progress after each layer
+      this.monitor.updateProgress(plan);
     }
 
     return this._createExecutionResult(plan);
@@ -253,6 +262,15 @@ export class ExecutionEngine extends EventEmitter {
     options: ExecutionOptions,
     baseRef: string,
   ): Promise<TaskExecutionResult[]> {
+    // Mark all tasks as running and notify monitor
+    for (const task of layer) {
+      const previousState = task.state;
+      this.stateManager.transitionTask(task, 'running');
+      this.monitor.onTaskStateChange(plan, task, previousState, 'running');
+    }
+
+    this.monitor.updateProgress(plan);
+
     const taskInputs = layer.map((task) => ({
       id: task.id,
       title: task.title,
@@ -277,7 +295,11 @@ export class ExecutionEngine extends EventEmitter {
         duration: result.duration,
       };
 
-      task.state = executionResult.state;
+      // Update task state and notify monitor
+      const finalState = executionResult.state;
+      this.stateManager.transitionTask(task, finalState);
+      this.monitor.onTaskStateChange(plan, task, 'running', finalState);
+
       task.output = executionResult.output;
       task.error = executionResult.error;
       task.duration = executionResult.duration;
