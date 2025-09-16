@@ -2,12 +2,12 @@ import { execSync } from 'node:child_process';
 
 import chalk from 'chalk';
 
-import type { StackArgs } from '../types/cli';
-
+import { validateStackArgs } from '../types/cli';
 import { hasContent, isNonEmptyString } from '../utils/guards';
 
-export async function stackCommand(args: StackArgs): Promise<number> {
+export function stackCommand(rawArgs: unknown): number {
   try {
+    const args = validateStackArgs(rawArgs);
     console.log(chalk.blue('🚀 Creating git stack with automatic commit message...'));
 
     // Check for git status - must have changes to commit
@@ -28,8 +28,8 @@ export async function stackCommand(args: StackArgs): Promise<number> {
     }
     console.log();
 
-    // Generate commit message based on changes
-    const commitMessage = generateCommitMessage(statusLines, args);
+    // Generate AI-powered commit message based on changes
+    const commitMessage = generateAICommitMessage(statusLines, args);
     console.log(chalk.green('💬 Generated commit message:'));
     console.log(chalk.white(`   ${commitMessage}`));
     console.log();
@@ -74,28 +74,11 @@ export async function stackCommand(args: StackArgs): Promise<number> {
         console.log(chalk.gray('   • Run `gs stack submit` when ready to create PRs'));
         console.log(chalk.gray('   • Use `gs status` to see your stack'));
       } catch (error) {
-        console.log(chalk.yellow('⚠️ Could not create git-spice branch:'));
+        console.error(chalk.red('❌ Failed to create git-spice branch'));
         if (args.verbose && error instanceof Error) {
           console.error(chalk.dim(error.message));
         }
-
-        // Fallback to regular git commit
-        console.log(chalk.blue('📦 Falling back to regular git commit...'));
-        try {
-          execSync(`git commit -m "${escapeCommitMessage(commitMessage)}"`, {
-            stdio: args.verbose ? 'inherit' : 'pipe',
-          });
-          console.log(chalk.green('✅ Regular commit created successfully'));
-          console.log(
-            chalk.gray('💡 You can manually create a git-spice stack with `gs stack create`'),
-          );
-        } catch (commitError) {
-          console.error(chalk.red('❌ Failed to create any commit'));
-          if (args.verbose && commitError instanceof Error) {
-            console.error(commitError.message);
-          }
-          return 1;
-        }
+        return 1;
       }
     } else {
       // Just create a regular commit
@@ -115,7 +98,7 @@ export async function stackCommand(args: StackArgs): Promise<number> {
     }
 
     console.log(chalk.green(`🎉 Stack command completed successfully!`));
-    return await Promise.resolve(0);
+    return 0;
   } catch (error: unknown) {
     console.error(chalk.red('❌ Stack command failed:'));
     if (error instanceof Error) {
@@ -152,103 +135,121 @@ function getStatusColor(status: string): (text: string) => string {
   }
 }
 
-function generateCommitMessage(statusLines: string[], args: StackArgs): string {
+function generateAICommitMessage(
+  statusLines: string[],
+  args: ReturnType<typeof validateStackArgs>,
+): string {
   if (isNonEmptyString(args.message)) {
     return args.message;
   }
 
-  // Analyze the changes to generate an appropriate message
-  const modifications = [];
-  const additions = [];
-  const deletions = [];
-  const renames = [];
-
-  for (const line of statusLines) {
-    const status = line.slice(0, 2).trim();
-    const file = line.slice(3);
-
-    switch (status) {
-      case 'M':
-      case 'MM': {
-        modifications.push(file);
-        break;
-      }
-      case 'A':
-      case 'AM': {
-        additions.push(file);
-        break;
-      }
-      case 'D':
-      case 'AD': {
-        deletions.push(file);
-        break;
-      }
-      case 'R':
-      case 'RM': {
-        renames.push(file);
-        break;
-      }
-      case '??': {
-        additions.push(file);
-        break;
-      }
+  try {
+    // Check if Claude CLI is available
+    console.log(chalk.blue('🔍 Checking if Claude CLI is available...'));
+    try {
+      execSync('claude --version', { stdio: 'pipe' });
+      console.log(chalk.green('✅ Claude CLI is available'));
+    } catch {
+      console.log(chalk.yellow('⚠️ Claude CLI not available, using fallback...'));
+      return generateFallbackCommitMessage(statusLines);
     }
-  }
 
-  // Generate message based on what changed
-  const parts = [];
+    // Get the actual diff to understand what changed
+    const gitDiff = execSync('git diff --cached --stat', { encoding: 'utf8' });
+    const gitDiffDetails = execSync('git diff --cached --name-status', { encoding: 'utf8' });
 
-  if (additions.length > 0) {
-    if (additions.some((f) => f.includes('test'))) {
-      parts.push('add tests');
-    } else if (additions.some((f) => f.endsWith('.ts') || f.endsWith('.js'))) {
-      parts.push('add new features');
-    } else if (additions.some((f) => f.includes('doc') || f.endsWith('.md'))) {
-      parts.push('add documentation');
-    } else {
-      parts.push('add files');
+    const prompt = `Analyze these git changes and generate a professional commit message:
+
+Git Status:
+${statusLines.join('\n')}
+
+Git Diff Summary:
+${gitDiff}
+
+Git Changes:
+${gitDiffDetails}
+
+Please generate a commit message that:
+1. Has a clear, descriptive title (50 chars or less)
+2. Explains WHAT was changed and WHY (not just which files)
+3. Uses imperative mood ("Add feature" not "Added feature")
+4. Is professional and follows conventional commits style
+5. Include a brief body if the changes are complex
+
+Return only the commit message, no explanations or markdown formatting.`;
+
+    console.log(chalk.blue('🤖 Generating AI-powered commit message...'));
+
+    // Use Claude CLI directly for commit message generation
+    const aiResponse = execSync(`claude "${prompt}"`, {
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+
+    // Extract the commit message from the AI response
+    let commitMessage = aiResponse.trim();
+
+    // Clean up any markdown or extra formatting
+    commitMessage = commitMessage
+      .replaceAll('```', '')
+      .replaceAll(/^\s*[*+`-]\s*/gm, '')
+      .trim();
+
+    // Fallback to basic analysis if AI fails
+    if (commitMessage === '' || commitMessage.length < 10) {
+      commitMessage = generateFallbackCommitMessage(statusLines);
     }
+
+    // Add chopstack signature
+    return `${commitMessage}\n\n🤖 Generated with Claude via chopstack\n\nCo-Authored-By: Claude <noreply@anthropic.com>`;
+  } catch {
+    console.log(chalk.yellow('⚠️ AI generation failed, using fallback...'));
+    return generateFallbackCommitMessage(statusLines);
+  }
+}
+
+function generateFallbackCommitMessage(statusLines: string[]): string {
+  // Simple fallback when AI fails
+  const fileCount = statusLines.length;
+  const firstFile = statusLines[0]?.slice(3) ?? 'files';
+
+  if (fileCount === 1) {
+    return `Update ${firstFile}\n\nChanges: 1 file modified\n\n🤖 Generated with Claude via chopstack\n\nCo-Authored-By: Claude <noreply@anthropic.com>`;
   }
 
-  if (modifications.length > 0) {
-    if (modifications.some((f) => f.includes('test'))) {
-      parts.push('update tests');
-    } else if (modifications.some((f) => f.endsWith('.ts') || f.endsWith('.js'))) {
-      parts.push('update implementation');
-    } else if (modifications.some((f) => f.includes('doc') || f.endsWith('.md'))) {
-      parts.push('update documentation');
-    } else {
-      parts.push('update files');
-    }
-  }
-
-  if (deletions.length > 0) {
-    parts.push('remove unused code');
-  }
-
-  if (renames.length > 0) {
-    parts.push('refactor file structure');
-  }
-
-  let message = parts.join(' and ');
-  if (message.length === 0) {
-    message = 'update codebase';
-  }
-
-  // Capitalize first letter
-  message = message.charAt(0).toUpperCase() + message.slice(1);
-
-  // Add chopstack signature
-  return `${message}\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>`;
+  return `Update ${fileCount} files\n\nChanges: ${fileCount} files modified\n\n🤖 Generated with Claude via chopstack\n\nCo-Authored-By: Claude <noreply@anthropic.com>`;
 }
 
 function generateBranchName(commitMessage: string): string {
   // Extract the first line of commit message and convert to branch name
-  const firstLine = commitMessage.split('\n')[0];
-  if (!isNonEmptyString(firstLine)) {
+  const lines = commitMessage
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+
+  const subject =
+    lines.find((l) => {
+      const lower = l.toLowerCase();
+      return (
+        isNonEmptyString(l) &&
+        !l.endsWith(':') &&
+        !lower.startsWith('co-authored-by:') &&
+        !lower.startsWith('co-authored-by') &&
+        !l.startsWith('http://') &&
+        !l.startsWith('https://') &&
+        !/^[*+-]\s+/.test(l) &&
+        !l.startsWith('🤖') &&
+        !l.startsWith('#')
+      );
+    }) ??
+    lines[0] ??
+    '';
+
+  if (!isNonEmptyString(subject)) {
     return 'feature-branch';
   }
-  return firstLine
+
+  return subject
     .toLowerCase()
     .replaceAll(/[^\d\sa-z-]/g, '')
     .replaceAll(/\s+/g, '-')
