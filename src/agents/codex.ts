@@ -173,18 +173,26 @@ export class CodexDecomposer implements DecomposerAgent {
   private _extractPlanContent(stdout: string): ParsedContent | null {
     console.log('🔍 Extracting YAML/JSON plan from Codex response...');
 
+    // First try markdown-wrapped content
     const yamlPlan = YamlPlanParser.extractYamlFromMarkdown(stdout);
     if (isNonEmptyString(yamlPlan)) {
-      console.log(`✅ Found YAML plan, length: ${yamlPlan.length} characters`);
+      console.log(`✅ Found YAML plan in markdown, length: ${yamlPlan.length} characters`);
       return { content: yamlPlan, source: 'yaml' };
     }
 
     const jsonPlan = YamlPlanParser.extractJsonFromMarkdown(stdout);
     if (isNonEmptyString(jsonPlan)) {
-      console.log(`✅ Found JSON plan, length: ${jsonPlan.length} characters`);
+      console.log(`✅ Found JSON plan in markdown, length: ${jsonPlan.length} characters`);
       return { content: jsonPlan, source: 'json' };
     }
 
+    // If no markdown blocks found, try raw YAML (common for Codex)
+    if (stdout.trim().startsWith('tasks:')) {
+      console.log(`✅ Found raw YAML plan, length: ${stdout.length} characters`);
+      return { content: stdout.trim(), source: 'yaml' };
+    }
+
+    // Finally try raw JSON
     const jsonStart = stdout.indexOf('{');
     const jsonEnd = stdout.lastIndexOf('}');
     if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
