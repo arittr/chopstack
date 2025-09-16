@@ -50,13 +50,15 @@ export class TaskOrchestrator extends EventEmitter {
         return ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt];
       }
       case 'dry-run': {
-        return ['--dry-run', '--message', prompt];
+        // Note: Claude CLI doesn't have a dry-run mode, so we'll use plan mode
+        return ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt];
       }
       case 'execute': {
-        return ['--message', prompt];
+        return ['-p', prompt];
       }
       case 'validate': {
-        return ['--validate-only', '--message', prompt];
+        // Note: Claude CLI doesn't have a validate-only mode, so we'll use plan mode
+        return ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt];
       }
       default: {
         throw new Error(`Unsupported execution mode: ${String(mode)}`);
@@ -171,10 +173,12 @@ export class TaskOrchestrator extends EventEmitter {
 
     // Use claude CLI (note: claude-code vs claude)
     const commandName = 'claude';
+
+    // Use spawn without shell to avoid shell argument parsing issues
     const claudeProcess = spawn(commandName, args, {
       cwd: workdir ?? process.cwd(),
       env: { ...process.env },
-      shell: true,
+      shell: false,
     });
 
     this.runningTasks.set(taskId, claudeProcess);
@@ -258,11 +262,14 @@ export class TaskOrchestrator extends EventEmitter {
         this.runningTasks.delete(taskId);
         this.taskStatuses.set(taskId, 'failed');
 
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
         const result: TaskResult = {
           taskId,
           mode,
           status: 'failed',
-          error: error.message,
+          error: errorMessage,
+          output: `Process error: ${errorMessage}`,
           ...(startTime !== undefined && { startTime }),
           endTime,
           ...(duration !== undefined && { duration }),

@@ -13,6 +13,8 @@ import type {
 } from '../types/execution';
 
 import { TaskOrchestrator } from '../mcp/orchestrator';
+import { toErrorMessage } from '../utils/errors';
+import { hasContent } from '../utils/guards';
 import { createVcsBackend, detectAvailableVcsBackend } from '../vcs';
 
 import { ExecutionMonitor } from './execution-monitor';
@@ -87,6 +89,8 @@ export class ExecutionEngine extends EventEmitter {
 
     for (const layer of plan.executionLayers) {
       const layerPromises = layer.map(async (task) => {
+        console.log(`[chopstack] Planning: ${task.id} - ${task.title}`);
+
         this.stateManager.transitionTask(task, 'running');
         this.monitor.onTaskStateChange(plan, task, 'ready', 'running');
 
@@ -94,10 +98,22 @@ export class ExecutionEngine extends EventEmitter {
           const result = await this._executeTaskInPlanMode(task, options);
           task.output = result.output;
 
+          // Display the execution plan for this task
+          console.log(`[chopstack] ✓ Plan for ${task.id}:`);
+          if (hasContent(result.output)) {
+            console.log(
+              `[chopstack]   ${result.output.trim().replaceAll('\n', '\n[chopstack]   ')}`,
+            );
+          } else {
+            console.log(`[chopstack]   No detailed plan output available`);
+          }
+
           this.stateManager.transitionTask(task, 'completed');
           this.monitor.onTaskStateChange(plan, task, 'running', 'completed');
         } catch (error) {
-          task.error = String(error);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          task.error = errorMessage;
+          console.log(`[chopstack] ✗ Planning failed for ${task.id}: ${errorMessage}`);
           this.stateManager.transitionTask(task, 'failed');
           this.monitor.onTaskStateChange(plan, task, 'running', 'failed');
         }
@@ -120,7 +136,11 @@ export class ExecutionEngine extends EventEmitter {
         console.log(`[chopstack]   - ${task.id}: ${task.title}`);
         console.log(`[chopstack]     Files: ${task.touches.join(', ')}`);
 
-        // Follow proper state transitions for dry-run
+        // In dry-run mode, simulate the full execution flow
+        // Ensure all tasks reach completed state regardless of initial state
+        if (task.state === 'pending') {
+          this.stateManager.transitionTask(task, 'ready');
+        }
         if (task.state === 'ready') {
           this.stateManager.transitionTask(task, 'queued');
         }
@@ -295,10 +315,13 @@ export class ExecutionEngine extends EventEmitter {
 
       return result;
     } catch (error) {
+      // Handle case where orchestrator rejects with TaskResult object
+      const errorMessage = toErrorMessage(error);
+
       const errorResult: TaskExecutionResult = {
         taskId: task.id,
         state: 'failed',
-        error: String(error),
+        error: errorMessage,
       };
 
       task.error = errorResult.error;

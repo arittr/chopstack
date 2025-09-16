@@ -1,6 +1,6 @@
 # E2E Integration Tests
 
-This directory contains end-to-end integration tests for chopstack that test the complete workflow against real codebases.
+This directory contains comprehensive end-to-end integration tests for chopstack that test the complete workflow against real codebases, including full execution testing with git worktrees.
 
 ## Setup
 
@@ -33,30 +33,54 @@ pnpm run build
 
 ## Running Tests
 
-### Run E2E Tests Only
+### Jest E2E Tests (Plan Generation)
 
 ```bash
+# Run Jest-based E2E tests (plan generation only)
 pnpm run test:e2e
-```
 
-### Run All Tests (Unit + E2E)
-
-```bash
+# Run all tests (Unit + E2E)
 pnpm run test
+
+# Run unit tests only
+pnpm run test:unit
 ```
 
-### Run Unit Tests Only
+### Chopstack Execution Tests
 
 ```bash
-pnpm run test:unit
+# Run all chopstack execution tests (safe dry-run mode)
+pnpm run test:e2e:all
+
+# Run specific test scenarios
+pnpm run test:e2e:simple    # Single task execution
+pnpm run test:e2e:parallel  # Parallel task execution with worktrees
+
+# Manual test execution with different modes
+./test/e2e/run-tests.sh parallel-tasks dry-run parallel
+./test/e2e/run-tests.sh stacked-dependencies validate serial
+./test/e2e/run-tests.sh complex-parallel-layers plan parallel
+
+# Clean up test artifacts
+pnpm run test:e2e:cleanup
 ```
 
 ## Test Structure
 
 ### Test Specs (`specs/`)
 
-- Contains markdown specifications that serve as input to chopstack
+**Markdown Specifications (for Jest tests):**
 - `add-dark-mode.md`: A realistic dark mode implementation spec for testing
+
+**YAML Test Plans (for execution tests):**
+- `simple-single-task.yaml`: Basic single task execution
+- `parallel-tasks.yaml`: Two parallel tasks that trigger git worktree creation
+- `stacked-dependencies.yaml`: Sequential tasks with dependencies
+- `complex-parallel-layers.yaml`: Multi-layer execution with 6 tasks across 3 layers
+
+**Test Runner:**
+- `run-tests.sh`: Comprehensive test runner with cleanup functionality
+- `TEST-SUITE.md`: Detailed documentation of all test scenarios
 
 ### Main Test File (`chopstack-e2e.test.ts`)
 
@@ -67,13 +91,20 @@ pnpm run test:unit
 
 ## What Gets Tested
 
+### Jest E2E Tests (Plan Generation)
 1. **CLI Integration**: Actual chopstack CLI invocation with real arguments
 2. **Agent Integration**: Real API calls to Claude (when API key available)
 3. **Plan Generation**: Complete YAML plan output parsing and validation
 4. **DAG Validation**: Circular dependency detection, task structure validation
 5. **File Targeting**: Verification that generated tasks target appropriate files
-6. **Execution Planning**: Topological sorting and parallel execution planning
-7. **Error Handling**: Graceful handling of invalid inputs and missing resources
+
+### Chopstack Execution Tests
+1. **All Execution Modes**: `plan`, `dry-run`, `execute`, `validate`
+2. **Parallel Execution**: Git worktree creation and management
+3. **Task Orchestration**: Layer-based execution with proper state transitions
+4. **Error Handling**: Meaningful error messages and failure recovery
+5. **Claude CLI Integration**: Proper argument building and process management
+6. **Multi-layer Dependencies**: Complex DAG execution across multiple layers
 
 ## Test Behavior
 
