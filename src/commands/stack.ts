@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 
 import chalk from 'chalk';
 
@@ -63,10 +63,18 @@ export function stackCommand(rawArgs: unknown): number {
         const branchName = generateBranchName(commitMessage);
         console.log(chalk.cyan(`🌿 Creating git-spice branch: ${branchName}`));
 
-        // Use git-spice to create branch and commit
-        execSync(`gs branch create ${branchName} -m "${escapeCommitMessage(commitMessage)}"`, {
-          stdio: args.verbose ? 'inherit' : 'pipe',
-        });
+        // Use git-spice to create branch and commit (arg array to avoid shell quoting issues)
+        const gsResult = spawnSync(
+          'gs',
+          ['branch', 'create', branchName, '--message', commitMessage],
+          { stdio: args.verbose ? 'inherit' : 'pipe', encoding: 'utf8' },
+        );
+        if (gsResult.status !== 0) {
+          if (!args.verbose && isNonEmptyString(gsResult.stderr)) {
+            console.error(chalk.dim(gsResult.stderr));
+          }
+          throw new Error(`git-spice failed with code ${gsResult.status ?? 'unknown'}`);
+        }
 
         console.log(chalk.green('✅ Git-spice branch created successfully'));
         console.log(chalk.cyan('💡 Next steps:'));
@@ -176,7 +184,16 @@ Please generate a commit message that:
 4. Is professional and follows conventional commits style
 5. Include a brief body if the changes are complex
 
-Return only the commit message, no explanations or markdown formatting.`;
+Output requirements:
+- Return ONLY the commit message content between these exact markers:
+<<<COMMIT_MESSAGE_START>>>
+(commit message goes here)
+<<<COMMIT_MESSAGE_END>>>
+- Do NOT include any commentary outside the markers
+- Do NOT wrap in code fences
+- Do NOT include links or promotional text
+- If you include bullet points, use '-' or numbered list items
+- Keep the message concise and readable`;
 
     console.log(chalk.blue('🤖 Generating AI-powered commit message...'));
 
@@ -186,14 +203,18 @@ Return only the commit message, no explanations or markdown formatting.`;
       stdio: 'pipe',
     });
 
-    // Extract the commit message from the AI response
-    let commitMessage = aiResponse.trim();
+    // Prefer sentinel-extracted content when available
+    const startTag = '<<<COMMIT_MESSAGE_START>>>';
+    const endTag = '<<<COMMIT_MESSAGE_END>>>';
+    const startIndex = aiResponse.indexOf(startTag);
+    const endIndex = aiResponse.indexOf(endTag);
+    let commitMessage =
+      startIndex !== -1 && endIndex !== -1 && endIndex > startIndex
+        ? aiResponse.slice(startIndex + startTag.length, endIndex).trim()
+        : aiResponse.trim();
 
-    // Clean up any markdown or extra formatting
-    commitMessage = commitMessage
-      .replaceAll('```', '')
-      .replaceAll(/^\s*[*+`-]\s*/gm, '')
-      .trim();
+    // Clean up any markdown code fences; keep list markers for later parsing
+    commitMessage = commitMessage.replaceAll('```', '').trim();
 
     // If the model included a preamble like "Here's the commit message:", keep only content after it
     const linesAll = commitMessage.split('\n');
@@ -230,6 +251,15 @@ Return only the commit message, no explanations or markdown formatting.`;
         if (lower === 'here is the commit message' || lower === "here's the commit message") {
           return false;
         }
+        if (
+          lower.startsWith('here is the commit message') ||
+          lower.startsWith("here's the commit message")
+        ) {
+          return false;
+        }
+        if (lower.startsWith('based on the git diff')) {
+          return false;
+        }
         return true;
       });
 
@@ -243,7 +273,64 @@ Return only the commit message, no explanations or markdown formatting.`;
       }
       collapsed.push(l);
     }
-    commitMessage = collapsed.join('\n').trim();
+    // Build structured message: subject line + up to 5 bullets when available
+    const collapsedTrimmed = collapsed.map((l) => l.trim());
+    const subject =
+      collapsedTrimmed.find((l) => {
+        const lower = l.toLowerCase();
+        return (
+          l !== '' &&
+          !l.endsWith(':') &&
+          !lower.startsWith('key changes:') &&
+          !lower.startsWith('co-authored-by:') &&
+          !lower.startsWith('http://') &&
+          !lower.startsWith('https://') &&
+          !/^[*+-]/.test(l) &&
+          !/^\d+[).]\s+/.test(l) &&
+          !lower.startsWith('🤖 generated with')
+        );
+      }) ?? '';
+
+    const bulletCandidates: string[] = [];
+    for (const raw of collapsed) {
+      const line = raw.trim();
+      const unorderedMatch = line.match(/^[*+-]\s+(.*)$/);
+      if (isNonEmptyString(unorderedMatch?.[1])) {
+        bulletCandidates.push(unorderedMatch[1].trim());
+        continue;
+      }
+      const orderedMatch = line.match(/^\d+[).]\s+(.*)$/);
+      if (isNonEmptyString(orderedMatch?.[1])) {
+        bulletCandidates.push(orderedMatch[1].trim());
+      }
+    }
+
+    if (bulletCandidates.length === 0) {
+      const keyIndex = collapsedTrimmed.findIndex((l) => l.toLowerCase() === 'key changes:');
+      if (keyIndex !== -1) {
+        for (let index = keyIndex + 1; index < collapsedTrimmed.length; index++) {
+          const nextLine = collapsedTrimmed[index];
+          if (nextLine === '') {
+            break;
+          }
+          const stripped = (nextLine ?? '').replace(/^[\d)*+.-]+\s+/, '').trim();
+          if (isNonEmptyString(stripped)) {
+            bulletCandidates.push(stripped);
+          }
+        }
+      }
+    }
+
+    const bullets = bulletCandidates.slice(0, 5);
+
+    if (subject !== '') {
+      commitMessage =
+        bullets.length > 0 ? `${subject}\n\n${bullets.map((b) => `- ${b}`).join('\n')}` : subject;
+    } else if (bullets.length > 0) {
+      commitMessage = bullets.map((b) => `- ${b}`).join('\n');
+    } else {
+      commitMessage = collapsed.join('\n').trim();
+    }
 
     // Fallback to basic analysis if AI fails
     if (commitMessage === '' || commitMessage.length < 10) {
