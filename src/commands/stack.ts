@@ -195,6 +195,56 @@ Return only the commit message, no explanations or markdown formatting.`;
       .replaceAll(/^\s*[*+`-]\s*/gm, '')
       .trim();
 
+    // If the model included a preamble like "Here's the commit message:", keep only content after it
+    const linesAll = commitMessage.split('\n');
+    const markerIndex = linesAll.findIndex((raw) => {
+      const s = raw.trim().toLowerCase();
+      return (
+        s.startsWith("here's the commit message") ||
+        s.startsWith('heres the commit message') ||
+        s.startsWith('this commit message') ||
+        s === 'commit message:' ||
+        s.startsWith('commit message:')
+      );
+    });
+    const lines = markerIndex !== -1 ? linesAll.slice(markerIndex + 1) : linesAll;
+
+    // Remove AI signature/promotion lines that we add ourselves later or that reference Claude marketing
+    const filtered = lines
+      .map((l) => l.replace(/\r$/u, ''))
+      .filter((raw) => {
+        const s = raw.trim();
+        const lower = s.toLowerCase();
+        if (s === '') {
+          return true;
+        }
+        if (lower.startsWith('🤖 generated with')) {
+          return false;
+        }
+        if (lower.startsWith('co-authored-by:')) {
+          return false;
+        }
+        if (lower.includes('claude.ai/code')) {
+          return false;
+        }
+        if (lower === 'here is the commit message' || lower === "here's the commit message") {
+          return false;
+        }
+        return true;
+      });
+
+    // Collapse multiple blank lines to a single blank line
+    const collapsed: string[] = [];
+    for (const l of filtered) {
+      const isBlank = l.trim() === '';
+      const previousBlank = collapsed.length > 0 && (collapsed.at(-1) ?? '').trim() === '';
+      if (isBlank && previousBlank) {
+        continue;
+      }
+      collapsed.push(l);
+    }
+    commitMessage = collapsed.join('\n').trim();
+
     // Fallback to basic analysis if AI fails
     if (commitMessage === '' || commitMessage.length < 10) {
       commitMessage = generateFallbackCommitMessage(statusLines);
