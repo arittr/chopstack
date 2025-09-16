@@ -113,13 +113,30 @@ export class ExecutionMonitor extends EventEmitter {
   }
 
   private _logTaskFailure(plan: ExecutionPlan, task: ExecutionTask): void {
-    console.error(`[chopstack] ✗ ${task.id} failed: ${task.error ?? 'Unknown error'}`);
+    const errorMessage = this._formatErrorMessage(task.error);
+    console.error(`[chopstack] ✗ ${task.id} failed: ${errorMessage}`);
 
     if (task.retryCount < task.maxRetries) {
       console.log(
         `[chopstack] Will retry ${task.id} (attempt ${task.retryCount + 1}/${task.maxRetries})`,
       );
     }
+  }
+
+  private _formatErrorMessage(error: unknown): string {
+    if (error === null || error === undefined) {
+      return 'Unknown error';
+    }
+    if (typeof error === 'string') {
+      return error;
+    }
+    if (error instanceof Error) {
+      return error.message;
+    }
+    if (typeof error === 'object') {
+      return JSON.stringify(error, null, 2);
+    }
+    return String(error);
   }
 
   updateProgress(plan: ExecutionPlan): void {

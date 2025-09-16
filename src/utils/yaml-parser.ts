@@ -59,11 +59,29 @@ export class YamlPlanParser {
     switch (parsedContent.source) {
       case 'yaml':
       case 'raw': {
-        // Use yaml parser with proper options for handling long strings
-        return parseYaml(parsedContent.content, {
+        // Pre-process YAML content to handle Claude's formatting issues
+        let processedContent = parsedContent.content;
+
+        // Fix agentPrompt fields that might have unquoted content with special characters
+        processedContent = processedContent.replaceAll(
+          /^(\s+agentPrompt:\s*)([^\n"'][^\n]*?)$/gm,
+          (match: string, prefix: string, content: string) => {
+            // Only quote if not already quoted and contains problematic characters
+            if (!/^["']/.test(content) && (content.includes(':') || content.includes('…'))) {
+              return `${prefix}"${content.replaceAll('"', '\\"')}"`;
+            }
+            return match;
+          },
+        );
+
+        // Use yaml parser with proper options for handling long strings and complex content
+        return parseYaml(processedContent, {
           strict: false,
           mapAsMap: false,
           maxAliasCount: -1,
+          prettyErrors: false,
+          // Allow duplicate keys (Claude might generate them)
+          uniqueKeys: false,
         }) as unknown;
       }
       case 'json': {
