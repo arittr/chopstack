@@ -1,12 +1,7 @@
-import { type ChildProcess, exec as execCallback, spawn } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
-import { promisify } from 'node:util';
 
 import type { ExecutionMode } from '../types/execution';
-
-const exec = promisify(execCallback);
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
 
@@ -285,103 +280,6 @@ export class TaskOrchestrator extends EventEmitter {
         reject(result);
       });
     });
-  }
-
-  async createWorktreeForTask(taskId: string, baseRef: string): Promise<string> {
-    const worktreePath = path.join('.chopstack-shadows', taskId);
-
-    // Ensure shadows directory exists
-    await fs.mkdir('.chopstack-shadows', { recursive: true });
-
-    // Create a branch name from task ID
-    const branchName = `chopstack/${taskId}`;
-
-    // Remove existing worktree if it exists
-    try {
-      await exec(`git worktree remove ${worktreePath} --force`);
-    } catch {
-      // Ignore errors if worktree doesn't exist
-    }
-
-    // Create new worktree
-    await exec(`git worktree add -b ${branchName} ${worktreePath} ${baseRef}`);
-
-    return worktreePath;
-  }
-
-  async executeParallelTasks(
-    tasks: Array<{
-      files: string[];
-      id: string;
-      prompt: string;
-      title: string;
-    }>,
-    baseRef: string,
-    mode: ExecutionMode = 'execute',
-  ): Promise<TaskResult[]> {
-    // Create worktrees for all tasks
-    const worktreeSetup = await Promise.all(
-      tasks.map(async (task) => {
-        const worktreePath = await this.createWorktreeForTask(task.id, baseRef);
-        return { task, worktreePath };
-      }),
-    );
-
-    // Execute all tasks in parallel
-    const executionPromises = worktreeSetup.map(async ({ task, worktreePath }) => {
-      try {
-        const result = await this.executeClaudeTask(
-          task.id,
-          task.title,
-          task.prompt,
-          task.files,
-          worktreePath,
-          mode,
-        );
-        return { ...result, worktreePath } as TaskResult & { worktreePath: string };
-      } catch (error) {
-        return { ...(error as TaskResult), worktreePath } as TaskResult & { worktreePath: string };
-      }
-    });
-
-    // Wait for all tasks to complete
-    const results = await Promise.allSettled(executionPromises);
-
-    // Process and return results
-    return results.map((result, index) => {
-      const task = tasks[index];
-      if (result.status === 'fulfilled') {
-        return result.value;
-      }
-      return {
-        taskId: task?.id ?? `task-${index}`,
-        mode,
-        status: 'failed' as TaskStatus,
-        error: (result.reason as TaskResult | undefined)?.error ?? 'Unknown error',
-      };
-    });
-  }
-
-  async commitChangesInWorktree(worktreePath: string, commitMessage: string): Promise<void> {
-    const originalCwd = process.cwd();
-
-    try {
-      process.chdir(worktreePath);
-      await exec('git add -A');
-      await exec(`git commit -m "${commitMessage}"`);
-    } finally {
-      process.chdir(originalCwd);
-    }
-  }
-
-  async cleanupWorktree(taskId: string): Promise<void> {
-    const worktreePath = path.join('.chopstack-shadows', taskId);
-
-    try {
-      await exec(`git worktree remove ${worktreePath} --force`);
-    } catch (error) {
-      console.error(`Failed to cleanup worktree for ${taskId}:`, error);
-    }
   }
 
   stopTask(taskId: string): boolean {
