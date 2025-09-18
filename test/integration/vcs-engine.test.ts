@@ -48,7 +48,7 @@ describe('VcsEngine Integration Tests', () => {
   });
 
   describe('Complete Worktree Workflow', () => {
-    it.failing('should create worktrees, commit changes, and cleanup', async () => {
+    it('should create worktrees, commit changes, and cleanup', async () => {
       const tasks: ExecutionTask[] = [
         {
           id: 'add-component',
@@ -172,7 +172,7 @@ describe('VcsEngine Integration Tests', () => {
       await Promise.all(cleanupVerificationPromises);
     });
 
-    it.failing('should handle worktree creation for tasks with dependencies', async () => {
+    it('should handle worktree creation for tasks with dependencies', async () => {
       const plan = {
         tasks: [
           {
@@ -206,7 +206,7 @@ describe('VcsEngine Integration Tests', () => {
       expect(analysis.estimatedDiskUsage).toBe(0); // No parallel execution needed
     });
 
-    it.failing('should generate intelligent commit messages for different file types', async () => {
+    it('should generate intelligent commit messages for different file types', async () => {
       const testCases = [
         {
           task: {
@@ -270,7 +270,7 @@ describe('VcsEngine Integration Tests', () => {
   });
 
   describe('Error Handling', () => {
-    it.failing('should handle git command failures gracefully', async () => {
+    it('should handle git command failures gracefully', async () => {
       const task: ExecutionTask = {
         id: 'invalid-task',
         title: 'Invalid Task',
@@ -292,7 +292,7 @@ describe('VcsEngine Integration Tests', () => {
       ).rejects.toThrow();
     });
 
-    it.failing('should handle commit failures when no changes exist', async () => {
+    it('should handle commit failures when no changes exist', async () => {
       const task: ExecutionTask = {
         id: 'no-changes',
         title: 'No Changes Task',

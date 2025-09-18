@@ -20,6 +20,7 @@ import { createVcsBackend, detectAvailableVcsBackend } from '../vcs';
 import { ExecutionMonitor } from './execution-monitor';
 import { ExecutionPlanner } from './execution-planner';
 import { StateManager } from './state-manager';
+import { VcsEngine, type WorktreeExecutionContext } from './vcs-engine';
 
 export class ExecutionEngine extends EventEmitter {
   private readonly planner: ExecutionPlanner;
@@ -27,6 +28,8 @@ export class ExecutionEngine extends EventEmitter {
   private readonly monitor: ExecutionMonitor;
   private readonly orchestrator: TaskOrchestrator;
   private readonly activePlans: Map<string, ExecutionPlan>;
+  private readonly vcsEngine: VcsEngine;
+  private readonly worktreeContexts: Map<string, WorktreeExecutionContext>;
 
   constructor() {
     super();
@@ -35,6 +38,8 @@ export class ExecutionEngine extends EventEmitter {
     this.monitor = new ExecutionMonitor();
     this.orchestrator = new TaskOrchestrator();
     this.activePlans = new Map();
+    this.vcsEngine = new VcsEngine();
+    this.worktreeContexts = new Map();
 
     this._setupEventForwarding();
   }
@@ -46,6 +51,14 @@ export class ExecutionEngine extends EventEmitter {
 
     this.orchestrator.on('taskUpdate', (update) => {
       this.emit('task_update', update);
+    });
+
+    this.vcsEngine.on('worktree_created', (event) => {
+      this.emit('worktree_created', event);
+    });
+
+    this.vcsEngine.on('stack_built', (event) => {
+      this.emit('stack_built', event);
     });
   }
 
@@ -178,8 +191,28 @@ export class ExecutionEngine extends EventEmitter {
     console.log('[chopstack] Executing tasks with full changes...');
 
     const baseRef = (options.gitSpice ?? false) ? 'HEAD' : 'main';
+    const workdir = options.workdir ?? process.cwd();
+
+    // Analyze worktree needs for the execution plan
+    const worktreeNeeds = await this.vcsEngine.analyzeWorktreeNeeds(
+      { tasks: [...plan.tasks.values()] },
+      workdir,
+    );
+
+    console.log(
+      `[chopstack] Worktree analysis: ${worktreeNeeds.requiresWorktrees ? 'Required' : 'Not required'}`,
+    );
 
     for (const layer of plan.executionLayers) {
+      // Create worktrees for parallel tasks if needed
+      if (worktreeNeeds.requiresWorktrees && layer.length > 1) {
+        // eslint-disable-next-line no-await-in-loop -- sequential layer processing required
+        const contexts = await this.vcsEngine.createWorktreesForLayer(layer, baseRef, workdir);
+        for (const context of contexts) {
+          this.worktreeContexts.set(context.taskId, context);
+        }
+      }
+
       // eslint-disable-next-line no-await-in-loop -- layers intentionally run sequentially
       const layerResults = await this._executeLayer(plan, layer, options, baseRef);
 
@@ -192,7 +225,14 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     if (options.gitSpice ?? false) {
-      await this._createVcsStack(plan, options);
+      await this._createVcsStackWithWorktrees(plan, options);
+    }
+
+    // Cleanup worktrees
+    const contexts = [...this.worktreeContexts.values()];
+    if (contexts.length > 0) {
+      await this.vcsEngine.cleanupWorktrees(contexts);
+      this.worktreeContexts.clear();
     }
 
     return this._createExecutionResult(plan);
@@ -264,8 +304,8 @@ export class ExecutionEngine extends EventEmitter {
   private async _executeLayerInParallel(
     plan: ExecutionPlan,
     layer: ExecutionTask[],
-    _options: ExecutionOptions,
-    baseRef: string,
+    options: ExecutionOptions,
+    _baseRef: string,
   ): Promise<TaskExecutionResult[]> {
     // Mark all tasks as running and notify monitor
     for (const task of layer) {
@@ -280,19 +320,34 @@ export class ExecutionEngine extends EventEmitter {
 
     this.monitor.updateProgress(plan);
 
-    const taskInputs = layer.map((task) => ({
-      id: task.id,
-      title: task.title,
-      prompt: task.agentPrompt,
-      files: task.touches,
-    }));
+    // Execute tasks in parallel, each in its own worktree if available
+    const taskPromises = layer.map(async (task) => {
+      const worktreeContext = this.worktreeContexts.get(task.id);
+      const workdir = worktreeContext?.worktreePath ?? options.workdir ?? process.cwd();
 
-    const results = await this.orchestrator.executeParallelTasks(taskInputs, baseRef);
+      const result = await this.orchestrator.executeClaudeTask(
+        task.id,
+        task.title,
+        task.agentPrompt,
+        task.touches,
+        workdir,
+        options.mode,
+      );
 
-    return results.map((result, index) => {
-      const task = layer[index];
-      if (task === undefined) {
-        throw new Error(`Task at index ${index} not found`);
+      // Commit changes if task completed successfully in a worktree
+      if (result.status === 'completed' && worktreeContext !== undefined) {
+        try {
+          const commitHash = await this.vcsEngine.commitTaskChanges(task, worktreeContext, {
+            includeAll: true,
+            generateMessage: true,
+          });
+          task.commitHash = commitHash;
+          console.log(`[chopstack] Committed task ${task.id}: ${commitHash.slice(0, 7)}`);
+        } catch (error) {
+          console.warn(
+            `[chopstack] Failed to commit task ${task.id}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
 
       const executionResult: TaskExecutionResult = {
@@ -315,6 +370,8 @@ export class ExecutionEngine extends EventEmitter {
 
       return executionResult;
     });
+
+    return Promise.all(taskPromises);
   }
 
   private async _executeTask(
@@ -412,6 +469,52 @@ export class ExecutionEngine extends EventEmitter {
       exitCode: result.exitCode,
       duration: result.duration,
     };
+  }
+
+  private async _createVcsStackWithWorktrees(
+    plan: ExecutionPlan,
+    options: ExecutionOptions,
+  ): Promise<void> {
+    console.log('[chopstack] Creating VCS stack from worktree commits...');
+
+    const completedTasks = [...plan.tasks.values()].filter(
+      (task) => task.state === 'completed' && task.commitHash !== undefined,
+    );
+
+    if (completedTasks.length === 0) {
+      console.log('[chopstack] No completed tasks with commits to create stack from');
+      return;
+    }
+
+    try {
+      const stackInfo = await this.vcsEngine.buildStackIncremental(
+        completedTasks,
+        options.workdir ?? process.cwd(),
+        {
+          parentRef: 'main',
+          strategy: 'dependency-order',
+          submitStack: options.submitStack ?? false,
+        },
+      );
+
+      console.log('[chopstack] Stack created with branches:');
+      for (const branch of stackInfo.branches) {
+        console.log(`[chopstack]   └─ ${branch.name} (task: ${branch.taskId})`);
+      }
+
+      if (stackInfo.prUrls !== undefined && stackInfo.prUrls.length > 0) {
+        plan.prUrls = stackInfo.prUrls;
+        console.log('[chopstack] Pull requests created:');
+        for (const url of stackInfo.prUrls) {
+          console.log(`[chopstack]   └─ ${url}`);
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[chopstack] Failed to create VCS stack: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      // Don't throw - VCS failure shouldn't fail the entire execution
+    }
   }
 
   private async _createVcsStack(plan: ExecutionPlan, options: ExecutionOptions): Promise<void> {
