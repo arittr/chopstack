@@ -1,0 +1,259 @@
+import { exec } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { readFile, writeFile } from 'node:fs/promises';
+import { promisify } from 'node:util';
+
+import type { VcsEngineOptions } from '../engine/vcs-engine';
+import type { ExecutionTask } from '../types/execution';
+
+const execAsync = promisify(exec);
+
+export type ConflictDetails = {
+  baseCommit: string;
+  conflictingFiles: string[];
+  conflictType: 'merge' | 'cherry-pick' | 'rebase';
+  incomingCommit: string;
+  taskId: string;
+};
+
+export type ConflictResolution = {
+  conflictFiles: string[];
+  conflictsResolved: number;
+  error?: string;
+  resolvedFiles: string[];
+  strategy: 'auto' | 'manual' | 'fail';
+  success: boolean;
+};
+
+export type ConflictAnalysis = {
+  autoResolvable: boolean;
+  complexity: 'low' | 'medium' | 'high';
+  conflictFiles: string[];
+  suggestions: string[];
+  totalConflicts: number;
+};
+
+/**
+ * ConflictResolver handles automatic and manual resolution of git conflicts
+ * during stack building operations
+ */
+export class ConflictResolver extends EventEmitter {
+  private readonly options: VcsEngineOptions;
+
+  constructor(options: VcsEngineOptions) {
+    super();
+    this.options = options;
+  }
+
+  /**
+   * Resolve conflicts for a task during merge/rebase operations
+   */
+  async resolveConflicts(
+    _task: ExecutionTask,
+    workdir: string,
+    _baseRef: string,
+    _branchName: string,
+  ): Promise<ConflictResolution> {
+    try {
+      // Check for conflicts
+      const { stdout: conflictStatus } = await execAsync('git status --porcelain', {
+        cwd: workdir,
+      });
+      const conflictFiles = conflictStatus
+        .split('\n')
+        .filter((line) => line.startsWith('UU '))
+        .map((line) => line.slice(3).trim())
+        .filter((file) => file.length > 0);
+
+      if (conflictFiles.length === 0) {
+        return {
+          success: true,
+          strategy: this.options.conflictStrategy,
+          conflictsResolved: 0,
+          resolvedFiles: [],
+          conflictFiles: [],
+        };
+      }
+
+      switch (this.options.conflictStrategy) {
+        case 'auto': {
+          return await this._attemptAutoResolution(conflictFiles, workdir);
+        }
+        case 'manual': {
+          return {
+            success: false,
+            strategy: 'manual',
+            conflictsResolved: 0,
+            resolvedFiles: [],
+            conflictFiles,
+            error: `Manual intervention required for ${conflictFiles.length} conflicting files: ${conflictFiles.join(', ')}`,
+          };
+        }
+        case 'fail': {
+          return {
+            success: false,
+            strategy: 'fail',
+            conflictsResolved: 0,
+            resolvedFiles: [],
+            conflictFiles,
+            error: `Conflicts detected and fail strategy specified: ${conflictFiles.join(', ')}`,
+          };
+        }
+        default: {
+          return await this._attemptAutoResolution(conflictFiles, workdir);
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        strategy: this.options.conflictStrategy,
+        conflictsResolved: 0,
+        resolvedFiles: [],
+        conflictFiles: [],
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Analyze conflicts to provide insights and suggestions
+   */
+  async analyzeConflicts(workdir: string): Promise<ConflictAnalysis> {
+    try {
+      const { stdout: conflictFiles } = await execAsync('git diff --name-only --diff-filter=U', {
+        cwd: workdir,
+      });
+      const files = conflictFiles.split('\n').filter((file) => file.trim() !== '');
+
+      const suggestions: string[] = [];
+      let complexity: 'low' | 'medium' | 'high' = 'low';
+      let autoResolvable = true;
+
+      if (files.length === 0) {
+        return {
+          totalConflicts: 0,
+          conflictFiles: [],
+          complexity: 'low',
+          autoResolvable: true,
+          suggestions: ['No conflicts detected'],
+        };
+      }
+
+      // Analyze each conflicting file
+      const analyses = await Promise.all(
+        files.map(async (file) => {
+          try {
+            const content = await readFile(`${workdir}/${file}`, 'utf8');
+            const conflictMarkers = content.match(/<<<<<<< /g)?.length ?? 0;
+
+            const analysis = {
+              file,
+              conflictMarkers,
+              hasPropConflict: content.includes('type =') && content.includes('variant ='),
+            };
+
+            return analysis;
+          } catch {
+            // File read error - treat as high complexity
+            return {
+              file,
+              conflictMarkers: 10, // High number to indicate error
+              hasPropConflict: false,
+            };
+          }
+        }),
+      );
+
+      for (const analysis of analyses) {
+        if (analysis.conflictMarkers > 3) {
+          complexity = 'high';
+          autoResolvable = false;
+          suggestions.push('Manual review required for complex conflicts');
+        } else if (analysis.conflictMarkers > 1) {
+          complexity = 'medium';
+        }
+
+        // Detect prop naming conflicts
+        if (analysis.hasPropConflict) {
+          suggestions.push('Consider merging prop naming conventions');
+        }
+      }
+
+      if (files.length > 2) {
+        complexity = 'high';
+        autoResolvable = false;
+      }
+
+      return {
+        totalConflicts: files.length,
+        conflictFiles: files,
+        complexity,
+        autoResolvable,
+        suggestions:
+          suggestions.length > 0 ? suggestions : ['Standard merge resolution recommended'],
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to analyze conflicts: ${errorMessage}`);
+    }
+  }
+
+  private async _attemptAutoResolution(
+    conflictFiles: string[],
+    workdir: string,
+  ): Promise<ConflictResolution> {
+    const resolvePromises = conflictFiles.map(async (file) => {
+      try {
+        // Try to auto-resolve conflicts using intelligent merge strategies
+        const content = await readFile(`${workdir}/${file}`, 'utf8');
+        const resolved = this._resolveConflictMarkers(content);
+
+        await writeFile(`${workdir}/${file}`, resolved);
+        await execAsync(`git add "${file}"`, { cwd: workdir });
+        return file;
+      } catch {
+        // Could not auto-resolve this file
+        return null;
+      }
+    });
+
+    const results = await Promise.all(resolvePromises);
+    const resolvedFiles = results.filter((file): file is string => file !== null);
+
+    const success = resolvedFiles.length === conflictFiles.length;
+
+    if (success) {
+      // Complete the merge
+      await execAsync('git commit --no-edit', { cwd: workdir });
+    }
+
+    return {
+      success,
+      strategy: 'auto',
+      conflictsResolved: resolvedFiles.length,
+      resolvedFiles,
+      conflictFiles: success ? [] : conflictFiles.filter((f) => !resolvedFiles.includes(f)),
+    };
+  }
+
+  private _resolveConflictMarkers(content: string): string {
+    // Simple conflict resolution - prefer "ours" side for imports/exports
+    return content.replaceAll(
+      /<{7} HEAD\n([\S\s]*?)\n={7}\n([\S\s]*?)\n>{7} .*/g,
+      (_match: string, ours: string, theirs: string) => {
+        // If both sides are exports/imports, merge them
+        if (
+          typeof ours === 'string' &&
+          ours.includes('export') &&
+          typeof theirs === 'string' &&
+          theirs.includes('export')
+        ) {
+          return `${ours}\n${theirs}`;
+        }
+        // Otherwise, prefer ours
+        return ours;
+      },
+    );
+  }
+}
