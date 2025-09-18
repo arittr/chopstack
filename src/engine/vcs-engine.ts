@@ -306,6 +306,8 @@ Requirements:
 3. Use imperative mood ("Add feature" not "Added feature")
 4. Be professional and follow conventional commits style
 5. Focus on the business value and purpose
+6. DO NOT include preamble like "Looking at the changes" or "Based on the diff"
+7. Start directly with the action ("Add", "Fix", "Update", etc.)
 
 Return ONLY the commit message content between these markers:
 <<<COMMIT_MESSAGE_START>>>
@@ -339,16 +341,40 @@ Return ONLY the commit message content between these markers:
         ? aiResponse.slice(startIndex + startTag.length, endIndex).trim()
         : aiResponse.trim();
 
-    // Clean up common AI artifacts
+    // Clean up common AI artifacts and preamble
     message = message
       .replaceAll('```', '')
-      .replaceAll(/^here's? (?:the |a )?commit message:?\s*/i, '')
-      .replaceAll(/^based on (?:the )?git diff.*$/im, '')
+      .replace(/^here's? (?:the |a )?commit message:?\s*/i, '')
+      .replace(/^based on (?:the )?git diff.*$/im, '')
+      .replace(/^looking at (?:the )?changes.*$/im, '')
+      .replace(/^analyzing (?:the )?changes.*$/im, '')
+      .replace(/^from (?:the )?changes.*$/im, '')
+      .replace(/^i can see (?:that )?this.*$/im, '')
+      .replace(/^this (?:change|commit|update).*$/im, '')
+      .replace(/^the (?:changes|modifications).*$/im, '')
       .trim();
 
-    // Take only the first meaningful line if multiple lines
+    // Clean up any remaining preamble patterns and take the first action line
     const lines = message.split('\n').filter((l) => l.trim() !== '');
-    if (lines.length > 0) {
+    for (const line of lines) {
+      const cleanLine = line.trim();
+      // Skip lines that look like preamble/analysis
+      if (
+        /^(looking|analyzing|based|from|i can see|this|the changes|the modifications)/i.test(
+          cleanLine,
+        ) ||
+        /^(here|now|let me|first|next|then)/i.test(cleanLine) ||
+        cleanLine.length < 5
+      ) {
+        continue;
+      }
+      // Take the first line that looks like an actual commit message
+      message = cleanLine;
+      break;
+    }
+
+    // If we didn't find a good line, take the first non-empty one
+    if (message === '' && lines.length > 0) {
       message = lines[0] ?? '';
     }
 
