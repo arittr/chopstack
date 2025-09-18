@@ -113,13 +113,24 @@ export class GitSpiceBackend implements VcsBackend {
           timeout: 10_000,
         });
 
-        // If task has a commit hash, cherry-pick it
+        // If task has a commit hash, cherry-pick it from the worktree
         if (isNonEmptyString(task.commitHash)) {
+          // Find the worktree branch that contains this commit
           // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
-          await execAsync(`git cherry-pick ${task.commitHash}`, {
-            cwd: workdir,
-            timeout: 30_000,
-          });
+          const worktreeBranch = await this._findWorktreeBranch(task, workdir);
+          if (isNonEmptyString(worktreeBranch)) {
+            // Cherry-pick the commit from the worktree branch
+            // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
+            await execAsync(`git cherry-pick ${task.commitHash}`, {
+              cwd: workdir,
+              timeout: 30_000,
+            });
+          } else {
+            // Fallback: try to apply changes directly
+            console.warn(
+              `Warning: Could not find worktree branch for task ${task.id}, skipping cherry-pick`,
+            );
+          }
         }
 
         branches.push({
@@ -205,6 +216,72 @@ export class GitSpiceBackend implements VcsBackend {
 
     // Fallback to base ref if no dependencies have branches
     return baseRef;
+  }
+
+  /**
+   * Find the worktree branch that contains a specific commit
+   */
+  private async _findWorktreeBranch(task: ExecutionTask, workdir: string): Promise<string | null> {
+    if (!isNonEmptyString(task.commitHash)) {
+      return null;
+    }
+
+    try {
+      // First try to find the chopstack branch for this task
+
+      // Check if the commit exists in the expected worktree branch
+      const { stdout } = await execAsync(
+        `git branch --contains ${task.commitHash} | grep -E "chopstack/${task.id}|${task.id}"`,
+        { cwd: workdir, timeout: 5000 },
+      );
+
+      if (hasContent(stdout)) {
+        // Clean the branch name (remove leading whitespace and asterisk)
+        const branchName = stdout
+          .split('\n')[0]
+          ?.trim()
+          .replace(/^\*\s*/, '');
+        if (isNonEmptyString(branchName)) {
+          return branchName;
+        }
+      }
+    } catch {
+      // If grep or git command fails, try alternative approach
+    }
+
+    try {
+      // Fallback: search all branches for the commit
+      const { stdout } = await execAsync(`git branch --contains ${task.commitHash}`, {
+        cwd: workdir,
+        timeout: 5000,
+      });
+
+      if (hasContent(stdout)) {
+        // Look for any branch that might be related to this task
+        const branches = stdout.split('\n').map((line) => line.trim().replace(/^\*\s*/, ''));
+
+        // Prefer chopstack branches
+        const chopstackBranch = branches.find(
+          (branch) => branch.includes('chopstack') && branch.includes(task.id),
+        );
+        if (isNonEmptyString(chopstackBranch)) {
+          return chopstackBranch;
+        }
+
+        // Otherwise take the first non-main branch
+        const nonMainBranch = branches.find(
+          (branch) =>
+            isNonEmptyString(branch) && !branch.includes('main') && !branch.includes('master'),
+        );
+        if (isNonEmptyString(nonMainBranch)) {
+          return nonMainBranch;
+        }
+      }
+    } catch (error) {
+      console.warn(`Warning: Could not find branch for commit ${task.commitHash}:`, error);
+    }
+
+    return null;
   }
 
   /**
