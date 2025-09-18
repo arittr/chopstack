@@ -264,7 +264,7 @@ export class ExecutionEngine extends EventEmitter {
   private async _executeLayerInParallel(
     plan: ExecutionPlan,
     layer: ExecutionTask[],
-    options: ExecutionOptions,
+    _options: ExecutionOptions,
     baseRef: string,
   ): Promise<TaskExecutionResult[]> {
     // Mark all tasks as running and notify monitor

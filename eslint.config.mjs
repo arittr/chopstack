@@ -57,13 +57,19 @@ export default [
       promise: promisePlugin,
     },
     rules: {
+      // Disable base rule in favor of @typescript-eslint version
+      'no-unused-vars': 'off',
       // TypeScript-specific rules (very strict)
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
+          args: 'all',
           argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
+          caughtErrors: 'all',
+          caughtErrorsIgnorePattern: '^_',
           destructuredArrayIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
         },
       ],
       '@typescript-eslint/no-explicit-any': 'error',
@@ -296,6 +302,7 @@ export default [
             temp: false,
             tmp: false,
             ctx: false,
+            dir: false,
           },
         },
       ],
