@@ -94,6 +94,7 @@ export const ExecutionOptionsSchema = z.object({
   retryAttempts: z.number().int().min(0).optional(),
   retryDelay: z.number().int().min(0).optional(),
   strategy: ExecutionStrategySchema.optional(),
+  submitStack: z.boolean().optional(),
   timeout: z.number().int().min(1).optional(),
   verbose: z.boolean().optional(),
   workdir: z.string().optional(),
