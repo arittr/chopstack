@@ -9,6 +9,11 @@
     "rootDir": ".",
     "outDir": "dist",
     "resolveJsonModule": true,
+    /* Path alias for internal modules */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     /* Declarations & maps */
     "declaration": true,
     "declarationMap": true,
