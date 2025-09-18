@@ -33,6 +33,10 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:unit": "jest src",
+    "test:integration": "jest test/integration",
+    "test:vcs": "jest test/integration/vcs-engine.test.ts",
+    "test:parallel": "jest test/integration/parallel-to-stack.test.ts",
     "test:e2e": "jest test/e2e",
     "test:e2e:chopstack": "test/e2e/run-tests.sh",
     "test:e2e:all": "test/e2e/run-tests.sh all dry-run parallel",
@@ -40,7 +44,6 @@
     "test:e2e:simple": "test/e2e/run-tests.sh simple-single-task dry-run parallel",
     "test:e2e:cleanup": "test/e2e/run-tests.sh cleanup",
     "test:execution": "jest test/execution/orchestration-decisions.test.ts",
-    "test:unit": "jest src",
     "prepublishOnly": "pnpm run clean && pnpm run build",
     "prepare": "husky"
   },

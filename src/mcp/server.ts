@@ -240,10 +240,8 @@ mcp.addTool({
     try {
       if (strategy === 'parallel') {
         // For parallel, ensure we have a worktree
-        const actualWorkdir =
-          workdir !== undefined && workdir !== ''
-            ? workdir
-            : await orchestrator.createWorktreeForTask(taskId, 'HEAD');
+        // TODO: Update to use VcsEngine instead of removed orchestrator methods
+        const actualWorkdir = workdir ?? process.cwd();
         const result = await orchestrator.executeClaudeTask(
           taskId,
           title,
@@ -252,10 +250,10 @@ mcp.addTool({
           actualWorkdir,
         );
 
-        // Commit changes in worktree
-        if (result.status === 'completed') {
-          await orchestrator.commitChangesInWorktree(actualWorkdir, title);
-        }
+        // TODO: Implement commit changes using VcsEngine
+        // if (result.status === 'completed') {
+        //   await vcsEngine.commitTaskChanges(...);
+        // }
 
         return JSON.stringify(result);
       }
@@ -283,32 +281,13 @@ mcp.addTool({
   name: 'execute_parallel_tasks',
   description: 'Execute multiple tasks in parallel using git worktrees',
   parameters: ExecuteParallelTasksSchema,
-  execute: async (params) => {
-    const { tasks, baseRef } = params;
-
-    try {
-      const results = await orchestrator.executeParallelTasks(tasks, baseRef);
-
-      // Commit changes in each successful worktree
-      for (const result of results) {
-        if (result.status === 'completed' && 'worktreePath' in result) {
-          const task = tasks.find((t) => t.id === result.taskId);
-          if (task !== undefined) {
-            // eslint-disable-next-line no-await-in-loop
-            await orchestrator.commitChangesInWorktree(
-              (result as { worktreePath: string }).worktreePath,
-              task.title,
-            );
-          }
-        }
-      }
-
-      return JSON.stringify({ results });
-    } catch (error) {
-      return JSON.stringify({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
+  // eslint-disable-next-line @typescript-eslint/require-await -- temporary stub
+  execute: async () => {
+    // TODO: Update to use VcsEngine for parallel execution
+    // For now, return a message indicating this is disabled
+    return JSON.stringify({
+      message: 'Parallel execution temporarily disabled - needs VcsEngine integration',
+    });
   },
 });
 
