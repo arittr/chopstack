@@ -14,10 +14,21 @@ const config = {
       'ts-jest',
       {
         useESM: true,
+        tsconfig: {
+          baseUrl: '.',
+          paths: {
+            '@/*': ['src/*'],
+            '@test/*': ['test/*'],
+          },
+        },
       },
     ],
   },
   extensionsToTreatAsEsm: ['.ts'],
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@test/(.*)$': '<rootDir>/test/$1',
+  },
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
