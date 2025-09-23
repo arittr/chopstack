@@ -1,29 +1,29 @@
-// Jest globals are available in test environment
+import { vi } from 'vitest';
 
 import type { VcsEngineOptions } from '@/engine/vcs-engine';
 
 import { WorktreeManager } from '@/vcs/worktree-manager';
 
 // Mock promisified exec function
-const mockExecAsync = jest.fn();
+const mockExecAsync = vi.fn();
 
 // Mock child_process with proper ESM mocking
-jest.mock('node:child_process', () => ({
-  exec: jest.fn(),
+vi.mock('node:child_process', () => ({
+  exec: vi.fn(),
 }));
 
 // Mock fs/promises
 const mockFs = {
-  mkdir: jest.fn(),
-  access: jest.fn(),
-  readdir: jest.fn(),
-  rmdir: jest.fn(),
+  mkdir: vi.fn(),
+  access: vi.fn(),
+  readdir: vi.fn(),
+  rmdir: vi.fn(),
 };
-jest.mock('node:fs/promises', () => mockFs);
+vi.mock('node:fs/promises', () => mockFs);
 
 // Mock util.promisify to return our mock exec
-jest.mock('node:util', () => ({
-  promisify: jest.fn().mockReturnValue(mockExecAsync),
+vi.mock('node:util', () => ({
+  promisify: vi.fn().mockReturnValue(mockExecAsync),
 }));
 
 describe('WorktreeManager', () => {
@@ -47,7 +47,7 @@ describe('WorktreeManager', () => {
     worktreeManager = new WorktreeManager(mockOptions);
 
     // Clear all mocks and set default successful responses
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockExecAsync.mockResolvedValue({ stdout: '', stderr: '' });
     mockFs.mkdir.mockResolvedValue(undefined);
     mockFs.access.mockResolvedValue(undefined);
