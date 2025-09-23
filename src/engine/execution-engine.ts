@@ -323,7 +323,7 @@ export class ExecutionEngine extends EventEmitter {
     // Execute tasks in parallel, each in its own worktree if available
     const taskPromises = layer.map(async (task) => {
       const worktreeContext = this.worktreeContexts.get(task.id);
-      const workdir = worktreeContext?.worktreePath ?? options.workdir ?? process.cwd();
+      const workdir = worktreeContext?.absolutePath ?? options.workdir ?? process.cwd();
 
       const result = await this.orchestrator.executeClaudeTask(
         task.id,
