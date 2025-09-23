@@ -1,4 +1,3 @@
-import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -9,40 +8,42 @@ import type { Plan, Task } from '@/types/decomposer';
 
 import { DagValidator } from '@/utils/dag-validator';
 
+import { checkWorkspaceAvailable, runCliInProcess } from '../utils/cli-runner';
+
 describe('Orchestration Decision Making', () => {
   const NEXTJS_REPO_PATH = '../typescript-nextjs-starter';
   const SPEC_PATH = path.join(__dirname, '../e2e/specs/add-dark-mode.md');
-  const CHOPSTACK_BIN = path.join(__dirname, '../../dist/bin/chopstack.js');
 
   let generatedPlan: Plan;
 
-  beforeAll((): void => {
-    // Ensure chopstack is built
-    try {
-      execSync('pnpm run build', {
-        cwd: path.join(__dirname, '../..'),
-        stdio: 'pipe',
-      });
-    } catch (error) {
-      throw new Error(`Failed to build chopstack: ${String(error)}`);
+  beforeAll(async (): Promise<void> => {
+    // Check if workspace is available, skip if not
+    if (!checkWorkspaceAvailable(NEXTJS_REPO_PATH)) {
+      throw new Error(
+        `Workspace not found: ${NEXTJS_REPO_PATH} - clone the required test workspace`,
+      );
     }
 
-    // Generate the plan using decompose command
+    // Generate the plan using in-process CLI runner
     const tempOutputFile = path.join(
       os.tmpdir(),
       `chopstack-orchestration-test-${Date.now()}.yaml`,
     );
 
     try {
-      execSync(
-        `node "${CHOPSTACK_BIN}" decompose --spec "${SPEC_PATH}" --agent claude --output "${tempOutputFile}"`,
+      const result = await runCliInProcess(
+        ['decompose', '--spec', SPEC_PATH, '--agent', 'claude', '--output', tempOutputFile],
         {
           cwd: NEXTJS_REPO_PATH,
-          encoding: 'utf8',
-          stdio: 'pipe',
           timeout: 300_000, // 5 minutes
         },
       );
+
+      if (result.exitCode !== 0) {
+        throw new Error(
+          `Decompose command failed: ${result.stderr !== '' ? result.stderr : (result.error?.message ?? 'Unknown error')}`,
+        );
+      }
 
       const planOutput = fs.readFileSync(tempOutputFile, 'utf8');
       generatedPlan = parseYaml(planOutput) as Plan;
