@@ -7,7 +7,8 @@ import { match } from 'ts-pattern';
 import type { Plan } from '../types/decomposer';
 import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 
-import { hasContent, isNonEmptyString } from '../utils/guards';
+import { GitWrapper } from '../utils/git-wrapper';
+import { isNonEmptyString } from '../utils/guards';
 import { ConflictResolver } from '../vcs/conflict-resolver';
 import { StackBuilder } from '../vcs/stack-builder';
 import { WorktreeManager } from '../vcs/worktree-manager';
@@ -199,11 +200,12 @@ export class VcsEngine extends EventEmitter {
     options: CommitOptions = {},
   ): Promise<string> {
     const workdir = context.absolutePath;
+    const git = new GitWrapper(workdir);
 
     // Generate commit message if not provided
     let commitMessage = options.message;
     if (commitMessage === undefined && options.generateMessage !== false) {
-      const changes = await this._analyzeChanges(workdir, options.files);
+      const changes = await this._analyzeChanges(git, options.files);
       commitMessage = await this.generateCommitMessage(task, changes, workdir);
     }
 
@@ -213,25 +215,19 @@ export class VcsEngine extends EventEmitter {
 
     // Stage files
     if (options.includeAll === true) {
-      await execAsync('git add -A', { cwd: workdir });
+      await git.add('.');
     } else if (options.files !== undefined && options.files.length > 0) {
-      const fileArgs = options.files.map((f) => `"${f}"`).join(' ');
-      await execAsync(`git add ${fileArgs}`, { cwd: workdir });
+      await git.add(options.files);
     }
 
     // Check if there are changes to commit
-    const { stdout: status } = await execAsync('git status --porcelain', { cwd: workdir });
-    if (!hasContent(status)) {
+    const hasChanges = await git.hasChangesToCommit();
+    if (!hasChanges) {
       throw new Error(`No changes to commit for task ${task.id}`);
     }
 
-    // Create commit
-    await execAsync(`git commit -m "${this._escapeCommitMessage(commitMessage)}"`, {
-      cwd: workdir,
-    });
-
-    // Extract commit hash
-    const commitHash = await this._getCommitHash(workdir);
+    // Create commit - simple-git handles message escaping
+    const commitHash = await git.commit(commitMessage);
 
     console.log(
       `📝 Committed task ${task.id}: ${commitHash.slice(0, 7)} - ${commitMessage.split('\n')[0]}`,
@@ -460,29 +456,17 @@ Return ONLY the commit message content between these markers:
     return `${message}\n\n🤖 Generated with Claude via chopstack\n\nCo-Authored-By: Claude <noreply@anthropic.com>`;
   }
 
-  private _escapeCommitMessage(message: string): string {
-    return message.replaceAll('"', '\\"').replaceAll('$', '\\$').replaceAll('`', '\\`');
-  }
-
-  private async _getCommitHash(workdir: string): Promise<string> {
-    const { stdout } = await execAsync('git rev-parse HEAD', { cwd: workdir });
-    return stdout.trim();
-  }
-
   private async _analyzeChanges(
-    workdir: string,
+    git: GitWrapper,
     files?: string[],
   ): Promise<{ files: string[]; output?: string }> {
     if (files !== undefined) {
       return { files };
     }
 
-    // Get list of changed files
-    const { stdout: status } = await execAsync('git status --porcelain', { cwd: workdir });
-    const changedFiles = status
-      .split('\n')
-      .filter((line) => line.trim() !== '')
-      .map((line) => line.slice(3)); // Remove status prefix
+    // Get list of changed files using GitWrapper
+    const status = await git.status();
+    const changedFiles = [...status.added, ...status.modified, ...status.deleted];
 
     return { files: changedFiles };
   }
