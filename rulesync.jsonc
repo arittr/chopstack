@@ -1,0 +1,9 @@
+{
+  "targets": ["cursor", "claudecode", "codexcli", "gemini"],
+  "features": ["*"],
+  "baseDirs": ["."],
+  "delete": true,
+  "verbose": false,
+  "experimentalSimulateCommands": true,
+  "experimentalSimulateSubagents": true,
+}
