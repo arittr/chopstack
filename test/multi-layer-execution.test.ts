@@ -2,10 +2,10 @@ import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-import type { Plan, Task } from '../src/types/decomposer';
-import type { ExecutionOptions } from '../src/types/execution';
+import type { Plan, Task } from '@/types/decomposer';
+import type { ExecutionOptions } from '@/types/execution';
 
-import { ExecutionEngine } from '../src/engine/execution-engine';
+import { ExecutionEngine } from '@/engine/execution-engine';
 
 describe('Multi-Layer Execution Tests', () => {
   let engine: ExecutionEngine;
