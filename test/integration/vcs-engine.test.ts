@@ -3,9 +3,9 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { ExecutionTask } from '../../src/types/execution';
+import type { ExecutionTask } from '@/types/execution';
 
-import { VcsEngine } from '../../src/engine/vcs-engine';
+import { VcsEngine } from '@/engine/vcs-engine';
 
 const execAsync = promisify(exec);
 
