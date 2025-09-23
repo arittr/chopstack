@@ -7,6 +7,7 @@ import eslintConfigPrettier from 'eslint-config-prettier';
 import perfectionist from 'eslint-plugin-perfectionist';
 import promisePlugin from 'eslint-plugin-promise';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
+import aliasPlugin from './tools/eslint/alias-plugin.mjs';
 
 export default [
   // Base JavaScript recommendations
@@ -55,6 +56,7 @@ export default [
       unicorn: unicorn,
       perfectionist: perfectionist,
       promise: promisePlugin,
+      alias: aliasPlugin,
     },
     rules: {
       // Disable base rule in favor of @typescript-eslint version
@@ -203,7 +205,7 @@ export default [
       'import/newline-after-import': 'error',
       'import/no-default-export': 'error',
       'import/prefer-default-export': 'off',
-
+      'alias/prefer-alias-imports': 'error',
       // Unicorn rules (modern JavaScript practices)
       'unicorn/better-regex': 'error',
       'unicorn/catch-error-name': 'error',

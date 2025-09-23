@@ -1,7 +1,7 @@
 /* eslint-disable unicorn/no-unused-properties */
-import type { Plan } from '../../src/types/decomposer';
+import type { Plan } from '@/types/decomposer';
 
-import { VcsEngine } from '../../src/engine/vcs-engine';
+import { VcsEngine } from '@/engine/vcs-engine';
 
 describe('VcsEngine', () => {
   let vcsEngine: VcsEngine;
