@@ -17,7 +17,7 @@ describe('Multi-Layer Execution Tests', () => {
     const testTaskIds = ['layer-1-task-a', 'layer-1-task-b', 'layer-2-task-c', 'layer-3-task-d'];
 
     for (const taskId of testTaskIds) {
-      const testPath = path.join('.chopstack-shadows', taskId);
+      const testPath = path.join('.chopstack/shadows', taskId);
       const branchName = `chopstack/${taskId}`;
 
       try {
@@ -41,7 +41,7 @@ describe('Multi-Layer Execution Tests', () => {
     const testTaskIds = ['layer-1-task-a', 'layer-1-task-b', 'layer-2-task-c', 'layer-3-task-d'];
 
     for (const taskId of testTaskIds) {
-      const testPath = path.join('.chopstack-shadows', taskId);
+      const testPath = path.join('.chopstack/shadows', taskId);
       const branchName = `chopstack/${taskId}`;
 
       try {
@@ -183,7 +183,7 @@ describe('Multi-Layer Execution Tests', () => {
     ];
 
     // Track worktree creation during execution
-    // const worktreePaths = tasks.map((task) => path.join('.chopstack-shadows', task.id));
+    // const worktreePaths = tasks.map((task) => path.join('.chopstack/shadows', task.id));
 
     // Create a plan from the tasks
     const plan: Plan = { tasks };
