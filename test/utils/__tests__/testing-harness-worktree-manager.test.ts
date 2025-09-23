@@ -1,14 +1,14 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { isNonNullish } from '@/utils/guards';
-
 import {
   TestingHarnessWorktreeManager,
   type TestWorktreeContext,
   testWorktreeManager,
   withTestWorktree,
-} from '../testing-harness-worktree-manager';
+} from '@test/utils/testing-harness-worktree-manager';
+
+import { isNonNullish } from '@/utils/guards';
 
 describe('TestWorktreeManager', () => {
   let manager: TestingHarnessWorktreeManager;
