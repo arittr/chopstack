@@ -99,7 +99,7 @@ describe('Parallel Worktree to Git-spice Stack Integration', () => {
       expect(result.tasksCompleted).toBe(3);
 
       // Verify worktrees were created and cleaned up
-      const shadowDir = path.join(testRepo, '.chopstack-shadows');
+      const shadowDir = path.join(testRepo, '.chopstack/shadows');
       const worktrees = await fs.readdir(shadowDir).catch(() => []);
 
       // Check if worktrees exist (during execution) or were cleaned up (after execution)
@@ -277,7 +277,7 @@ describe('Parallel Worktree to Git-spice Stack Integration', () => {
       await vcsEngine.cleanupWorktrees(contexts);
 
       // Verify worktrees are cleaned up
-      const shadowDir = path.join(testRepo, '.chopstack-shadows');
+      const shadowDir = path.join(testRepo, '.chopstack/shadows');
       const remainingWorktrees = await fs.readdir(shadowDir).catch(() => []);
       expect(remainingWorktrees).toHaveLength(0);
     });
@@ -393,7 +393,7 @@ describe('Parallel Worktree to Git-spice Stack Integration', () => {
       expect(result.tasksCompleted).toBe(1);
 
       // Check if shadow directory exists or was cleaned up
-      const shadowDir = path.join(testRepo, '.chopstack-shadows');
+      const shadowDir = path.join(testRepo, '.chopstack/shadows');
       const shadowExists = await fs
         .access(shadowDir)
         .then(() => true)
