@@ -104,5 +104,8 @@ Thumbs.db
 .chopstack/executions/
 .chopstack/logs/
 
+# Test workspace (worktree isolation)
+test/workspace/
+
 # code tools
 .crush
