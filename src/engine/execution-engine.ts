@@ -137,7 +137,6 @@ export class ExecutionEngine extends EventEmitter {
         }
       });
 
-      // eslint-disable-next-line no-await-in-loop -- wait for each layer's parallel tasks to finish
       await Promise.allSettled(layerPromises);
     }
 
@@ -206,14 +205,12 @@ export class ExecutionEngine extends EventEmitter {
     for (const layer of plan.executionLayers) {
       // Create worktrees for parallel tasks if needed
       if (worktreeNeeds.requiresWorktrees && layer.length > 1) {
-        // eslint-disable-next-line no-await-in-loop -- sequential layer processing required
         const contexts = await this.vcsEngine.createWorktreesForLayer(layer, baseRef, workdir);
         for (const context of contexts) {
           this.worktreeContexts.set(context.taskId, context);
         }
       }
 
-      // eslint-disable-next-line no-await-in-loop -- layers intentionally run sequentially
       const layerResults = await this._executeLayer(plan, layer, options, baseRef);
 
       const failedTasks = layerResults.filter((r) => r.state === 'failed');
@@ -293,7 +290,6 @@ export class ExecutionEngine extends EventEmitter {
     const results: TaskExecutionResult[] = [];
 
     for (const task of layer) {
-      // eslint-disable-next-line no-await-in-loop -- serial strategy requires ordered execution
       const result = await this._executeTask(plan, task, options);
       results.push(result);
     }
