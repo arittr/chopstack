@@ -215,7 +215,7 @@ describe('Button', () => {
   });
 
   it('should call onClick when clicked', () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     const { getByText } = render(<Button onClick={handleClick}>Click me</Button>);
 
     fireEvent.click(getByText('Click me'));
@@ -305,7 +305,7 @@ export type ButtonSize = 'small' | 'medium' | 'large';
 
         // Verify we have the tools we expect in chopstack
         expect(packageJson.devDependencies.typescript).toBeDefined();
-        expect(packageJson.devDependencies.jest).toBeDefined();
+        expect(packageJson.devDependencies.vi).toBeDefined();
 
         console.log('✅ Verified access to real package.json and dependencies');
       });
