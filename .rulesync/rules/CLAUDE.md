@@ -233,3 +233,4 @@ pnpm run test:execution
 - ESLint configuration is very strict with comprehensive rules for TypeScript, imports, and code quality
 - Uses official Claude Code SDK types from `@anthropic-ai/claude-code` package
 - README.md is minimal (placeholder), main documentation is in .cursorrules
+- Always run `lint:fix` before committing.
