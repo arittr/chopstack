@@ -1,7 +1,7 @@
-import type { VcsEngineOptions } from '../../src/engine/vcs-engine';
-import type { ExecutionTask } from '../../src/types/execution';
+import type { VcsEngineOptions } from '@/engine/vcs-engine';
+import type { ExecutionTask } from '@/types/execution';
 
-import { StackBuilder } from '../../src/vcs/stack-builder';
+import { StackBuilder } from '@/vcs/stack-builder';
 
 // Mock the GitSpiceBackend properly
 const mockGitSpice = {
