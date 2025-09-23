@@ -17,17 +17,24 @@ export type WorktreeInfo = {
  * with fallback to raw commands for advanced operations like worktrees
  */
 export class GitWrapper {
-  private readonly git: SimpleGit;
+  private readonly gitClient: SimpleGit;
 
   constructor(private readonly _workdir: string) {
-    this.git = simpleGit(_workdir);
+    this.gitClient = simpleGit(_workdir);
+  }
+
+  /**
+   * Access to underlying simple-git instance for advanced operations
+   */
+  get git(): SimpleGit {
+    return this.gitClient;
   }
 
   /**
    * Add files to git staging area
    */
   async add(files: string[] | string): Promise<void> {
-    await this.git.add(files);
+    await this.gitClient.add(files);
   }
 
   /**
@@ -40,8 +47,8 @@ export class GitWrapper {
       throw new Error('No changes to commit');
     }
 
-    await this.git.commit(message);
-    const result = await this.git.revparse(['HEAD']);
+    await this.gitClient.commit(message);
+    const result = await this.gitClient.revparse(['HEAD']);
     return result;
   }
 
@@ -49,7 +56,7 @@ export class GitWrapper {
    * Get git status information
    */
   async status(): Promise<GitStatus> {
-    const status = await this.git.status();
+    const status = await this.gitClient.status();
     return {
       added: status.staged,
       modified: status.modified,
@@ -69,14 +76,14 @@ export class GitWrapper {
    * Get current commit hash
    */
   async getCurrentCommit(): Promise<string> {
-    return this.git.revparse(['HEAD']);
+    return this.gitClient.revparse(['HEAD']);
   }
 
   /**
    * Check out a branch
    */
   async checkout(branch: string): Promise<void> {
-    await this.git.checkout(branch);
+    await this.gitClient.checkout(branch);
   }
 
   /**
@@ -84,8 +91,8 @@ export class GitWrapper {
    */
   async createBranch(name: string, from?: string): Promise<void> {
     await (from !== undefined
-      ? this.git.checkoutBranch(name, from)
-      : this.git.checkoutLocalBranch(name));
+      ? this.gitClient.checkoutBranch(name, from)
+      : this.gitClient.checkoutLocalBranch(name));
   }
 
   /**
@@ -97,7 +104,7 @@ export class GitWrapper {
       args.push('-b', branch);
     }
     args.push(path, ref);
-    await this.git.raw(args);
+    await this.gitClient.raw(args);
   }
 
   /**
@@ -109,14 +116,14 @@ export class GitWrapper {
       args.push('--force');
     }
     args.push(path);
-    await this.git.raw(args);
+    await this.gitClient.raw(args);
   }
 
   /**
    * List all worktrees (uses raw git command)
    */
   async listWorktrees(): Promise<WorktreeInfo[]> {
-    const output = await this.git.raw(['worktree', 'list', '--porcelain']);
+    const output = await this.gitClient.raw(['worktree', 'list', '--porcelain']);
     return this._parseWorktreeList(output);
   }
 
@@ -131,7 +138,7 @@ export class GitWrapper {
    * Get branches containing a specific commit
    */
   async getBranchesContaining(commitHash: string): Promise<string[]> {
-    const result = await this.git.raw(['branch', '--contains', commitHash]);
+    const result = await this.gitClient.raw(['branch', '--contains', commitHash]);
     return result
       .split('\n')
       .map((line) => line.trim().replace(/^\*\s*/, ''))
