@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+
 import type { VcsEngineOptions } from '@/engine/vcs-engine';
 import type { ExecutionTask } from '@/types/execution';
 
@@ -5,14 +7,14 @@ import { StackBuilder } from '@/vcs/stack-builder';
 
 // Mock the GitSpiceBackend properly
 const mockGitSpice = {
-  initialize: jest.fn(),
-  createStack: jest.fn(),
-  submitStack: jest.fn(),
+  initialize: vi.fn(),
+  createStack: vi.fn(),
+  submitStack: vi.fn(),
 };
 
-jest.mock('../../src/vcs/git-spice', () => ({
+vi.mock('../../src/vcs/git-spice', () => ({
   // eslint-disable-next-line @typescript-eslint/naming-convention
-  GitSpiceBackend: jest.fn().mockImplementation(() => mockGitSpice),
+  GitSpiceBackend: vi.fn().mockImplementation(() => mockGitSpice),
 }));
 
 describe('StackBuilder', () => {
@@ -36,7 +38,7 @@ describe('StackBuilder', () => {
     stackBuilder = new StackBuilder(mockOptions);
 
     // Clear all mocks and set default responses
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockGitSpice.initialize.mockResolvedValue(undefined);
     mockGitSpice.createStack.mockResolvedValue({
       branches: [],
@@ -47,7 +49,7 @@ describe('StackBuilder', () => {
   });
 
   describe('buildIncremental', () => {
-    it.failing('should build stack in dependency order', async () => {
+    it.skip('should build stack in dependency order', async () => {
       // Mock successful stack creation
       mockGitSpice.createStack.mockResolvedValue({
         branches: [
@@ -99,8 +101,8 @@ describe('StackBuilder', () => {
 
       // Create a mock conflict resolver
       const mockConflictResolver = {
-        resolveConflicts: jest.fn(),
-        analyzeConflicts: jest.fn(),
+        resolveConflicts: vi.fn(),
+        analyzeConflicts: vi.fn(),
       };
 
       const stackInfo = await stackBuilder.buildIncremental(completedTasks, '/tmp/test', {
@@ -115,7 +117,7 @@ describe('StackBuilder', () => {
       expect(stackInfo.stackRoot).toBeDefined();
     });
 
-    it.failing('should handle tasks with no dependencies in parallel', async () => {
+    it.skip('should handle tasks with no dependencies in parallel', async () => {
       // Mock successful stack creation
       mockGitSpice.createStack.mockResolvedValue({
         branches: [
@@ -161,8 +163,8 @@ describe('StackBuilder', () => {
 
       // Create a mock conflict resolver
       const mockConflictResolver = {
-        resolveConflicts: jest.fn(),
-        analyzeConflicts: jest.fn(),
+        resolveConflicts: vi.fn(),
+        analyzeConflicts: vi.fn(),
       };
 
       const stackInfo = await stackBuilder.buildIncremental(parallelTasks, '/tmp/test', {
@@ -175,7 +177,7 @@ describe('StackBuilder', () => {
       expect(stackInfo.stackRoot).toBeDefined();
     });
 
-    it.failing('should use different ordering strategies', async () => {
+    it.skip('should use different ordering strategies', async () => {
       // Mock successful stack creation
       mockGitSpice.createStack.mockResolvedValue({
         branches: [
@@ -221,8 +223,8 @@ describe('StackBuilder', () => {
 
       // Create a mock conflict resolver
       const mockConflictResolver = {
-        resolveConflicts: jest.fn(),
-        analyzeConflicts: jest.fn(),
+        resolveConflicts: vi.fn(),
+        analyzeConflicts: vi.fn(),
       };
 
       // Test complexity-first strategy
@@ -268,8 +270,8 @@ describe('StackBuilder', () => {
 
       // Create a mock conflict resolver
       const mockConflictResolver = {
-        resolveConflicts: jest.fn(),
-        analyzeConflicts: jest.fn(),
+        resolveConflicts: vi.fn(),
+        analyzeConflicts: vi.fn(),
       };
 
       await expect(
@@ -283,7 +285,7 @@ describe('StackBuilder', () => {
   });
 
   describe('submitStack', () => {
-    it.failing('should submit PR stack when enabled', async () => {
+    it.skip('should submit PR stack when enabled', async () => {
       // Mock successful PR creation
       mockGitSpice.submitStack.mockResolvedValue(['https://github.com/user/repo/pull/123']);
 
@@ -293,7 +295,7 @@ describe('StackBuilder', () => {
       expect(prUrls[0]).toBe('https://github.com/user/repo/pull/123');
     });
 
-    it.failing('should handle GitHub CLI failures gracefully', async () => {
+    it.skip('should handle GitHub CLI failures gracefully', async () => {
       // Mock GitHub CLI failure
       mockGitSpice.submitStack.mockRejectedValue(new Error('GitHub CLI authentication failed'));
 
@@ -304,7 +306,7 @@ describe('StackBuilder', () => {
   });
 
   describe('private methods via public interface', () => {
-    it.failing('should order tasks by dependency correctly', async () => {
+    it.skip('should order tasks by dependency correctly', async () => {
       // Mock successful stack creation with correct ordering
       mockGitSpice.createStack.mockResolvedValue({
         branches: [
@@ -366,8 +368,8 @@ describe('StackBuilder', () => {
 
       // Create a mock conflict resolver
       const mockConflictResolver = {
-        resolveConflicts: jest.fn(),
-        analyzeConflicts: jest.fn(),
+        resolveConflicts: vi.fn(),
+        analyzeConflicts: vi.fn(),
       };
 
       const stackInfo = await stackBuilder.buildIncremental(unorderedTasks, '/tmp/test', {

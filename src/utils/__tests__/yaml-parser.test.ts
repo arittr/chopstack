@@ -1,10 +1,12 @@
+import { vi } from 'vitest';
+
 import { YamlPlanParser } from '../yaml-parser';
 
 // Mock the Zod schema validation
-jest.mock('../../types/decomposer', () => ({
+vi.mock('../../types/decomposer', () => ({
   // eslint-disable-next-line @typescript-eslint/naming-convention
   PlanSchema: {
-    parse: jest.fn((data: unknown) => {
+    parse: vi.fn((data: unknown) => {
       // Simple mock - return the data if it has tasks array
       if (
         data !== null &&
