@@ -3,13 +3,13 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { Plan } from '../../src/types/decomposer';
-import type { ExecutionOptions, ExecutionTask } from '../../src/types/execution';
+import type { Plan } from '@/types/decomposer';
+import type { ExecutionOptions, ExecutionTask } from '@/types/execution';
 
-import { ExecutionEngine } from '../../src/engine/execution-engine';
-import { VcsEngine } from '../../src/engine/vcs-engine';
-import { isValidArray } from '../../src/utils/guards';
-import { GitSpiceBackend } from '../../src/vcs/git-spice';
+import { ExecutionEngine } from '@/engine/execution-engine';
+import { VcsEngine } from '@/engine/vcs-engine';
+import { isValidArray } from '@/utils/guards';
+import { GitSpiceBackend } from '@/vcs/git-spice';
 
 const execAsync = promisify(exec);
 

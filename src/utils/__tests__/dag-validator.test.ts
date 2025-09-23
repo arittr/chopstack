@@ -1,4 +1,4 @@
-import type { Plan, Task } from '../../types/decomposer';
+import type { Plan, Task } from '@/types/decomposer';
 
 import { DagValidator } from '../dag-validator';
 
