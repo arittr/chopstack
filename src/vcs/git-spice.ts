@@ -43,13 +43,14 @@ export class GitSpiceBackend implements VcsBackend {
    */
   async initialize(workdir: string): Promise<void> {
     try {
-      const { stdout } = await execAsync('git config --get spice.root', {
+      const { stdout } = await execAsync('git config --get spice.trunk', {
         cwd: workdir,
         timeout: 5000,
       });
 
       if (hasContent(stdout.trim())) {
         // Already initialized
+        console.log('🌿 git-spice already initialized');
         return;
       }
     } catch {
@@ -57,14 +58,15 @@ export class GitSpiceBackend implements VcsBackend {
     }
 
     try {
-      await execAsync('gs auth setup --skip-auth', {
+      // Initialize git-spice with main as trunk branch (no remote needed for local testing)
+      await execAsync('gs repo init --trunk=main', {
         cwd: workdir,
         timeout: 10_000,
       });
       console.log('🌿 Initialized git-spice in repository');
     } catch (error) {
       const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
-      throw new GitSpiceError('Failed to initialize git-spice', 'gs auth setup', stderr);
+      throw new GitSpiceError('Failed to initialize git-spice', 'gs repo init', stderr);
     }
   }
 
@@ -85,6 +87,9 @@ export class GitSpiceBackend implements VcsBackend {
 
     const branches: GitSpiceStackInfo['branches'] = [];
     const stackRoot = baseRef;
+
+    // First, ensure all worktree commits are accessible in the main repo
+    await this._fetchWorktreeCommits(tasks, workdir);
 
     // Create branches for each task in dependency order
     // Note: Using sequential processing (for...of) because git operations must be ordered
@@ -113,23 +118,23 @@ export class GitSpiceBackend implements VcsBackend {
           timeout: 10_000,
         });
 
-        // If task has a commit hash, cherry-pick it from the worktree
+        // If task has a commit hash, cherry-pick it
         if (isNonEmptyString(task.commitHash)) {
-          // Find the worktree branch that contains this commit
-          // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
-          const worktreeBranch = await this._findWorktreeBranch(task, workdir);
-          if (isNonEmptyString(worktreeBranch)) {
-            // Cherry-pick the commit from the worktree branch
+          try {
+            // The commit should now be accessible after fetching from worktrees
             // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
             await execAsync(`git cherry-pick ${task.commitHash}`, {
               cwd: workdir,
               timeout: 30_000,
             });
-          } else {
-            // Fallback: try to apply changes directly
-            console.warn(
-              `Warning: Could not find worktree branch for task ${task.id}, skipping cherry-pick`,
+            console.log(
+              `🔀 Cherry-picked commit ${task.commitHash.slice(0, 7)} for task ${task.id}`,
             );
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error(`❌ Failed to cherry-pick commit for task ${task.id}: ${errorMessage}`);
+            // Try to continue with other tasks
+            continue;
           }
         }
 
@@ -219,69 +224,87 @@ export class GitSpiceBackend implements VcsBackend {
   }
 
   /**
-   * Find the worktree branch that contains a specific commit
+   * Fetch all commits from worktrees to make them accessible in the main repository
    */
-  private async _findWorktreeBranch(task: ExecutionTask, workdir: string): Promise<string | null> {
-    if (!isNonEmptyString(task.commitHash)) {
-      return null;
-    }
+  private async _fetchWorktreeCommits(tasks: ExecutionTask[], workdir: string): Promise<void> {
+    console.log('🔄 Fetching commits from worktrees...');
 
+    // Get list of worktrees
     try {
-      // First try to find the chopstack branch for this task
-
-      // Check if the commit exists in the expected worktree branch
-      const { stdout } = await execAsync(
-        `git branch --contains ${task.commitHash} | grep -E "chopstack/${task.id}|${task.id}"`,
-        { cwd: workdir, timeout: 5000 },
-      );
-
-      if (hasContent(stdout)) {
-        // Clean the branch name (remove leading whitespace and asterisk)
-        const branchName = stdout
-          .split('\n')[0]
-          ?.trim()
-          .replace(/^\*\s*/, '');
-        if (isNonEmptyString(branchName)) {
-          return branchName;
-        }
-      }
-    } catch {
-      // If grep or git command fails, try alternative approach
-    }
-
-    try {
-      // Fallback: search all branches for the commit
-      const { stdout } = await execAsync(`git branch --contains ${task.commitHash}`, {
+      const { stdout: worktreeList } = await execAsync('git worktree list --porcelain', {
         cwd: workdir,
         timeout: 5000,
       });
 
-      if (hasContent(stdout)) {
-        // Look for any branch that might be related to this task
-        const branches = stdout.split('\n').map((line) => line.trim().replace(/^\*\s*/, ''));
+      // Parse worktree information
+      const worktrees = this._parseWorktreeList(worktreeList);
 
-        // Prefer chopstack branches
-        const chopstackBranch = branches.find(
-          (branch) => branch.includes('chopstack') && branch.includes(task.id),
-        );
-        if (isNonEmptyString(chopstackBranch)) {
-          return chopstackBranch;
+      // For each task with a commit, fetch from its worktree
+      for (const task of tasks) {
+        if (!isNonEmptyString(task.commitHash)) {
+          continue;
         }
 
-        // Otherwise take the first non-main branch
-        const nonMainBranch = branches.find(
-          (branch) =>
-            isNonEmptyString(branch) && !branch.includes('main') && !branch.includes('master'),
+        // Find the worktree for this task
+        const taskWorktree = worktrees.find(
+          (wt) => wt.branch?.includes(task.id) ?? wt.path.includes(task.id),
         );
-        if (isNonEmptyString(nonMainBranch)) {
-          return nonMainBranch;
+
+        if (taskWorktree !== undefined && isNonEmptyString(taskWorktree.branch)) {
+          try {
+            // Fetch the branch from the worktree to make commits accessible
+            // This creates a remote tracking branch in the main repo
+            // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
+            await execAsync(
+              `git fetch "${taskWorktree.path}" "${taskWorktree.branch}:refs/remotes/worktree-${task.id}/${taskWorktree.branch}"`,
+              {
+                cwd: workdir,
+                timeout: 10_000,
+              },
+            );
+            console.log(`✅ Fetched commits from worktree for task ${task.id}`);
+          } catch (error) {
+            console.warn(
+              `⚠️ Could not fetch from worktree for task ${task.id}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
         }
       }
     } catch (error) {
-      console.warn(`Warning: Could not find branch for commit ${task.commitHash}:`, error);
+      console.warn(
+        `⚠️ Could not list worktrees: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Parse git worktree list output
+   */
+  private _parseWorktreeList(
+    output: string,
+  ): Array<{ branch?: string; head?: string; path: string }> {
+    const worktrees: Array<{ branch?: string; head?: string; path: string }> = [];
+    const lines = output.split('\n');
+    let currentWorktree: { branch?: string; head?: string; path?: string } = {};
+
+    for (const line of lines) {
+      if (line.startsWith('worktree ')) {
+        if (currentWorktree.path !== undefined) {
+          worktrees.push(currentWorktree as { branch?: string; head?: string; path: string });
+        }
+        currentWorktree = { path: line.replace('worktree ', '') };
+      } else if (line.startsWith('branch ')) {
+        currentWorktree.branch = line.replace('branch refs/heads/', '');
+      } else if (line.startsWith('HEAD ')) {
+        currentWorktree.head = line.replace('HEAD ', '');
+      }
     }
 
-    return null;
+    if (currentWorktree.path !== undefined) {
+      worktrees.push(currentWorktree as { branch?: string; head?: string; path: string });
+    }
+
+    return worktrees;
   }
 
   /**
