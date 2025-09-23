@@ -5,10 +5,10 @@ import * as path from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
-import type { Plan } from '../../src/types/decomposer';
+import type { Plan } from '@/types/decomposer';
 
-import { DagValidator } from '../../src/utils/dag-validator';
-import { hasContent } from '../../src/utils/guards';
+import { DagValidator } from '@/utils/dag-validator';
+import { hasContent } from '@/utils/guards';
 
 describe('Chopstack E2E Integration Tests', () => {
   const NEXTJS_REPO_PATH = '../typescript-nextjs-starter';
