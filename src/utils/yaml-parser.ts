@@ -39,18 +39,13 @@ export class YamlPlanParser {
    * Parse and validate a plan from parsed content
    */
   static parseAndValidatePlan(parsedContent: ParsedContent): Plan {
-    console.log('🔍 Validating plan structure with Zod...');
-
     try {
       const rawPlan = this._parseContentBySource(parsedContent);
       const validatedPlan = PlanSchema.parse(rawPlan);
-      console.log(`✅ Plan validated successfully with ${validatedPlan.tasks.length} tasks`);
 
       return validatedPlan;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown parsing error';
-      console.error(`❌ Failed to parse ${parsedContent.source}: ${message}`);
-      console.error(`📤 Content for debugging:\n${parsedContent.content}`);
       throw new Error(`Failed to parse ${parsedContent.source}: ${message}`);
     }
   }
