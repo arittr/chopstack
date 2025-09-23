@@ -35,6 +35,7 @@ export type CommitOptions = {
 };
 
 export type WorktreeExecutionContext = {
+  absolutePath: string;
   baseRef: string;
   branchName: string;
   taskId: string;
@@ -142,13 +143,22 @@ export class VcsEngine extends EventEmitter {
       const branchName = `${this.options.branchPrefix}${task.id}`;
       const worktreePath = `${this.options.shadowPath}/${task.id}`;
 
-      return this.worktreeManager.createWorktree({
+      const context = await this.worktreeManager.createWorktree({
         taskId: task.id,
         branchName,
         worktreePath,
         baseRef,
         workdir,
       });
+
+      // Map WorktreeContext to WorktreeExecutionContext
+      return {
+        taskId: context.taskId,
+        branchName: context.branchName,
+        baseRef: context.baseRef,
+        worktreePath: context.worktreePath,
+        absolutePath: context.absolutePath,
+      };
     });
 
     return Promise.all(worktreePromises);
@@ -188,7 +198,7 @@ export class VcsEngine extends EventEmitter {
     context: WorktreeExecutionContext,
     options: CommitOptions = {},
   ): Promise<string> {
-    const workdir = context.worktreePath;
+    const workdir = context.absolutePath;
 
     // Generate commit message if not provided
     let commitMessage = options.message;
