@@ -75,9 +75,9 @@ cleanup_test_artifacts() {
     rm -rf test-files/ src/types/test.ts src/utils/test.ts src/components/ src/main.ts
 
     # Clean up worktrees if they exist
-    if git worktree list | grep -q ".chopstack-shadows"; then
+    if git worktree list | grep -q ".chopstack/shadows"; then
         log_info "Cleaning up git worktrees..."
-        git worktree list | grep ".chopstack-shadows" | while read line; do
+        git worktree list | grep ".chopstack/shadows" | while read line; do
             worktree_path=$(echo "$line" | awk '{print $1}')
             git worktree remove "$worktree_path" --force 2>/dev/null || true
         done
