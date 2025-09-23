@@ -132,7 +132,6 @@ class GitWorkflowManager {
     const results: Array<{ branch: string; error?: string; status: string }> = [];
     for (const branch of branches) {
       try {
-        // eslint-disable-next-line no-await-in-loop
         await exec(
           strategy === 'merge'
             ? `git merge ${branch} --no-ff -m "Merge ${branch} into ${targetBranch}"`
