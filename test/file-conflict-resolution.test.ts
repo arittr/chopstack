@@ -16,7 +16,7 @@ describe('Complex File Conflict Resolution Tests', () => {
     ];
 
     for (const taskId of testTaskIds) {
-      const testPath = path.join('.chopstack-shadows', taskId);
+      const testPath = path.join('.chopstack/shadows', taskId);
       const branchName = `chopstack/${taskId}`;
 
       try {
@@ -51,7 +51,7 @@ describe('Complex File Conflict Resolution Tests', () => {
     ];
 
     for (const taskId of testTaskIds) {
-      const testPath = path.join('.chopstack-shadows', taskId);
+      const testPath = path.join('.chopstack/shadows', taskId);
       const branchName = `chopstack/${taskId}`;
 
       try {

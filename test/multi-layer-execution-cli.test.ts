@@ -11,7 +11,7 @@ describe('Multi-Layer Execution CLI Tests', () => {
     const testTaskIds = ['setup-types', 'impl-api', 'impl-ui', 'write-tests'];
 
     for (const taskId of testTaskIds) {
-      const testPath = path.join('.chopstack-shadows', taskId);
+      const testPath = path.join('.chopstack/shadows', taskId);
       const branchName = `chopstack/${taskId}`;
 
       try {
@@ -43,7 +43,7 @@ describe('Multi-Layer Execution CLI Tests', () => {
     const testTaskIds = ['setup-types', 'impl-api', 'impl-ui', 'write-tests'];
 
     for (const taskId of testTaskIds) {
-      const testPath = path.join('.chopstack-shadows', taskId);
+      const testPath = path.join('.chopstack/shadows', taskId);
       const branchName = `chopstack/${taskId}`;
 
       try {

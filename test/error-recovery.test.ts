@@ -11,7 +11,7 @@ describe('Error Recovery and Retry Tests', () => {
     const testTaskIds = ['failing-task', 'recovery-task', 'success-task'];
 
     for (const taskId of testTaskIds) {
-      const testPath = path.join('.chopstack-shadows', taskId);
+      const testPath = path.join('.chopstack/shadows', taskId);
       const branchName = `chopstack/${taskId}`;
 
       try {
@@ -43,7 +43,7 @@ describe('Error Recovery and Retry Tests', () => {
     const testTaskIds = ['failing-task', 'recovery-task', 'success-task'];
 
     for (const taskId of testTaskIds) {
-      const testPath = path.join('.chopstack-shadows', taskId);
+      const testPath = path.join('.chopstack/shadows', taskId);
       const branchName = `chopstack/${taskId}`;
 
       try {
