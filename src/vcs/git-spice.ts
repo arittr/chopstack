@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 
 import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 
-import { GitWrapper } from '../utils/git-wrapper';
+import { GitWrapper, type WorktreeInfo } from '../utils/git-wrapper';
 import { hasContent, isNonEmptyString } from '../utils/guards';
 
 import type { VcsBackend } from './index';
@@ -117,6 +117,9 @@ export class GitSpiceBackend implements VcsBackend {
         // If task has a commit hash, cherry-pick it using GitWrapper
         if (isNonEmptyString(task.commitHash)) {
           try {
+            // Verify commit is accessible before attempting cherry-pick
+            await git.git.raw(['cat-file', '-e', task.commitHash]);
+
             // The commit should now be accessible after fetching from worktrees
             await git.cherryPick(task.commitHash);
             console.log(
@@ -124,9 +127,41 @@ export class GitSpiceBackend implements VcsBackend {
             );
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error(`❌ Failed to cherry-pick commit for task ${task.id}: ${errorMessage}`);
-            // Try to continue with other tasks
-            continue;
+
+            // Try to find and checkout the commit from remote refs if cherry-pick failed
+            if (errorMessage.includes('unknown revision') || errorMessage.includes('bad object')) {
+              try {
+                // Look for the commit in the remote refs we created
+                const remoteReferences = await git.git.raw([
+                  'branch',
+                  '-r',
+                  '--contains',
+                  task.commitHash,
+                ]);
+                if (remoteReferences.trim().length > 0) {
+                  console.log(
+                    `🔄 Found commit in remote refs, retrying cherry-pick for task ${task.id}`,
+                  );
+                  await git.cherryPick(task.commitHash);
+                  console.log(
+                    `🔀 Successfully cherry-picked commit ${task.commitHash.slice(0, 7)} for task ${task.id} (retry)`,
+                  );
+                } else {
+                  console.error(
+                    `❌ Commit ${task.commitHash.slice(0, 7)} not found for task ${task.id}`,
+                  );
+                  continue;
+                }
+              } catch (retryError) {
+                console.error(
+                  `❌ Failed to cherry-pick commit for task ${task.id} (retry failed): ${retryError instanceof Error ? retryError.message : String(retryError)}`,
+                );
+                continue;
+              }
+            } else {
+              console.error(`❌ Failed to cherry-pick commit for task ${task.id}: ${errorMessage}`);
+              continue;
+            }
           }
         }
 
@@ -221,39 +256,70 @@ export class GitSpiceBackend implements VcsBackend {
   private async _fetchWorktreeCommits(tasks: ExecutionTask[], workdir: string): Promise<void> {
     console.log('🔄 Fetching commits from worktrees...');
 
-    // Get list of worktrees
-    try {
-      const git = new GitWrapper(workdir);
+    const git = new GitWrapper(workdir);
 
-      // Get worktree list using GitWrapper
+    try {
+      // Get list of worktrees
       const worktrees = await git.listWorktrees();
 
-      // For each task with a commit, fetch from its worktree
+      // For each task with a commit, ensure the commit is accessible
       for (const task of tasks) {
         if (!isNonEmptyString(task.commitHash)) {
           continue;
         }
 
-        // Find the worktree for this task
-        const taskWorktree = worktrees.find(
-          (wt) => wt.branch?.includes(task.id) ?? wt.path.includes(task.id),
-        );
+        // Find the worktree for this task - match by path containing task ID
+        const taskWorktree = this._findWorktreeForTask(task, worktrees);
 
-        if (taskWorktree !== undefined && isNonEmptyString(taskWorktree.branch)) {
+        if (taskWorktree !== undefined) {
           try {
-            // Fetch the branch from the worktree to make commits accessible
-            // This creates a remote tracking branch in the main repo
+            // First, try to see if the commit is already accessible
+            try {
+              await git.git.raw(['cat-file', '-e', task.commitHash]);
+              console.log(
+                `✅ Commit ${task.commitHash.slice(0, 7)} already accessible for task ${task.id}`,
+              );
+              continue;
+            } catch {
+              // Commit not accessible, need to fetch
+            }
+
+            // Use git fetch with the worktree's git directory directly
+            const worktreeGitDir = `${taskWorktree.path}/.git`;
+
+            // Fetch all refs from the worktree's git directory
             await git.git.raw([
               'fetch',
-              taskWorktree.path,
-              `${taskWorktree.branch}:refs/remotes/worktree-${task.id}/${taskWorktree.branch}`,
+              worktreeGitDir,
+              `+refs/heads/*:refs/remotes/worktree-${task.id}/*`,
             ]);
+
             console.log(`✅ Fetched commits from worktree for task ${task.id}`);
           } catch (error) {
-            console.warn(
-              `⚠️ Could not fetch from worktree for task ${task.id}: ${error instanceof Error ? error.message : String(error)}`,
-            );
+            // Try alternative approach: fetch the specific commit directly if we know its branch
+            if (taskWorktree.branch !== undefined) {
+              try {
+                await git.git.raw([
+                  'fetch',
+                  taskWorktree.path,
+                  `+refs/heads/${taskWorktree.branch}:refs/remotes/worktree-${task.id}/${taskWorktree.branch}`,
+                ]);
+                console.log(
+                  `✅ Fetched branch ${taskWorktree.branch} from worktree for task ${task.id}`,
+                );
+              } catch (fetchError) {
+                console.warn(
+                  `⚠️ Could not fetch from worktree for task ${task.id}: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`,
+                );
+              }
+            } else {
+              console.warn(
+                `⚠️ Could not fetch from worktree for task ${task.id}: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
           }
+        } else {
+          console.warn(`⚠️ Could not find worktree for task ${task.id}`);
         }
       }
     } catch (error) {
@@ -264,33 +330,46 @@ export class GitSpiceBackend implements VcsBackend {
   }
 
   /**
-   * Parse git worktree list output
+   * Find the worktree associated with a specific task
    */
-  private _parseWorktreeList(
-    output: string,
-  ): Array<{ branch?: string; head?: string; path: string }> {
-    const worktrees: Array<{ branch?: string; head?: string; path: string }> = [];
-    const lines = output.split('\n');
-    let currentWorktree: { branch?: string; head?: string; path?: string } = {};
+  private _findWorktreeForTask(
+    task: ExecutionTask,
+    worktrees: WorktreeInfo[],
+  ): WorktreeInfo | undefined {
+    // Try multiple strategies to find the right worktree
 
-    for (const line of lines) {
-      if (line.startsWith('worktree ')) {
-        if (currentWorktree.path !== undefined) {
-          worktrees.push(currentWorktree as { branch?: string; head?: string; path: string });
-        }
-        currentWorktree = { path: line.replace('worktree ', '') };
-      } else if (line.startsWith('branch ')) {
-        currentWorktree.branch = line.replace('branch refs/heads/', '');
-      } else if (line.startsWith('HEAD ')) {
-        currentWorktree.head = line.replace('HEAD ', '');
-      }
+    // Strategy 1: Path contains task ID
+    let matchingWorktree = worktrees.find((wt) => wt.path.includes(task.id));
+    if (matchingWorktree !== undefined) {
+      return matchingWorktree;
     }
 
-    if (currentWorktree.path !== undefined) {
-      worktrees.push(currentWorktree as { branch?: string; head?: string; path: string });
+    // Strategy 2: Branch name contains task ID (if branch exists)
+    matchingWorktree = worktrees.find((wt) => Boolean(wt.branch?.includes(task.id)));
+    if (matchingWorktree !== undefined) {
+      return matchingWorktree;
     }
 
-    return worktrees;
+    // Strategy 3: Look for chopstack shadow directory pattern
+    matchingWorktree = worktrees.find(
+      (wt) => wt.path.includes('.chopstack/shadows') && wt.path.includes(task.id),
+    );
+    if (matchingWorktree !== undefined) {
+      return matchingWorktree;
+    }
+
+    // Strategy 4: Branch name matches chopstack pattern
+    matchingWorktree = worktrees.find(
+      (wt) =>
+        wt.branch !== undefined &&
+        wt.branch.startsWith('chopstack/') &&
+        wt.branch.includes(task.id),
+    );
+    if (matchingWorktree !== undefined) {
+      return matchingWorktree;
+    }
+
+    return undefined;
   }
 
   /**
