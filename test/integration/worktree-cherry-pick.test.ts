@@ -3,10 +3,10 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { ExecutionTask } from '../../src/types/execution';
+import type { ExecutionTask } from '@/types/execution';
 
-import { GitSpiceBackend } from '../../src/vcs/git-spice';
-import { WorktreeManager } from '../../src/vcs/worktree-manager';
+import { GitSpiceBackend } from '@/vcs/git-spice';
+import { WorktreeManager } from '@/vcs/worktree-manager';
 
 const execAsync = promisify(exec);
 

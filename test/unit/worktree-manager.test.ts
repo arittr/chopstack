@@ -1,8 +1,8 @@
 // Jest globals are available in test environment
 
-import type { VcsEngineOptions } from '../../src/engine/vcs-engine';
+import type { VcsEngineOptions } from '@/engine/vcs-engine';
 
-import { WorktreeManager } from '../../src/vcs/worktree-manager';
+import { WorktreeManager } from '@/vcs/worktree-manager';
 
 // Mock promisified exec function
 const mockExecAsync = jest.fn();
