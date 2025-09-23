@@ -77,9 +77,7 @@ export async function detectAvailableVcsBackend(): Promise<VcsBackendType | null
   // Sequential check is intentional - we want to return the first available backend
   for (const type of backends) {
     try {
-      // eslint-disable-next-line no-await-in-loop -- sequential detection required
       const backend = await createVcsBackend(type);
-      // eslint-disable-next-line no-await-in-loop -- sequential detection required
       if (await backend.isAvailable()) {
         return type;
       }

@@ -52,7 +52,6 @@ describe('Worktree Commit Fetching', () => {
         .filter((path) => path !== testRepo);
 
       for (const worktreePath of worktrees) {
-        // eslint-disable-next-line no-await-in-loop
         await execAsync(`git worktree remove --force "${worktreePath}"`, { cwd: testRepo }).catch(
           () => {
             /* ignore */
@@ -120,7 +119,6 @@ describe('Worktree Commit Fetching', () => {
 
       // Create worktrees and commits for each task
       for (const taskId of tasks) {
-        // eslint-disable-next-line no-await-in-loop
         const context = await worktreeManager.createWorktree({
           taskId,
           branchName: `chopstack/${taskId}`,
@@ -131,22 +129,17 @@ describe('Worktree Commit Fetching', () => {
 
         // Create a unique file in each worktree
         const testFile = path.join(context.absolutePath, `${taskId}.txt`);
-        // eslint-disable-next-line no-await-in-loop
         await fs.writeFile(testFile, `Content for ${taskId}\n`);
-        // eslint-disable-next-line no-await-in-loop
         await execAsync(`git add ${taskId}.txt`, { cwd: context.absolutePath });
-        // eslint-disable-next-line no-await-in-loop
         await execAsync(`git commit -m "Commit for ${taskId}"`, { cwd: context.absolutePath });
 
         // Get the commit hash
-        // eslint-disable-next-line no-await-in-loop
         const { stdout: commitHash } = await execAsync('git rev-parse HEAD', {
           cwd: context.absolutePath,
         });
         commits[taskId] = commitHash.trim();
 
         // Fetch from the worktree
-        // eslint-disable-next-line no-await-in-loop
         await execAsync(
           `git fetch "${context.absolutePath}" "${context.branchName}:refs/remotes/worktree-${taskId}/${context.branchName}"`,
           { cwd: testRepo },
@@ -155,7 +148,6 @@ describe('Worktree Commit Fetching', () => {
 
       // Verify all commits are accessible
       for (const hash of Object.values(commits)) {
-        // eslint-disable-next-line no-await-in-loop
         const { stdout: catFile } = await execAsync(`git cat-file -t ${hash}`, { cwd: testRepo });
         expect(catFile.trim()).toBe('commit');
       }
@@ -163,14 +155,12 @@ describe('Worktree Commit Fetching', () => {
       // Cherry-pick all commits to a new branch
       await execAsync('git checkout -b combined-branch', { cwd: testRepo });
       for (const hash of Object.values(commits)) {
-        // eslint-disable-next-line no-await-in-loop
         await execAsync(`git cherry-pick ${hash}`, { cwd: testRepo });
       }
 
       // Verify all files exist
       for (const taskId of tasks) {
         const filePath = path.join(testRepo, `${taskId}.txt`);
-        // eslint-disable-next-line no-await-in-loop
         const content = await fs.readFile(filePath, 'utf8');
         expect(content).toBe(`Content for ${taskId}\n`);
       }
@@ -184,7 +174,6 @@ describe('Worktree Commit Fetching', () => {
       ];
 
       for (const wt of worktrees) {
-        // eslint-disable-next-line no-await-in-loop
         await worktreeManager.createWorktree({
           taskId: wt.taskId,
           branchName: wt.branch,
