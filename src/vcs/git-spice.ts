@@ -106,11 +106,9 @@ export class GitSpiceBackend implements VcsBackend {
 
         // Switch to parent branch using GitWrapper
         const git = new GitWrapper(workdir);
-        // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
         await git.checkout(parentBranch);
 
         // Create new branch
-        // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
         await execAsync(`gs branch create ${branchName}`, {
           cwd: workdir,
           timeout: 10_000,
@@ -120,7 +118,6 @@ export class GitSpiceBackend implements VcsBackend {
         if (isNonEmptyString(task.commitHash)) {
           try {
             // The commit should now be accessible after fetching from worktrees
-            // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
             await git.cherryPick(task.commitHash);
             console.log(
               `🔀 Cherry-picked commit ${task.commitHash.slice(0, 7)} for task ${task.id}`,
@@ -246,7 +243,6 @@ export class GitSpiceBackend implements VcsBackend {
           try {
             // Fetch the branch from the worktree to make commits accessible
             // This creates a remote tracking branch in the main repo
-            // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
             await git.git.raw([
               'fetch',
               taskWorktree.path,
