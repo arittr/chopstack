@@ -41,7 +41,6 @@ export async function generatePlanWithRetry(
     const enhancedContent = buildEnhancedPrompt(specContent, conflictHistory, attempt);
 
     // Decompose the specification into a plan
-    // eslint-disable-next-line no-await-in-loop -- Sequential processing required for retry logic
     const plan = await agent.decompose(enhancedContent, cwd, { verbose });
     console.log(`📋 Generated plan with ${plan.tasks.length} tasks`);
 

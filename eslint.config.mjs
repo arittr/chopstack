@@ -388,7 +388,7 @@ export default [
       'no-console': ['warn', { allow: ['warn', 'error', 'log'] }],
       'no-debugger': 'error',
       'no-alert': 'error',
-      'no-await-in-loop': 'error',
+      'no-await-in-loop': 'off', // creates too much noise
       'no-return-await': 'off', // Handled by @typescript-eslint/return-await
       'no-implied-eval': 'error',
       'no-new-func': 'error',
