@@ -84,16 +84,16 @@ cd test/e2e
 [chopstack] Strategy: parallel
 [chopstack] Tasks: 2
 [chopstack] Executing tasks with full changes...
-[orchestrator] Working directory: .chopstack-shadows/task-a
-[orchestrator] Working directory: .chopstack-shadows/task-b
+[orchestrator] Working directory: .chopstack/shadows/task-a
+[orchestrator] Working directory: .chopstack/shadows/task-b
 ```
 
 ### Git Worktree Status (during/after parallel execution)
 ```bash
 git worktree list
 # /main-repo [main]
-# /main-repo/.chopstack-shadows/create-file-a [chopstack/create-file-a]
-# /main-repo/.chopstack-shadows/create-file-b [chopstack/create-file-b]
+# /main-repo/.chopstack/shadows/create-file-a [chopstack/create-file-a]
+# /main-repo/.chopstack/shadows/create-file-b [chopstack/create-file-b]
 ```
 
 ## Test Validation Checklist
@@ -106,7 +106,7 @@ git worktree list
 
 ### ✅ Parallel Execution
 - [ ] Multiple tasks trigger worktree creation
-- [ ] Tasks run in isolated `.chopstack-shadows/` directories
+- [ ] Tasks run in isolated `.chopstack/shadows/` directories
 - [ ] Git branches created per task (`chopstack/task-id`)
 - [ ] No conflicts between parallel tasks
 
