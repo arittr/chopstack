@@ -32,7 +32,7 @@ describe('Worktree Cherry-pick Integration', () => {
 
     // Setup test instances
     worktreeManager = new WorktreeManager({
-      shadowPath: '.chopstack-shadows',
+      shadowPath: '.chopstack/shadows',
       branchPrefix: 'chopstack/',
       cleanupOnSuccess: false,
       cleanupOnFailure: false,
@@ -98,7 +98,7 @@ describe('Worktree Cherry-pick Integration', () => {
       const context = await worktreeManager.createWorktree({
         taskId: task.id,
         branchName: `chopstack/${task.id}`,
-        worktreePath: `.chopstack-shadows/${task.id}`,
+        worktreePath: `.chopstack/shadows/${task.id}`,
         baseRef: 'HEAD',
         workdir: testRepo,
       });
@@ -172,7 +172,7 @@ describe('Worktree Cherry-pick Integration', () => {
         const context = await worktreeManager.createWorktree({
           taskId: task.id,
           branchName: `chopstack/${task.id}`,
-          worktreePath: `.chopstack-shadows/${task.id}`,
+          worktreePath: `.chopstack/shadows/${task.id}`,
           baseRef: 'HEAD',
           workdir: testRepo,
         });
@@ -248,7 +248,7 @@ describe('Worktree Cherry-pick Integration', () => {
         const context = await worktreeManager.createWorktree({
           taskId: task.id,
           branchName: `chopstack/${task.id}`,
-          worktreePath: `.chopstack-shadows/${task.id}`,
+          worktreePath: `.chopstack/shadows/${task.id}`,
           baseRef: 'HEAD',
           workdir: testRepo,
         });

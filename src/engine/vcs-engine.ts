@@ -20,7 +20,7 @@ export type VcsEngineOptions = {
   cleanupOnFailure: boolean; // Default: false
   cleanupOnSuccess: boolean; // Default: true
   conflictStrategy: 'auto' | 'manual' | 'fail';
-  shadowPath: string; // Default: '.chopstack-shadows'
+  shadowPath: string; // Default: '.chopstack/shadows'
   stackSubmission: {
     autoMerge: boolean;
     draft: boolean;
@@ -57,7 +57,7 @@ export class VcsEngine extends EventEmitter {
     super();
 
     this.options = {
-      shadowPath: '.chopstack-shadows',
+      shadowPath: '.chopstack/shadows',
       branchPrefix: 'chopstack/',
       cleanupOnSuccess: true,
       cleanupOnFailure: false,
