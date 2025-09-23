@@ -103,6 +103,7 @@ Thumbs.db
 # Chopstack-specific
 .chopstack/executions/
 .chopstack/logs/
+.chopstack/shadows/
 
 # Test workspace (worktree isolation)
 test/workspace/
