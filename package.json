@@ -15,6 +15,7 @@
   "scripts": {
     "build": "tsup --dts",
     "build:watch": "tsup --watch",
+    "commit": "pnpm build && ./dist/bin/chopstack.js stack --verbose",
     "dev": "tsx watch src/bin/chopstack.ts",
     "dev:run": "tsx src/bin/chopstack.ts",
     "dev:lib": "tsx watch src/index.ts",
@@ -29,7 +30,7 @@
     "format": "prettier --cache --write .",
     "format:check": "prettier --cache --check .",
     "type-check": "tsc --noEmit",
-    "generate:agentrules": "rulesync generate --targets cursor,claude,gemini,codex --features \"*\"",
+    "rulesync:generate": "rulesync import --targets claudecode --features \"*\" && rulesync generate",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
