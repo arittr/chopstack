@@ -3,8 +3,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 
-import { GitWrapper } from '../../src/utils/git-wrapper';
-import { GitSpiceBackend } from '../../src/vcs/git-spice';
+import { GitWrapper } from '@/utils/git-wrapper';
+import { GitSpiceBackend } from '@/vcs/git-spice';
 
 const execAsync = promisify(exec);
 

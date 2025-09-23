@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 
-import { WorktreeManager } from '../../src/vcs/worktree-manager';
+import { WorktreeManager } from '@/vcs/worktree-manager';
 
 const execAsync = promisify(exec);
 
