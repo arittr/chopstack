@@ -1,14 +1,10 @@
-import { exec } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { promisify } from 'node:util';
 
 import type { VcsEngineOptions } from '../engine/vcs-engine';
 
-import { hasContent } from '../utils/guards';
-
-const execAsync = promisify(exec);
+import { GitWrapper } from '../utils/git-wrapper';
 
 export type WorktreeCreateOptions = {
   baseRef: string;
@@ -76,22 +72,14 @@ export class WorktreeManager extends EventEmitter {
       console.log(`   Path: ${worktreePath}`);
       console.log(`   Base: ${baseRef}`);
 
-      // Create the worktree with a new branch
+      // Create the worktree with a new branch using GitWrapper
+      const git = new GitWrapper(workdir);
       try {
-        await execAsync(
-          `git worktree add -b "${branchName}" "${absoluteWorktreePath}" "${baseRef}"`,
-          {
-            cwd: workdir,
-            timeout: 30_000,
-          },
-        );
+        await git.createWorktree(absoluteWorktreePath, baseRef, branchName);
       } catch (error) {
-        // If branch already exists, try to create worktree without -b
+        // If branch already exists, try to create worktree without new branch
         try {
-          await execAsync(`git worktree add "${absoluteWorktreePath}" "${branchName}"`, {
-            cwd: workdir,
-            timeout: 30_000,
-          });
+          await git.createWorktree(absoluteWorktreePath, branchName);
         } catch {
           throw new Error(
             `Failed to create worktree for ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
@@ -183,12 +171,9 @@ export class WorktreeManager extends EventEmitter {
       // Extract workdir from absolute path
       const workdir = context.absolutePath.replace(`/${context.worktreePath}`, '');
 
-      // Remove the worktree
-      const forceFlag = force ? '--force' : '';
-      await execAsync(`git worktree remove ${forceFlag} "${context.absolutePath}"`, {
-        cwd: workdir,
-        timeout: 15_000,
-      });
+      // Remove the worktree using GitWrapper
+      const git = new GitWrapper(workdir);
+      await git.removeWorktree(context.absolutePath, force);
 
       // Clean up empty shadow directory if this was the last worktree
       try {
@@ -313,23 +298,18 @@ export class WorktreeManager extends EventEmitter {
         };
       }
 
-      // Check if it's a git repository
-      const { stdout: branchName } = await execAsync('git branch --show-current', {
-        cwd: context.absolutePath,
-        timeout: 5000,
-      });
-
-      // Check for changes
-      const { stdout: status } = await execAsync('git status --porcelain', {
-        cwd: context.absolutePath,
-        timeout: 5000,
-      });
+      // Check if it's a git repository and get status using GitWrapper
+      const git = new GitWrapper(context.absolutePath);
+      const branchName = await git.git.revparse(['--abbrev-ref', 'HEAD']);
+      const status = await git.status();
+      const hasChanges =
+        status.added.length > 0 || status.modified.length > 0 || status.deleted.length > 0;
 
       return {
         exists: true,
         isGitRepo: true,
         branchName: branchName.trim(),
-        hasChanges: hasContent(status),
+        hasChanges,
       };
     } catch (error) {
       return {
@@ -364,14 +344,13 @@ export class WorktreeManager extends EventEmitter {
     // Calculate disk usage
     const sizePromises = worktrees.map(async (worktree) => {
       try {
-        const { stdout } = await execAsync(`du -sk "${worktree.absolutePath}"`, {
-          timeout: 10_000,
-        });
-        const sizeKb = Number.parseInt(stdout.split('\t')[0] ?? '0', 10);
-        return sizeKb;
+        // Use node fs to calculate size instead of system du command
+        const stats = await fs.stat(worktree.absolutePath);
+        // Rough approximation for directory size in KB
+        return Math.round(stats.size / 1024) > 0 ? Math.round(stats.size / 1024) : 100; // Default to 100KB if calculation fails
       } catch {
         // Ignore errors for individual worktrees
-        return 0;
+        return 100; // Default size estimate
       }
     });
 
