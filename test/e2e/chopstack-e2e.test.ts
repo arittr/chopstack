@@ -1,4 +1,3 @@
-import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -10,20 +9,16 @@ import type { Plan } from '@/types/decomposer';
 import { DagValidator } from '@/utils/dag-validator';
 import { hasContent } from '@/utils/guards';
 
+import { checkWorkspaceAvailable, runCliInProcess } from '../utils/cli-runner';
+
 describe('Chopstack E2E Integration Tests', () => {
   const NEXTJS_REPO_PATH = '../typescript-nextjs-starter';
   const SPEC_PATH = path.join(__dirname, 'specs', 'add-dark-mode.md');
-  const CHOPSTACK_BIN = path.join(__dirname, '../../dist/bin/chopstack.js');
 
   beforeAll(() => {
-    // Ensure chopstack is built
-    try {
-      execSync('pnpm run build', {
-        cwd: path.join(__dirname, '../..'),
-        stdio: 'pipe',
-      });
-    } catch (error) {
-      throw new Error(`Failed to build chopstack: ${String(error)}`);
+    // Check if workspace is available for tests that need it
+    if (!checkWorkspaceAvailable(NEXTJS_REPO_PATH)) {
+      console.warn(`Workspace not found: ${NEXTJS_REPO_PATH} - some tests will be skipped`);
     }
   });
 
@@ -32,7 +27,14 @@ describe('Chopstack E2E Integration Tests', () => {
     let planOutput: string;
     let tempOutputFile: string;
 
-    beforeAll(() => {
+    beforeAll(async () => {
+      // Skip if workspace not available
+      if (!checkWorkspaceAvailable(NEXTJS_REPO_PATH)) {
+        throw new Error(
+          `Workspace not found: ${NEXTJS_REPO_PATH} - clone the required test workspace`,
+        );
+      }
+
       // Create a temporary file for output
       tempOutputFile = path.join(os.tmpdir(), `chopstack-test-${Date.now()}.yaml`);
 
@@ -45,17 +47,31 @@ describe('Chopstack E2E Integration Tests', () => {
 
         const startTime = Date.now();
 
-        // Run chopstack decompose with Claude agent, using output file
+        // Run chopstack decompose with Claude agent using in-process runner
         try {
-          execSync(
-            `node "${CHOPSTACK_BIN}" decompose --spec "${SPEC_PATH}" --agent claude --verbose --output "${tempOutputFile}"`,
+          const result = await runCliInProcess(
+            [
+              'decompose',
+              '--spec',
+              SPEC_PATH,
+              '--agent',
+              'claude',
+              '--verbose',
+              '--output',
+              tempOutputFile,
+            ],
             {
               cwd: NEXTJS_REPO_PATH,
-              encoding: 'utf8',
               timeout: 300_000, // 5 minute timeout
-              stdio: 'pipe',
             },
           );
+
+          if (result.exitCode !== 0) {
+            console.warn(`⚠️  Command failed but checking for output file...`);
+            console.warn(
+              `❌ Command failed: ${result.stderr !== '' ? result.stderr : (result.error?.message ?? 'Unknown error')}`,
+            );
+          }
         } catch {
           // Even if the command failed, we might have generated output
           console.warn('⚠️  Command failed but checking for output file...');
@@ -233,24 +249,30 @@ describe('Chopstack E2E Integration Tests', () => {
   });
 
   describe('error handling', () => {
-    it('should handle invalid spec file gracefully', () => {
+    it('should handle invalid spec file gracefully', async () => {
       const invalidSpecPath = path.join(__dirname, 'nonexistent-spec.md');
 
-      expect(() => {
-        execSync(`node "${CHOPSTACK_BIN}" decompose --spec "${invalidSpecPath}" --agent claude`, {
+      const result = await runCliInProcess(
+        ['decompose', '--spec', invalidSpecPath, '--agent', 'claude'],
+        {
           cwd: NEXTJS_REPO_PATH,
-          stdio: 'pipe',
-        });
-      }).toThrow();
+        },
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toBeDefined();
     });
 
-    it('should handle missing working directory gracefully', () => {
-      expect(() => {
-        execSync(`node "${CHOPSTACK_BIN}" decompose --spec "${SPEC_PATH}" --agent claude`, {
+    it('should handle missing working directory gracefully', async () => {
+      const result = await runCliInProcess(
+        ['decompose', '--spec', SPEC_PATH, '--agent', 'claude'],
+        {
           cwd: '/nonexistent/directory',
-          stdio: 'pipe',
-        });
-      }).toThrow();
+        },
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(result.error !== undefined || result.stderr !== '').toBe(true);
     });
   });
 });
