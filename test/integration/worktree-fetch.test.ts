@@ -28,7 +28,7 @@ describe('Worktree Commit Fetching', () => {
 
     // Setup test instances
     worktreeManager = new WorktreeManager({
-      shadowPath: '.chopstack-shadows',
+      shadowPath: '.chopstack/shadows',
       branchPrefix: 'chopstack/',
       cleanupOnSuccess: false,
       cleanupOnFailure: false,
@@ -76,7 +76,7 @@ describe('Worktree Commit Fetching', () => {
       const context = await worktreeManager.createWorktree({
         taskId: 'test-task',
         branchName: 'chopstack/test-task',
-        worktreePath: '.chopstack-shadows/test-task',
+        worktreePath: '.chopstack/shadows/test-task',
         baseRef: 'HEAD',
         workdir: testRepo,
       });
@@ -122,7 +122,7 @@ describe('Worktree Commit Fetching', () => {
         const context = await worktreeManager.createWorktree({
           taskId,
           branchName: `chopstack/${taskId}`,
-          worktreePath: `.chopstack-shadows/${taskId}`,
+          worktreePath: `.chopstack/shadows/${taskId}`,
           baseRef: 'HEAD',
           workdir: testRepo,
         });
@@ -169,8 +169,8 @@ describe('Worktree Commit Fetching', () => {
     it('should parse worktree list correctly', async () => {
       // Create multiple worktrees
       const worktrees = [
-        { taskId: 'task-1', branch: 'chopstack/task-1', path: '.chopstack-shadows/task-1' },
-        { taskId: 'task-2', branch: 'chopstack/task-2', path: '.chopstack-shadows/task-2' },
+        { taskId: 'task-1', branch: 'chopstack/task-1', path: '.chopstack/shadows/task-1' },
+        { taskId: 'task-2', branch: 'chopstack/task-2', path: '.chopstack/shadows/task-2' },
       ];
 
       for (const wt of worktrees) {
