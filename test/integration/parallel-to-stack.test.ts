@@ -3,6 +3,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 
+import { vi } from 'vitest';
+
 import type { Plan } from '@/types/decomposer';
 import type { ExecutionOptions, ExecutionTask } from '@/types/execution';
 
@@ -411,7 +413,7 @@ describe('Parallel Worktree to Git-spice Stack Integration', () => {
     it('should handle git-spice initialization failures gracefully', async () => {
       // Test without git-spice installed (mock the failure)
       const mockGitSpice = new GitSpiceBackend();
-      jest.spyOn(mockGitSpice, 'isAvailable').mockResolvedValue(false);
+      vi.spyOn(mockGitSpice, 'isAvailable').mockResolvedValue(false);
 
       const plan: Plan = {
         tasks: [
