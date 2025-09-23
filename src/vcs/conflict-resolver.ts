@@ -1,12 +1,10 @@
-import { exec } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { readFile, writeFile } from 'node:fs/promises';
-import { promisify } from 'node:util';
 
 import type { VcsEngineOptions } from '../engine/vcs-engine';
 import type { ExecutionTask } from '../types/execution';
 
-const execAsync = promisify(exec);
+import { GitWrapper } from '../utils/git-wrapper';
 
 export type ConflictDetails = {
   baseCommit: string;
@@ -55,10 +53,11 @@ export class ConflictResolver extends EventEmitter {
     _branchName: string,
   ): Promise<ConflictResolution> {
     try {
-      // Check for conflicts
-      const { stdout: conflictStatus } = await execAsync('git status --porcelain', {
-        cwd: workdir,
-      });
+      // Check for conflicts using GitWrapper
+      const git = new GitWrapper(workdir);
+
+      // Get conflicting files from git status
+      const conflictStatus = await git.git.raw(['status', '--porcelain']);
       const conflictFiles = conflictStatus
         .split('\n')
         .filter((line) => line.startsWith('UU '))
@@ -121,9 +120,9 @@ export class ConflictResolver extends EventEmitter {
    */
   async analyzeConflicts(workdir: string): Promise<ConflictAnalysis> {
     try {
-      const { stdout: conflictFiles } = await execAsync('git diff --name-only --diff-filter=U', {
-        cwd: workdir,
-      });
+      // Get conflicting files using GitWrapper
+      const git = new GitWrapper(workdir);
+      const conflictFiles = await git.git.raw(['diff', '--name-only', '--diff-filter=U']);
       const files = conflictFiles.split('\n').filter((file) => file.trim() !== '');
 
       const suggestions: string[] = [];
@@ -210,7 +209,8 @@ export class ConflictResolver extends EventEmitter {
         const resolved = this._resolveConflictMarkers(content);
 
         await writeFile(`${workdir}/${file}`, resolved);
-        await execAsync(`git add "${file}"`, { cwd: workdir });
+        const git = new GitWrapper(workdir);
+        await git.add([file]);
         return file;
       } catch {
         // Could not auto-resolve this file
@@ -224,8 +224,9 @@ export class ConflictResolver extends EventEmitter {
     const success = resolvedFiles.length === conflictFiles.length;
 
     if (success) {
-      // Complete the merge
-      await execAsync('git commit --no-edit', { cwd: workdir });
+      // Complete the merge using GitWrapper
+      const git = new GitWrapper(workdir);
+      await git.git.raw(['commit', '--no-edit']);
     }
 
     return {
