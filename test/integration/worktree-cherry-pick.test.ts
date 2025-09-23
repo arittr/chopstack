@@ -58,7 +58,6 @@ describe('Worktree Cherry-pick Integration', () => {
         .filter((path) => path !== testRepo);
 
       for (const worktreePath of worktrees) {
-        // eslint-disable-next-line no-await-in-loop
         await execAsync(`git worktree remove --force "${worktreePath}"`, { cwd: testRepo }).catch(
           () => {
             /* ignore */
@@ -170,7 +169,6 @@ describe('Worktree Cherry-pick Integration', () => {
 
       // Create worktrees and commits for each task
       for (const task of tasks) {
-        // eslint-disable-next-line no-await-in-loop
         const context = await worktreeManager.createWorktree({
           taskId: task.id,
           branchName: `chopstack/${task.id}`,
@@ -181,14 +179,13 @@ describe('Worktree Cherry-pick Integration', () => {
 
         const fileName = task.id === 'task-a' ? 'file-a.txt' : 'file-b.txt';
         const testFilePath = path.join(context.absolutePath, fileName);
-        // eslint-disable-next-line no-await-in-loop
+
         await fs.writeFile(testFilePath, `Content for ${task.id}\n`);
-        // eslint-disable-next-line no-await-in-loop
+
         await execAsync(`git add ${fileName}`, { cwd: context.absolutePath });
-        // eslint-disable-next-line no-await-in-loop
+
         await execAsync(`git commit -m "Commit for ${task.id}"`, { cwd: context.absolutePath });
 
-        // eslint-disable-next-line no-await-in-loop
         const { stdout: commitHash } = await execAsync('git rev-parse HEAD', {
           cwd: context.absolutePath,
         });
@@ -203,9 +200,8 @@ describe('Worktree Cherry-pick Integration', () => {
 
       // Verify each task's commit was cherry-picked correctly
       for (const branch of stackInfo.branches) {
-        // eslint-disable-next-line no-await-in-loop
         await execAsync(`git checkout ${branch.name}`, { cwd: testRepo });
-        // eslint-disable-next-line no-await-in-loop
+
         const { stdout: files } = await execAsync('git ls-tree --name-only HEAD', {
           cwd: testRepo,
         });
@@ -249,7 +245,6 @@ describe('Worktree Cherry-pick Integration', () => {
 
       // Create worktrees and commits
       for (const task of [taskA, taskB]) {
-        // eslint-disable-next-line no-await-in-loop
         const context = await worktreeManager.createWorktree({
           taskId: task.id,
           branchName: `chopstack/${task.id}`,
@@ -260,14 +255,13 @@ describe('Worktree Cherry-pick Integration', () => {
 
         const fileName = task.id === 'task-a' ? 'base.txt' : 'dependent.txt';
         const testFilePath = path.join(context.absolutePath, fileName);
-        // eslint-disable-next-line no-await-in-loop
+
         await fs.writeFile(testFilePath, `Content for ${task.id}\n`);
-        // eslint-disable-next-line no-await-in-loop
+
         await execAsync(`git add ${fileName}`, { cwd: context.absolutePath });
-        // eslint-disable-next-line no-await-in-loop
+
         await execAsync(`git commit -m "Commit for ${task.id}"`, { cwd: context.absolutePath });
 
-        // eslint-disable-next-line no-await-in-loop
         const { stdout: commitHash } = await execAsync('git rev-parse HEAD', {
           cwd: context.absolutePath,
         });
