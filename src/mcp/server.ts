@@ -61,10 +61,10 @@ class GitWorkflowManager {
     params: z.infer<typeof CreateWorktreeSchema>,
   ): Promise<{ branchName: string; status: string; taskId: string; worktreePath: string }> {
     const { taskId, branchName, baseRef } = params;
-    const worktreePath = path.join('.chopstack-shadows', taskId);
+    const worktreePath = path.join('.chopstack/shadows', taskId);
 
     // Ensure shadows directory exists
-    await fs.mkdir('.chopstack-shadows', { recursive: true });
+    await fs.mkdir('.chopstack/shadows', { recursive: true });
 
     // Remove existing worktree if it exists
     try {
@@ -160,7 +160,7 @@ class GitWorkflowManager {
   async cleanupWorktree(
     taskId: string,
   ): Promise<{ error?: string; status: string; taskId: string }> {
-    const worktreePath = path.join('.chopstack-shadows', taskId);
+    const worktreePath = path.join('.chopstack/shadows', taskId);
 
     try {
       // Remove worktree
