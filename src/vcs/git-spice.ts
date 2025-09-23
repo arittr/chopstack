@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 
 import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 
+import { GitWrapper } from '../utils/git-wrapper';
 import { hasContent, isNonEmptyString } from '../utils/guards';
 
 import type { VcsBackend } from './index';
@@ -42,13 +43,12 @@ export class GitSpiceBackend implements VcsBackend {
    * Initialize git-spice in the repository if not already initialized
    */
   async initialize(workdir: string): Promise<void> {
-    try {
-      const { stdout } = await execAsync('git config --get spice.trunk', {
-        cwd: workdir,
-        timeout: 5000,
-      });
+    const git = new GitWrapper(workdir);
 
-      if (hasContent(stdout.trim())) {
+    try {
+      const trunkBranch = await git.git.raw(['config', '--get', 'spice.trunk']);
+
+      if (hasContent(trunkBranch.trim())) {
         // Already initialized
         console.log('🌿 git-spice already initialized');
         return;
@@ -104,12 +104,10 @@ export class GitSpiceBackend implements VcsBackend {
         // Create branch from the appropriate parent
         const parentBranch = this._findParentBranch(task, branches, baseRef);
 
-        // Switch to parent branch
+        // Switch to parent branch using GitWrapper
+        const git = new GitWrapper(workdir);
         // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
-        await execAsync(`git checkout ${parentBranch}`, {
-          cwd: workdir,
-          timeout: 10_000,
-        });
+        await git.checkout(parentBranch);
 
         // Create new branch
         // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
@@ -118,15 +116,12 @@ export class GitSpiceBackend implements VcsBackend {
           timeout: 10_000,
         });
 
-        // If task has a commit hash, cherry-pick it
+        // If task has a commit hash, cherry-pick it using GitWrapper
         if (isNonEmptyString(task.commitHash)) {
           try {
             // The commit should now be accessible after fetching from worktrees
             // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
-            await execAsync(`git cherry-pick ${task.commitHash}`, {
-              cwd: workdir,
-              timeout: 30_000,
-            });
+            await git.cherryPick(task.commitHash);
             console.log(
               `🔀 Cherry-picked commit ${task.commitHash.slice(0, 7)} for task ${task.id}`,
             );
@@ -231,13 +226,10 @@ export class GitSpiceBackend implements VcsBackend {
 
     // Get list of worktrees
     try {
-      const { stdout: worktreeList } = await execAsync('git worktree list --porcelain', {
-        cwd: workdir,
-        timeout: 5000,
-      });
+      const git = new GitWrapper(workdir);
 
-      // Parse worktree information
-      const worktrees = this._parseWorktreeList(worktreeList);
+      // Get worktree list using GitWrapper
+      const worktrees = await git.listWorktrees();
 
       // For each task with a commit, fetch from its worktree
       for (const task of tasks) {
@@ -255,13 +247,11 @@ export class GitSpiceBackend implements VcsBackend {
             // Fetch the branch from the worktree to make commits accessible
             // This creates a remote tracking branch in the main repo
             // eslint-disable-next-line no-await-in-loop -- git operations must be sequential
-            await execAsync(
-              `git fetch "${taskWorktree.path}" "${taskWorktree.branch}:refs/remotes/worktree-${task.id}/${taskWorktree.branch}"`,
-              {
-                cwd: workdir,
-                timeout: 10_000,
-              },
-            );
+            await git.git.raw([
+              'fetch',
+              taskWorktree.path,
+              `${taskWorktree.branch}:refs/remotes/worktree-${task.id}/${taskWorktree.branch}`,
+            ]);
             console.log(`✅ Fetched commits from worktree for task ${task.id}`);
           } catch (error) {
             console.warn(

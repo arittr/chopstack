@@ -286,11 +286,10 @@ export class VcsEngine extends EventEmitter {
     changes: { files?: string[]; output?: string },
     workdir: string,
   ): Promise<string> {
-    // Get git diff information
-    const { stdout: gitDiff } = await execAsync('git diff --cached --stat', { cwd: workdir });
-    const { stdout: gitDiffDetails } = await execAsync('git diff --cached --name-status', {
-      cwd: workdir,
-    });
+    // Get git diff information using GitWrapper
+    const git = new GitWrapper(workdir);
+    const gitDiff = await git.git.raw(['diff', '--cached', '--stat']);
+    const gitDiffDetails = await git.git.raw(['diff', '--cached', '--name-status']);
 
     const prompt = `Generate a professional commit message for this task:
 
