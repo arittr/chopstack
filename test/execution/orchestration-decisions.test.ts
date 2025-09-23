@@ -5,9 +5,9 @@ import * as path from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
-import type { Plan, Task } from '../../src/types/decomposer';
+import type { Plan, Task } from '@/types/decomposer';
 
-import { DagValidator } from '../../src/utils/dag-validator';
+import { DagValidator } from '@/utils/dag-validator';
 
 describe('Orchestration Decision Making', () => {
   const NEXTJS_REPO_PATH = '../typescript-nextjs-starter';

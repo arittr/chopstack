@@ -1,6 +1,6 @@
-import type { ExecutionMode } from '../../src/types/execution';
+import type { ExecutionMode } from '@/types/execution';
 
-import { TaskOrchestrator } from '../../src/mcp/orchestrator';
+import { TaskOrchestrator } from '@/mcp/orchestrator';
 
 describe('TaskOrchestrator Mode Support', () => {
   let orchestrator: TaskOrchestrator;
