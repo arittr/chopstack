@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+
 import type { ExecutionMode } from '@/types/execution';
 
 import { TaskOrchestrator } from '@/mcp/orchestrator';
@@ -119,7 +121,7 @@ describe('TaskOrchestrator Mode Support', () => {
   describe('mode parameter propagation', () => {
     test('executeParallelTasks defaults to execute mode', () => {
       // Mock executeClaudeTask to verify mode parameter
-      const executeTaskSpy = jest.spyOn(orchestrator, 'executeClaudeTask').mockResolvedValue({
+      const executeTaskSpy = vi.spyOn(orchestrator, 'executeClaudeTask').mockResolvedValue({
         taskId: 'test-1',
         mode: 'execute',
         status: 'completed',
