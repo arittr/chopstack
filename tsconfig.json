@@ -12,7 +12,8 @@
     /* Path alias for internal modules */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@test/*": ["test/*"]
     },
     /* Declarations & maps */
     "declaration": true,
