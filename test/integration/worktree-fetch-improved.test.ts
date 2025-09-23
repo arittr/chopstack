@@ -12,7 +12,7 @@ describe('Worktree Commit Fetching (Improved with TestWorktreeManager)', () => {
   beforeEach(() => {
     // Setup test instances
     worktreeManager = new WorktreeManager({
-      shadowPath: '.chopstack-shadows',
+      shadowPath: '.chopstack/shadows',
       branchPrefix: 'chopstack/',
       cleanupOnSuccess: false,
       cleanupOnFailure: false,
@@ -35,7 +35,7 @@ describe('Worktree Commit Fetching (Improved with TestWorktreeManager)', () => {
         const worktreeContext = await worktreeManager.createWorktree({
           taskId: 'test-task',
           branchName: 'chopstack/test-task',
-          worktreePath: '.chopstack-shadows/test-task',
+          worktreePath: '.chopstack/shadows/test-task',
           baseRef: 'HEAD',
           workdir: testRepo,
         });
@@ -84,7 +84,7 @@ describe('Worktree Commit Fetching (Improved with TestWorktreeManager)', () => {
             const worktreeContext = await worktreeManager.createWorktree({
               taskId,
               branchName: `chopstack/${taskId}`,
-              worktreePath: `.chopstack-shadows/${taskId}`,
+              worktreePath: `.chopstack/shadows/${taskId}`,
               baseRef: 'HEAD',
               workdir: testRepo,
             });
@@ -158,7 +158,7 @@ describe('Worktree Commit Fetching (Improved with TestWorktreeManager)', () => {
         const worktreeContext = await worktreeManager.createWorktree({
           taskId: componentTask,
           branchName: `chopstack/${componentTask}`,
-          worktreePath: `.chopstack-shadows/${componentTask}`,
+          worktreePath: `.chopstack/shadows/${componentTask}`,
           baseRef: 'HEAD',
           workdir: testRepo,
         });
