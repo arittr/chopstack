@@ -1,0 +1,62 @@
+name: Stack Merge Queue
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Top PR number to merge"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: stack-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    steps:
+      - name: Resolve target PR
+        id: resolve
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const event = context.eventName;
+            if (event === 'workflow_dispatch') {
+              const inputPr = core.getInput('pr', { required: true });
+              core.setOutput('pr', inputPr);
+              return;
+            }
+
+            const commentBody = context.payload.comment.body.trim();
+            if (commentBody !== '/stack-merge') {
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            if (!context.payload.issue.pull_request) {
+              core.setFailed('`/stack-merge` can only be used on pull request comments.');
+              return;
+            }
+
+            core.setOutput('pr', context.payload.issue.number.toString());
+      - name: Checkout repository
+        if: steps.resolve.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge stack sequentially
+        if: steps.resolve.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.STACK_MERGE_TOKEN != '' && secrets.STACK_MERGE_TOKEN || github.token }}
+        run: |
+          bash tools/merge-stack.sh "${{ steps.resolve.outputs.pr }}"
