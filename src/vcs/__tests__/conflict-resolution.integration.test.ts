@@ -81,7 +81,7 @@ describe('Conflict Resolution Integration', () => {
 
   beforeEach(async () => {
     vcsEngine = new VcsEngine({
-      shadowPath: '.chopstack/shadows',
+      shadowPath: TEST_PATHS.TEST_SHADOWS,
       branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
       cleanupOnSuccess: false,
       cleanupOnFailure: false,
@@ -94,7 +94,7 @@ describe('Conflict Resolution Integration', () => {
     });
 
     conflictResolver = new ConflictResolver({
-      shadowPath: '.chopstack/shadows',
+      shadowPath: TEST_PATHS.TEST_SHADOWS,
       branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
       cleanupOnSuccess: false,
       cleanupOnFailure: false,
@@ -239,7 +239,7 @@ export const Button: React.FC<ButtonProps> = ({ children, onClick, size = 'mediu
     it('should require manual intervention when strategy is manual', async () => {
       // Create VCS engine with manual conflict resolution
       const manualVcsEngine = new VcsEngine({
-        shadowPath: '.chopstack/shadows',
+        shadowPath: TEST_PATHS.TEST_SHADOWS,
         branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
         cleanupOnSuccess: false,
         cleanupOnFailure: false,
@@ -252,7 +252,7 @@ export const Button: React.FC<ButtonProps> = ({ children, onClick, size = 'mediu
       });
 
       const manualResolver = new ConflictResolver({
-        shadowPath: '.chopstack/shadows',
+        shadowPath: TEST_PATHS.TEST_SHADOWS,
         branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
         cleanupOnSuccess: false,
         cleanupOnFailure: false,
@@ -365,7 +365,7 @@ export const Button: React.FC<ButtonProps> = ({ children, onClick }) => {
   describe('Fail Strategy', () => {
     it('should fail immediately when conflicts are detected with fail strategy', async () => {
       const failResolver = new ConflictResolver({
-        shadowPath: '.chopstack/shadows',
+        shadowPath: TEST_PATHS.TEST_SHADOWS,
         branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
         cleanupOnSuccess: false,
         cleanupOnFailure: false,

@@ -28,10 +28,7 @@ afterAll(() => {
   }
 });
 
-// E2E test configuration
-vi.setConfig({
-  testTimeout: 30_000, // E2E tests can take longer
-});
+// Per-project timeout is configured in vitest.config.ts (projects.e2e.testTimeout)
 
 // Export test utilities
 export { testDir };

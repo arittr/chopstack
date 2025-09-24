@@ -29,7 +29,4 @@ vi.spyOn(process, 'exit').mockImplementation(() => {
   throw new Error('process.exit() called');
 });
 
-// Global test configuration
-vi.setConfig({
-  testTimeout: 5000, // Unit tests should be fast
-});
+// Per-project timeout is configured in vitest.config.ts (projects.unit.testTimeout)
