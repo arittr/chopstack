@@ -10,17 +10,17 @@ import type { ExecutionResult } from '@/types/execution';
 import { createDecomposerAgent } from '@/agents';
 import { runCommand } from '@/commands/run';
 import { ExecutionEngine } from '@/engine/execution-engine';
-import { DagValidator } from '@/utils/dag-validator';
-import { generatePlanWithRetry } from '@/utils/plan-generator';
-import { YamlPlanParser } from '@/utils/yaml-parser';
+import { YamlPlanParser } from '@/io/yaml-parser';
+import { generatePlanWithRetry } from '@/planning/plan-generator';
+import { DagValidator } from '@/validation/dag-validator';
 
 // Mock external dependencies
 vi.mock('node:fs/promises');
 vi.mock('../../agents');
 vi.mock('../../engine/execution-engine');
-vi.mock('../../utils/dag-validator');
-vi.mock('../../utils/plan-generator');
-vi.mock('../../utils/yaml-parser');
+vi.mock('../../validation/dag-validator');
+vi.mock('../../planning/plan-generator');
+vi.mock('../../io/yaml-parser');
 
 const mockReadFile = vi.mocked(readFile);
 const mockResolve = vi.mocked(path.resolve);

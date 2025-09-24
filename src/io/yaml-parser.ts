@@ -1,8 +1,7 @@
 import { parse as parseYaml } from 'yaml';
 
 import { type Plan, PlanSchema } from '../types/decomposer';
-
-import { isNonEmptyString, isNonNullish } from './guards';
+import { isNonEmptyString, isNonNullish } from '../validation/guards';
 
 export type ParsedContent = {
   content: string;
