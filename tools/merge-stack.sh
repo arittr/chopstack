@@ -67,7 +67,7 @@ fi
 pr_list=$(printf '#%s ' "${reverse_stack[@]}")
 gh pr comment "$TOP_PR" --repo "$REPO" --body ":robot: Stack merge started for PRs ${pr_list}" || true
 
-merge_mode="${MERGE_METHOD:-merge}"
+merge_mode="${MERGE_METHOD:-rebase}"
 case "$merge_mode" in
   merge|squash|rebase) ;;
   *)
@@ -116,6 +116,17 @@ for pr in "${reverse_stack[@]}"; do
       echo "No checks configured for PR #$pr, proceeding with merge..."
     fi
   fi
+
+  # Wait for GitHub to update mergeable status after rebase
+  echo "Waiting for GitHub to update mergeable status..."
+  for attempt in {1..30}; do
+    mergeable=$(gh pr view "$pr" --repo "$REPO" --json mergeable --jq '.mergeable')
+    if [[ "$mergeable" == "MERGEABLE" ]]; then
+      break
+    fi
+    echo "Attempt $attempt/30: PR not yet mergeable, waiting 2 seconds..."
+    sleep 2
+  done
 
   if [[ "${KEEP_BRANCHES:-}" == "true" ]]; then
     if ! gh pr merge "$pr" --repo "$REPO" --"$merge_mode"; then
