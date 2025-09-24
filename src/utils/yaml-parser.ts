@@ -58,11 +58,16 @@ export class YamlPlanParser {
         let processedContent = parsedContent.content;
 
         // Fix agentPrompt fields that might have unquoted content with special characters
+        // Note: This regex now needs to handle already-quoted strings properly
         processedContent = processedContent.replaceAll(
-          /^(\s+agentPrompt:\s*)([^\n"'][^\n]*?)$/gm,
+          /^(\s+agentPrompt:\s*)(.+)$/gm,
           (match: string, prefix: string, content: string) => {
-            // Only quote if not already quoted and contains problematic characters
-            if (!/^["']/.test(content) && (content.includes(':') || content.includes('…'))) {
+            // If already quoted, leave it alone
+            if (/^["'].*["']$/.test(content.trim())) {
+              return match;
+            }
+            // If unquoted and has problematic characters, quote it
+            if (content.includes(':') || content.includes('…')) {
               return `${prefix}"${content.replaceAll('"', '\\"')}"`;
             }
             return match;

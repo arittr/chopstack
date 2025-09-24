@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 /**
  * Test path constants to avoid magic strings throughout test files
  * These paths are relative to the project root and work with @test alias

@@ -179,6 +179,10 @@ export default [
           format: ['camelCase', 'UPPER_CASE'],
         },
         {
+          selector: 'objectLiteralProperty',
+          format: ['camelCase', 'PascalCase', 'UPPER_CASE'],
+        },
+        {
           selector: 'enumMember',
           format: ['UPPER_CASE'],
         },
