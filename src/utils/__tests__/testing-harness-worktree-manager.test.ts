@@ -6,7 +6,7 @@ import {
   type TestWorktreeContext,
   testWorktreeManager,
   withTestWorktree,
-} from '../../test-utils/testing-harness-worktree-manager';
+} from '@test/utils/testing-harness-worktree-manager';
 
 import { isNonNullish } from '@/utils/guards';
 
