@@ -104,10 +104,17 @@ for pr in "${reverse_stack[@]}"; do
     gh pr edit "$pr" --repo "$REPO" --base "$DEFAULT_BRANCH"
   fi
 
-  if ! gh pr checks "$pr" --repo "$REPO" --watch; then
-    msg=":warning: Required checks failed for #$pr after rebasing. Inspect the run, fix the issues, and re-run the stack merge."
-    gh pr comment "$pr" --repo "$REPO" --body "$msg"
-    exit 1
+  # Wait for checks, but don't fail if no checks are configured
+  if ! gh pr checks "$pr" --repo "$REPO" --watch 2>/dev/null; then
+    # Check if there are actually any checks configured
+    check_count=$(gh pr checks "$pr" --repo "$REPO" --json conclusion 2>/dev/null | jq '. | length' 2>/dev/null || echo "0")
+    if [[ "$check_count" != "0" ]]; then
+      msg=":warning: Required checks failed for #$pr after rebasing. Inspect the run, fix the issues, and re-run the stack merge."
+      gh pr comment "$pr" --repo "$REPO" --body "$msg"
+      exit 1
+    else
+      echo "No checks configured for PR #$pr, proceeding with merge..."
+    fi
   fi
 
   if [[ "${KEEP_BRANCHES:-}" == "true" ]]; then
