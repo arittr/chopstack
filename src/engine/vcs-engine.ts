@@ -6,10 +6,10 @@ import { match } from 'ts-pattern';
 import type { Plan } from '../types/decomposer';
 import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 
-import { GitWrapper } from '../utils/git-wrapper';
 import { logger } from '../utils/logger';
 import { isNonEmptyString } from '../validation/guards';
 import { ConflictResolver } from '../vcs/conflict-resolver';
+import { GitWrapper } from '../vcs/git-wrapper';
 import { StackBuilder } from '../vcs/stack-builder';
 import { WorktreeManager } from '../vcs/worktree-manager';
 

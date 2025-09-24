@@ -89,4 +89,7 @@ export async function detectAvailableVcsBackend(): Promise<VcsBackendType | null
   return null;
 }
 
+// Git utilities
+export { GitWrapper, type GitStatus, type WorktreeInfo } from './git-wrapper';
+
 export type { GitSpiceStackInfo };

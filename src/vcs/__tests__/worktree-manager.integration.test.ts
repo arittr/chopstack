@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { TEST_PATHS } from '@test/constants/test-paths';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { GitWrapper } from '@/utils/git-wrapper';
+import { GitWrapper } from '@/vcs/git-wrapper';
 import { WorktreeManager } from '@/vcs/worktree-manager';
 
 const testRepo = join(TEST_PATHS.TEST_TMP, 'worktree-manager-integration');
