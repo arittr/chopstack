@@ -24,7 +24,6 @@ export default [
       '.chopstack/**',
       '*.config.js',
       '*.config.mjs',
-      '*.config.ts',
       'coverage/**',
       'test/tmp/**',
     ],
@@ -485,14 +484,27 @@ export default [
     },
   },
 
-  // Configuration files (relaxed)
+  // Configuration files (targeted relaxation)
   {
     files: ['*.config.{js,ts,mjs}', '.*rc.{js,ts}'],
+    languageOptions: {
+      globals: {
+        // Add common config file globals
+        URL: 'readonly',
+        process: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        console: 'readonly',
+      },
+    },
     rules: {
-      'import/no-default-export': 'off',
-      'unicorn/prefer-module': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
+      // Essential relaxations for config files
+      'import/no-default-export': 'off', // Config files commonly export default
+      'unicorn/prefer-module': 'off', // Config files may need CommonJS
+
+      // Targeted relaxations for specific patterns
+      'unicorn/relative-url-style': 'off', // For new URL('./path', import.meta.url)
+      '@typescript-eslint/naming-convention': 'off',
     },
   },
 ];
