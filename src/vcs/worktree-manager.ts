@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import type { VcsEngineOptions } from '../engine/vcs-engine';
 
 import { GitWrapper } from '../utils/git-wrapper';
+import { logger } from '../utils/logger';
 
 export type WorktreeCreateOptions = {
   baseRef: string;
@@ -60,17 +61,17 @@ export class WorktreeManager extends EventEmitter {
       // Check if worktree already exists
       if (this.activeWorktrees.has(taskId)) {
         const existing = this.activeWorktrees.get(taskId);
-        console.log(`🔄 Reusing existing worktree for task ${taskId}: ${existing?.worktreePath}`);
+        logger.info(`🔄 Reusing existing worktree for task ${taskId}: ${existing?.worktreePath}`);
         if (existing === undefined) {
           throw new Error(`Worktree context unexpectedly undefined for task ${taskId}`);
         }
         return existing;
       }
 
-      console.log(`🌿 Creating worktree for task ${taskId}...`);
-      console.log(`   Branch: ${branchName}`);
-      console.log(`   Path: ${worktreePath}`);
-      console.log(`   Base: ${baseRef}`);
+      logger.info(`🌿 Creating worktree for task ${taskId}...`);
+      logger.info(`   Branch: ${branchName}`);
+      logger.info(`   Path: ${worktreePath}`);
+      logger.info(`   Base: ${baseRef}`);
 
       // Create the worktree with a new branch using GitWrapper
       const git = new GitWrapper(workdir);
@@ -90,7 +91,7 @@ export class WorktreeManager extends EventEmitter {
         // Add timestamp to make branch name unique
         const timestamp = Date.now();
         finalBranchName = `${branchName}-${timestamp}`;
-        console.log(`⚠️ Branch ${branchName} already exists, using ${finalBranchName} instead`);
+        logger.warn(`⚠️ Branch ${branchName} already exists, using ${finalBranchName} instead`);
       }
 
       try {
@@ -131,11 +132,11 @@ export class WorktreeManager extends EventEmitter {
         timestamp: new Date(),
       } as WorktreeEvent);
 
-      console.log(`✅ Created worktree for task ${taskId}`);
+      logger.info(`✅ Created worktree for task ${taskId}`);
       return context;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`❌ Failed to create worktree for task ${taskId}: ${errorMessage}`);
+      logger.error(`❌ Failed to create worktree for task ${taskId}: ${errorMessage}`);
 
       this.emit('worktree_created', {
         type: 'error',
@@ -176,12 +177,12 @@ export class WorktreeManager extends EventEmitter {
   async removeWorktree(taskId: string, force = false): Promise<boolean> {
     const context = this.activeWorktrees.get(taskId);
     if (context === undefined) {
-      console.log(`⚠️ No worktree found for task ${taskId}`);
+      logger.warn(`⚠️ No worktree found for task ${taskId}`);
       return false;
     }
 
     try {
-      console.log(`🧹 Removing worktree for task ${taskId}: ${context.worktreePath}`);
+      logger.info(`🧹 Removing worktree for task ${taskId}: ${context.worktreePath}`);
 
       // Extract workdir from absolute path
       const workdir = context.absolutePath.replace(`/${context.worktreePath}`, '');
@@ -210,11 +211,11 @@ export class WorktreeManager extends EventEmitter {
         timestamp: new Date(),
       } as WorktreeEvent);
 
-      console.log(`✅ Removed worktree for task ${taskId}`);
+      logger.info(`✅ Removed worktree for task ${taskId}`);
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`❌ Failed to remove worktree for task ${taskId}: ${errorMessage}`);
+      logger.error(`❌ Failed to remove worktree for task ${taskId}: ${errorMessage}`);
 
       this.emit('worktree_cleanup', {
         type: 'error',
@@ -242,7 +243,7 @@ export class WorktreeManager extends EventEmitter {
       failed: [] as string[],
     };
 
-    console.log(`🧹 Cleaning up ${taskIds.length} worktrees...`);
+    logger.info(`🧹 Cleaning up ${taskIds.length} worktrees...`);
 
     const cleanupPromises = taskIds.map(async (taskId) => {
       try {
@@ -263,7 +264,7 @@ export class WorktreeManager extends EventEmitter {
       }
     }
 
-    console.log(
+    logger.info(
       `✅ Cleanup complete: ${results.removed.length} removed, ${results.failed.length} failed`,
     );
 
