@@ -7,7 +7,7 @@ import type { Plan } from '../types/decomposer';
 import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 
 import { logger } from '../utils/logger';
-import { isNonEmptyString } from '../validation/guards';
+import { CommitMessageGenerator } from '../vcs/commit-message-generator';
 import { ConflictResolver } from '../vcs/conflict-resolver';
 import { GitWrapper } from '../vcs/git-wrapper';
 import { StackBuilder } from '../vcs/stack-builder';
@@ -49,6 +49,7 @@ export class VcsEngine extends EventEmitter {
   private readonly worktreeManager: WorktreeManager;
   private readonly stackBuilder: StackBuilder;
   private readonly conflictResolver: ConflictResolver;
+  private readonly commitMessageGenerator: CommitMessageGenerator;
   private readonly options: VcsEngineOptions;
 
   constructor(options?: Partial<VcsEngineOptions>) {
@@ -71,6 +72,9 @@ export class VcsEngine extends EventEmitter {
     this.worktreeManager = new WorktreeManager(this.options);
     this.stackBuilder = new StackBuilder(this.options);
     this.conflictResolver = new ConflictResolver(this.options);
+    this.commitMessageGenerator = new CommitMessageGenerator({
+      logger: { warn: logger.warn.bind(logger) },
+    });
 
     this._setupEventForwarding();
   }
@@ -171,21 +175,11 @@ export class VcsEngine extends EventEmitter {
     changes: { files?: string[]; output?: string },
     workdir: string,
   ): Promise<string> {
-    // Try AI-powered generation first
-    try {
-      const aiMessage = await this._generateAICommitMessage(task, changes, workdir);
-      if (isNonEmptyString(aiMessage) && aiMessage.length > 10) {
-        return this._addChopstackSignature(aiMessage);
-      }
-    } catch (error) {
-      logger.warn(
-        `⚠️ AI commit message generation failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-
-    // Fallback to intelligent rule-based generation
-    const ruleBasedMessage = this._generateRuleBasedCommitMessage(task, changes);
-    return this._addChopstackSignature(ruleBasedMessage);
+    return this.commitMessageGenerator.generateCommitMessage(task, {
+      ...(changes.files !== undefined && { files: changes.files }),
+      ...(changes.output !== undefined && { output: changes.output }),
+      workdir,
+    });
   }
 
   /**
@@ -276,180 +270,6 @@ export class VcsEngine extends EventEmitter {
     }
 
     await this.worktreeManager.cleanupWorktrees(contexts.map((c) => c.taskId));
-  }
-
-  private async _generateAICommitMessage(
-    task: ExecutionTask,
-    changes: { files?: string[]; output?: string },
-    workdir: string,
-  ): Promise<string> {
-    // Get git diff information using GitWrapper
-    const git = new GitWrapper(workdir);
-    const gitDiff = await git.git.raw(['diff', '--cached', '--stat']);
-    const gitDiffDetails = await git.git.raw(['diff', '--cached', '--name-status']);
-
-    const prompt = `Generate a professional commit message for this task:
-
-Task: ${task.title}
-Description: ${task.description}
-
-Git Changes:
-${gitDiffDetails}
-
-Git Diff Summary:
-${gitDiff}
-
-Task Output:
-${changes.output ?? 'No output available'}
-
-Requirements:
-1. Clear, descriptive title (50 chars or less)
-2. Explain WHAT was changed and WHY
-3. Use imperative mood ("Add feature" not "Added feature")
-4. Be professional and follow conventional commits style
-5. Focus on the business value and purpose
-6. DO NOT include preamble like "Looking at the changes" or "Based on the diff"
-7. Start directly with the action ("Add", "Fix", "Update", etc.)
-
-Return ONLY the commit message content between these markers:
-<<<COMMIT_MESSAGE_START>>>
-(commit message goes here)
-<<<COMMIT_MESSAGE_END>>>`;
-
-    try {
-      const { stdout: aiResponse } = await execa('claude', [prompt], {
-        cwd: workdir,
-        timeout: 30_000,
-      });
-
-      return this._parseAICommitMessage(aiResponse);
-    } catch (error) {
-      throw new Error(
-        `Claude CLI failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-
-  private _parseAICommitMessage(aiResponse: string): string {
-    // Extract content between sentinel markers
-    const startTag = '<<<COMMIT_MESSAGE_START>>>';
-    const endTag = '<<<COMMIT_MESSAGE_END>>>';
-    const startIndex = aiResponse.indexOf(startTag);
-    const endIndex = aiResponse.indexOf(endTag);
-
-    let message = '';
-    message =
-      startIndex !== -1 && endIndex !== -1 && endIndex > startIndex
-        ? aiResponse.slice(startIndex + startTag.length, endIndex).trim()
-        : aiResponse.trim();
-
-    // Clean up common AI artifacts and preamble
-    message = message
-      .replaceAll('```', '')
-      .replace(/^here's? (?:the |a )?commit message:?\s*/i, '')
-      .replace(/^based on (?:the )?git diff.*$/im, '')
-      .replace(/^looking at (?:the )?changes.*$/im, '')
-      .replace(/^analyzing (?:the )?changes.*$/im, '')
-      .replace(/^from (?:the )?changes.*$/im, '')
-      .replace(/^i can see (?:that )?this.*$/im, '')
-      .replace(/^this (?:change|commit|update).*$/im, '')
-      .replace(/^the (?:changes|modifications).*$/im, '')
-      .trim();
-
-    // Clean up any remaining preamble patterns and take the first action line
-    const lines = message.split('\n').filter((l) => l.trim() !== '');
-    for (const line of lines) {
-      const cleanLine = line.trim();
-      // Skip lines that look like preamble/analysis
-      if (
-        /^(looking|analyzing|based|from|i can see|this|the changes|the modifications)/i.test(
-          cleanLine,
-        ) ||
-        /^(here|now|let me|first|next|then)/i.test(cleanLine) ||
-        cleanLine.length < 5
-      ) {
-        continue;
-      }
-      // Take the first line that looks like an actual commit message
-      message = cleanLine;
-      break;
-    }
-
-    // If we didn't find a good line, take the first non-empty one
-    if (message === '' && lines.length > 0) {
-      message = lines[0] ?? '';
-    }
-
-    if (!isNonEmptyString(message) || message.length < 5) {
-      throw new Error('AI generated empty or too short commit message');
-    }
-
-    return message;
-  }
-
-  private _generateRuleBasedCommitMessage(
-    task: ExecutionTask,
-    changes: { files?: string[]; output?: string },
-  ): string {
-    const files = changes.files ?? [];
-
-    // Analyze file patterns for intelligent categorization
-    const categories = this._categorizeFiles(files);
-
-    // Generate message based on task and file changes
-    if (categories.components.length > 0) {
-      return `Add ${task.title}\n\nImplements ${categories.components.join(', ')} components`;
-    }
-
-    if (categories.apis.length > 0) {
-      return `Implement ${task.title}\n\nAdds API endpoints: ${categories.apis.join(', ')}`;
-    }
-
-    if (categories.tests.length > 0) {
-      return `Add ${task.title}\n\nImplements test coverage for core functionality`;
-    }
-
-    // Fallback to task-based message
-    const verb = task.produces.length > 0 ? 'Add' : 'Update';
-    return `${verb} ${task.title}\n\n${task.description}`;
-  }
-
-  private _categorizeFiles(files: string[]): {
-    apis: string[];
-    components: string[];
-    configs: string[];
-    docs: string[];
-    tests: string[];
-  } {
-    const categories = {
-      components: [] as string[],
-      apis: [] as string[],
-      tests: [] as string[],
-      configs: [] as string[],
-      docs: [] as string[],
-    };
-
-    for (const file of files) {
-      const lower = file.toLowerCase();
-
-      if (lower.includes('component') || lower.endsWith('.tsx') || lower.endsWith('.jsx')) {
-        categories.components.push(file);
-      } else if (lower.includes('api') || lower.includes('endpoint') || lower.includes('route')) {
-        categories.apis.push(file);
-      } else if (lower.includes('test') || lower.includes('spec')) {
-        categories.tests.push(file);
-      } else if (lower.includes('config') || lower.endsWith('.json') || lower.endsWith('.yaml')) {
-        categories.configs.push(file);
-      } else if (lower.endsWith('.md') || lower.includes('readme') || lower.includes('doc')) {
-        categories.docs.push(file);
-      }
-    }
-
-    return categories;
-  }
-
-  private _addChopstackSignature(message: string): string {
-    return `${message}\n\n🤖 Generated with Claude via chopstack\n\nCo-Authored-By: Claude <noreply@anthropic.com>`;
   }
 
   private async _analyzeChanges(
