@@ -21,6 +21,7 @@ const gitMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/utils/git-wrapper', () => ({
+  // eslint-disable-next-line @typescript-eslint/naming-convention
   GitWrapper: vi.fn(() => ({
     createWorktree: gitMocks.createWorktree,
     removeWorktree: gitMocks.removeWorktree,
@@ -36,9 +37,10 @@ vi.mock('@/utils/git-wrapper', () => ({
 vi.mock('node:fs/promises', () => fsMocks);
 
 const { WorktreeManager } = await import('@/vcs/worktree-manager');
+type WorktreeManagerType = InstanceType<typeof WorktreeManager>;
 
 describe('WorktreeManager', () => {
-  let manager: WorktreeManager;
+  let manager: WorktreeManagerType;
 
   beforeEach(() => {
     vi.clearAllMocks();
