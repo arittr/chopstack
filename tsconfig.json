@@ -4,7 +4,7 @@
     "target": "ES2022",
     "lib": ["ES2022"],
     /* Bundler-style ESM build for tsup */
-    "module": "ESNext",
+    "module": "ES2022",
     "moduleResolution": "Bundler",
     "rootDir": ".",
     "outDir": "dist",
@@ -38,6 +38,6 @@
     /* Node types */
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts"],
   "exclude": ["node_modules", "dist", "build", "coverage", ".chopstack", "test/tmp"]
 }

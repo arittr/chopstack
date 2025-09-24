@@ -3,16 +3,17 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@': new URL('./src', import.meta.url).pathname,
-      '@test': new URL('./test', import.meta.url).pathname,
-      '@tmp': new URL('./test/tmp', import.meta.url).pathname,
+      '@': new URL('src', import.meta.url).pathname,
+      '@test': new URL('test', import.meta.url).pathname,
+      '@tmp': new URL('test/tmp', import.meta.url).pathname,
     },
   },
   test: {
     globals: true,
     environment: 'node',
     setupFiles: ['test/setup/worktree-cleanup.ts'],
-    include: ['src/**/__tests__/**/*.test.ts', 'test/**/*.test.ts'],
+    // Base patterns - will be overridden by projects
+    include: [],
     exclude: ['node_modules/**', 'dist/**', 'test/tmp/**'],
 
     // Projects for different test types
@@ -25,35 +26,18 @@ export default defineConfig({
           include: ['src/**/__tests__/*.test.ts'],
           exclude: [
             'src/**/__tests__/*.integration.test.ts',
-            'src/utils/__tests__/testing-harness-worktree-manager.test.ts',
-            'src/utils/__tests__/cli-runner.test.ts',
             'test/e2e/**/*.test.ts',
             'test/execution/**/*.test.ts',
           ],
         },
       },
       {
-        resolve: {
-          alias: {
-            '@': new URL('./src', import.meta.url).pathname,
-            '@test': new URL('./test', import.meta.url).pathname,
-            '@tmp': new URL('./test/tmp', import.meta.url).pathname,
-          },
-        },
+        extends: true,
         test: {
           name: 'integration',
-          globals: true,
-          environment: 'node',
           setupFiles: ['test/setup/vitest-integration.setup.ts', 'test/setup/worktree-cleanup.ts'],
-          include: [
-            'src/**/__tests__/*.integration.test.ts',
-            'src/utils/__tests__/testing-harness-worktree-manager.test.ts',
-            'src/utils/__tests__/cli-runner.test.ts',
-            'src/utils/__tests__/plan-outputter.test.ts',
-            'src/utils/__tests__/plan-generator.integration.test.ts',
-            'src/utils/__tests__/dag-validator.integration.test.ts',
-          ],
-          exclude: ['node_modules/**', 'dist/**', 'test/tmp/**'],
+          include: ['src/**/__tests__/*.integration.test.ts'],
+          exclude: ['test/e2e/**/*.test.ts', 'test/execution/**/*.test.ts'],
         },
       },
       {
