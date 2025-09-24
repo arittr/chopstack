@@ -15,6 +15,7 @@ import type {
 
 import { toErrorMessage } from '../utils/errors';
 import { hasContent } from '../utils/guards';
+import { logger } from '../utils/logger';
 import { createVcsBackend, detectAvailableVcsBackend } from '../vcs';
 
 import type { ExecutionMonitor } from './execution-monitor';
@@ -80,9 +81,9 @@ export class ExecutionEngine extends EventEmitter {
         throw new Error(`Execution plan validation failed: ${validation.errors.join(', ')}`);
       }
 
-      console.log(`[chopstack] Starting execution in ${options.mode} mode`);
-      console.log(`[chopstack] Strategy: ${executionPlan.strategy}`);
-      console.log(`[chopstack] Tasks: ${executionPlan.tasks.size}`);
+      logger.info(`[chopstack] Starting execution in ${options.mode} mode`);
+      logger.info(`[chopstack] Strategy: ${executionPlan.strategy}`);
+      logger.info(`[chopstack] Tasks: ${executionPlan.tasks.size}`);
 
       this.monitor.startMonitoring(executionPlan);
 
@@ -94,7 +95,7 @@ export class ExecutionEngine extends EventEmitter {
         .exhaustive();
 
       this.monitor.stopMonitoring(executionPlan);
-      console.log(this.monitor.formatExecutionSummary(executionPlan));
+      logger.info(this.monitor.formatExecutionSummary(executionPlan));
 
       return result;
     } finally {
@@ -106,11 +107,11 @@ export class ExecutionEngine extends EventEmitter {
     plan: ExecutionPlan,
     options: ExecutionOptions,
   ): Promise<ExecutionResult> {
-    console.log('[chopstack] Generating execution plans for all tasks...');
+    logger.info('[chopstack] Generating execution plans for all tasks...');
 
     for (const layer of plan.executionLayers) {
       const layerPromises = layer.map(async (task) => {
-        console.log(`[chopstack] Planning: ${task.id} - ${task.title}`);
+        logger.info(`[chopstack] Planning: ${task.id} - ${task.title}`);
 
         // Proper state transition: ready → queued → running
         if (task.state === 'ready') {
@@ -125,13 +126,13 @@ export class ExecutionEngine extends EventEmitter {
           task.output = result.output;
 
           // Display the execution plan for this task
-          console.log(`[chopstack] ✓ Plan for ${task.id}:`);
+          logger.info(`[chopstack] ✓ Plan for ${task.id}:`);
           if (hasContent(result.output)) {
-            console.log(
+            logger.info(
               `[chopstack]   ${result.output.trim().replaceAll('\n', '\n[chopstack]   ')}`,
             );
           } else {
-            console.log(`[chopstack]   No detailed plan output available`);
+            logger.info(`[chopstack]   No detailed plan output available`);
           }
 
           this.stateManager.transitionTask(task, 'completed');
@@ -139,7 +140,7 @@ export class ExecutionEngine extends EventEmitter {
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           task.error = errorMessage;
-          console.log(`[chopstack] ✗ Planning failed for ${task.id}: ${errorMessage}`);
+          logger.info(`[chopstack] ✗ Planning failed for ${task.id}: ${errorMessage}`);
           this.stateManager.transitionTask(task, 'failed');
           this.monitor.onTaskStateChange(plan, task, 'running', 'failed');
         }
@@ -152,7 +153,7 @@ export class ExecutionEngine extends EventEmitter {
   }
 
   private _executeDryRunMode(plan: ExecutionPlan): ExecutionResult {
-    console.log('[chopstack] Running in dry-run mode (no actual changes)...');
+    logger.info('[chopstack] Running in dry-run mode (no actual changes)...');
 
     for (const layer of plan.executionLayers) {
       for (const task of layer) {
@@ -195,7 +196,7 @@ export class ExecutionEngine extends EventEmitter {
     plan: ExecutionPlan,
     options: ExecutionOptions,
   ): Promise<ExecutionResult> {
-    console.log('[chopstack] Executing tasks with full changes...');
+    logger.info('[chopstack] Executing tasks with full changes...');
 
     const baseRef = (options.gitSpice ?? false) ? 'HEAD' : 'main';
     const workdir = options.workdir ?? process.cwd();
@@ -206,7 +207,7 @@ export class ExecutionEngine extends EventEmitter {
       workdir,
     );
 
-    console.log(
+    logger.info(
       `[chopstack] Worktree analysis: ${worktreeNeeds.requiresWorktrees ? 'Required' : 'Not required'}`,
     );
 
@@ -244,30 +245,30 @@ export class ExecutionEngine extends EventEmitter {
   }
 
   private _executeValidateMode(plan: ExecutionPlan): ExecutionResult {
-    console.log('[chopstack] Validating execution readiness...');
+    logger.info('[chopstack] Validating execution readiness...');
 
     const validation = this.planner.validateExecutionPlan(plan);
 
-    console.log(`[chopstack] Validation: ${validation.valid ? 'PASSED' : 'FAILED'}`);
+    logger.info(`[chopstack] Validation: ${validation.valid ? 'PASSED' : 'FAILED'}`);
 
     if (validation.errors.length > 0) {
-      console.error('[chopstack] Errors:');
+      logger.error('[chopstack] Errors:');
       for (const error of validation.errors) {
-        console.error(`[chopstack]   - ${error}`);
+        logger.error(`[chopstack]   - ${error}`);
       }
     }
 
     if (validation.warnings.length > 0) {
-      console.warn('[chopstack] Warnings:');
+      logger.warn('[chopstack] Warnings:');
       for (const warning of validation.warnings) {
-        console.warn(`[chopstack]   - ${warning}`);
+        logger.warn(`[chopstack]   - ${warning}`);
       }
     }
 
     if (validation.suggestions.length > 0) {
-      console.log('[chopstack] Suggestions:');
+      logger.info('[chopstack] Suggestions:');
       for (const suggestion of validation.suggestions) {
-        console.log(`[chopstack]   - ${suggestion}`);
+        logger.info(`[chopstack]   - ${suggestion}`);
       }
     }
 
@@ -346,9 +347,9 @@ export class ExecutionEngine extends EventEmitter {
             generateMessage: true,
           });
           task.commitHash = commitHash;
-          console.log(`[chopstack] Committed task ${task.id}: ${commitHash.slice(0, 7)}`);
+          logger.info(`[chopstack] Committed task ${task.id}: ${commitHash.slice(0, 7)}`);
         } catch (error) {
-          console.warn(
+          logger.warn(
             `[chopstack] Failed to commit task ${task.id}: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
@@ -421,7 +422,7 @@ export class ExecutionEngine extends EventEmitter {
       this.monitor.onTaskStateChange(plan, task, 'running', 'failed');
 
       if (this.stateManager.canRetry(task) && (options.retryAttempts ?? 0) > 0) {
-        console.log(`[chopstack] Retrying task ${task.id}...`);
+        logger.info(`[chopstack] Retrying task ${task.id}...`);
         await this._delay(options.retryDelay ?? 5000);
         return this._executeTask(plan, task, options);
       }
@@ -479,14 +480,14 @@ export class ExecutionEngine extends EventEmitter {
     plan: ExecutionPlan,
     options: ExecutionOptions,
   ): Promise<void> {
-    console.log('[chopstack] Creating VCS stack from worktree commits...');
+    logger.info('[chopstack] Creating VCS stack from worktree commits...');
 
     const completedTasks = [...plan.tasks.values()].filter(
       (task) => task.state === 'completed' && task.commitHash !== undefined,
     );
 
     if (completedTasks.length === 0) {
-      console.log('[chopstack] No completed tasks with commits to create stack from');
+      logger.info('[chopstack] No completed tasks with commits to create stack from');
       return;
     }
 
@@ -501,20 +502,20 @@ export class ExecutionEngine extends EventEmitter {
         },
       );
 
-      console.log('[chopstack] Stack created with branches:');
+      logger.info('[chopstack] Stack created with branches:');
       for (const branch of stackInfo.branches) {
-        console.log(`[chopstack]   └─ ${branch.name} (task: ${branch.taskId})`);
+        logger.info(`[chopstack]   └─ ${branch.name} (task: ${branch.taskId})`);
       }
 
       if (stackInfo.prUrls !== undefined && stackInfo.prUrls.length > 0) {
         plan.prUrls = stackInfo.prUrls;
-        console.log('[chopstack] Pull requests created:');
+        logger.info('[chopstack] Pull requests created:');
         for (const url of stackInfo.prUrls) {
-          console.log(`[chopstack]   └─ ${url}`);
+          logger.info(`[chopstack]   └─ ${url}`);
         }
       }
     } catch (error) {
-      console.error(
+      logger.error(
         `[chopstack] Failed to create VCS stack: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
       // Don't throw - VCS failure shouldn't fail the entire execution
@@ -522,17 +523,17 @@ export class ExecutionEngine extends EventEmitter {
   }
 
   private async _createVcsStack(plan: ExecutionPlan, options: ExecutionOptions): Promise<void> {
-    console.log('[chopstack] Creating VCS stack...');
+    logger.info('[chopstack] Creating VCS stack...');
 
     try {
       // Detect available VCS backend
       const backendType = await detectAvailableVcsBackend();
       if (backendType === null) {
-        console.warn('[chopstack] No VCS backend available (git-spice, jj, graphite)');
+        logger.warn('[chopstack] No VCS backend available (git-spice, jj, graphite)');
         return;
       }
 
-      console.log(`[chopstack] Using VCS backend: ${backendType}`);
+      logger.info(`[chopstack] Using VCS backend: ${backendType}`);
 
       // Create backend instance
       const vcsBackend = await createVcsBackend(backendType);
@@ -541,7 +542,7 @@ export class ExecutionEngine extends EventEmitter {
       const completedTasks = [...plan.tasks.values()].filter((task) => task.state === 'completed');
 
       if (completedTasks.length === 0) {
-        console.log('[chopstack] No completed tasks to create stack from');
+        logger.info('[chopstack] No completed tasks to create stack from');
         return;
       }
 
@@ -551,9 +552,9 @@ export class ExecutionEngine extends EventEmitter {
         options.workdir ?? process.cwd(),
       );
 
-      console.log('[chopstack] Stack created with branches:');
+      logger.info('[chopstack] Stack created with branches:');
       for (const branch of stackInfo.branches) {
-        console.log(`[chopstack]   └─ ${branch.name} (task: ${branch.taskId})`);
+        logger.info(`[chopstack]   └─ ${branch.name} (task: ${branch.taskId})`);
       }
 
       // Submit stack to remote if requested
@@ -564,15 +565,15 @@ export class ExecutionEngine extends EventEmitter {
           plan.prUrls = prUrls;
         }
       } catch (error) {
-        console.warn(
+        logger.warn(
           `[chopstack] Stack created but submission failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         );
-        console.log(
+        logger.info(
           `[chopstack] Run '${backendType === 'git-spice' ? 'gs stack submit' : 'stack submit'} manually to create PRs`,
         );
       }
     } catch (error) {
-      console.error(
+      logger.error(
         `[chopstack] Failed to create VCS stack: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
       // Don't throw - VCS failure shouldn't fail the entire execution
