@@ -5,6 +5,7 @@ import { decomposeCommand } from './commands/decompose';
 import { runCommand } from './commands/run';
 import { stackCommand } from './commands/stack';
 import { validateDecomposeArgs, validateRunArgs, validateStackArgs } from './types/cli';
+import { logger } from './utils/logger';
 
 const program = new Command();
 
@@ -21,9 +22,16 @@ program
   .option('--agent <type>', 'Agent to use: claude|aider|mock', 'claude')
   .option('--output <file>', 'Output file for plan (optional, defaults to stdout)')
   .option('--verbose, -v', 'Verbose output', false)
+  .option('--silent, -s', 'Silent mode - suppress all output', false)
   .action(async (options: unknown) => {
     try {
       const validatedOptions = validateDecomposeArgs(options);
+      // Configure logger based on CLI options
+      const cliOptions = options as { silent?: boolean };
+      logger.configure({
+        verbose: validatedOptions.verbose ?? false,
+        silent: cliOptions.silent ?? false,
+      });
       const exitCode = await decomposeCommand(validatedOptions);
       if (exitCode !== 0) {
         throw new Error(`Decompose command failed with exit code ${exitCode}`);
@@ -65,9 +73,16 @@ program
     5000,
   )
   .option('--verbose, -v', 'Verbose output', false)
+  .option('--silent, -s', 'Silent mode - suppress all output', false)
   .action(async (options: unknown) => {
     try {
       const validatedOptions = validateRunArgs(options);
+      // Configure logger based on CLI options
+      const cliOptions = options as { silent?: boolean };
+      logger.configure({
+        verbose: validatedOptions.verbose ?? false,
+        silent: cliOptions.silent ?? false,
+      });
       const exitCode = await runCommand(validatedOptions);
       if (exitCode !== 0) {
         throw new Error(`Run command failed with exit code ${exitCode}`);
@@ -91,9 +106,16 @@ program
   .option('--no-create-stack', 'Do not create git-spice stack, just commit', true)
   .option('--message <msg>', 'Custom commit message (optional)')
   .option('--verbose, -v', 'Verbose output', false)
+  .option('--silent, -s', 'Silent mode - suppress all output', false)
   .action((options: unknown) => {
     try {
       const validatedOptions = validateStackArgs(options);
+      // Configure logger based on CLI options
+      const cliOptions = options as { silent?: boolean };
+      logger.configure({
+        verbose: validatedOptions.verbose,
+        silent: cliOptions.silent ?? false,
+      });
       const exitCode = stackCommand(validatedOptions);
       if (exitCode !== 0) {
         throw new Error(`Stack command failed with exit code ${exitCode}`);
@@ -115,7 +137,7 @@ export async function run(argv: readonly string[]): Promise<number> {
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`Error: ${message}`);
+    logger.error(message);
     return 1;
   }
 }

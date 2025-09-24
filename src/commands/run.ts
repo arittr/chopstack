@@ -8,6 +8,7 @@ import { createDecomposerAgent } from '../agents';
 import { createExecutionEngine } from '../engine';
 import { DagValidator } from '../utils/dag-validator';
 import { isNonEmptyString } from '../utils/guards';
+import { logger } from '../utils/logger';
 import { generatePlanWithRetry } from '../utils/plan-generator';
 import { YamlPlanParser } from '../utils/yaml-parser';
 
@@ -18,14 +19,14 @@ export async function runCommand(options: RunCommandOptions): Promise<number> {
 
     // Determine if we need to decompose a spec or load an existing plan
     if (isNonEmptyString(options.spec)) {
-      console.log(`📄 Reading spec from: ${resolve(options.spec)}`);
+      logger.info(`📄 Reading spec from: ${resolve(options.spec)}`);
 
       // Read and decompose the specification
       const specContent = await readFile(resolve(options.spec), 'utf8');
-      console.log(`📄 Spec content length: ${specContent.length} characters`);
+      logger.info(`📄 Spec content length: ${specContent.length} characters`);
 
       const agent = await createDecomposerAgent(options.agent ?? 'claude');
-      console.log(`🤖 Using agent: ${options.agent ?? 'claude'}`);
+      logger.info(`🤖 Using agent: ${options.agent ?? 'claude'}`);
 
       // Generate plan with retry logic
       const result = await generatePlanWithRetry(agent, specContent, cwd, {
@@ -34,13 +35,13 @@ export async function runCommand(options: RunCommandOptions): Promise<number> {
       });
 
       if (!result.success) {
-        console.error('❌ Failed to generate a valid plan after retries');
+        logger.error('❌ Failed to generate a valid plan after retries');
         return 1;
       }
 
       ({ plan } = result);
     } else if (isNonEmptyString(options.plan)) {
-      console.log(`📋 Loading plan from: ${resolve(options.plan)}`);
+      logger.info(`📋 Loading plan from: ${resolve(options.plan)}`);
 
       // Load existing plan file
       const planContent = await readFile(resolve(options.plan), 'utf8');
@@ -60,7 +61,7 @@ export async function runCommand(options: RunCommandOptions): Promise<number> {
           source: 'json',
         });
       }
-      console.log(`📋 Loaded plan with ${plan.tasks.length} tasks`);
+      logger.info(`📋 Loaded plan with ${plan.tasks.length} tasks`);
     } else {
       throw new Error('Either --spec or --plan must be provided');
     }
@@ -69,16 +70,16 @@ export async function runCommand(options: RunCommandOptions): Promise<number> {
     const validation = DagValidator.validatePlan(plan);
 
     if (!validation.valid) {
-      console.error('❌ Plan validation failed:');
+      logger.error('❌ Plan validation failed:');
       for (const error of validation.errors) {
-        console.error(`  Error: ${error}`);
+        logger.error(`  Error: ${error}`);
       }
       return 1;
     }
 
     // Execute the plan using the execution engine
     const engine = createExecutionEngine();
-    console.log(`🚀 Starting execution in ${options.mode} mode with ${options.strategy} strategy`);
+    logger.info(`🚀 Starting execution in ${options.mode} mode with ${options.strategy} strategy`);
 
     const result = await engine.execute(plan, {
       mode: options.mode,
@@ -92,8 +93,8 @@ export async function runCommand(options: RunCommandOptions): Promise<number> {
     });
 
     if (result.success) {
-      console.log(`✅ Execution completed successfully`);
-      console.log(
+      logger.info(`✅ Execution completed successfully`);
+      logger.info(
         `📊 Tasks: ${result.tasksCompleted}/${result.tasksTotal} completed, ${result.tasksFailed} failed, ${result.tasksSkipped} skipped`,
       );
 
@@ -102,27 +103,27 @@ export async function runCommand(options: RunCommandOptions): Promise<number> {
         result.gitBranches !== undefined &&
         result.gitBranches.length > 0
       ) {
-        console.log('🌿 Git-spice stack created:');
+        logger.info('🌿 Git-spice stack created:');
         for (const branch of result.gitBranches) {
-          console.log(`  └─ ${branch}`);
+          logger.info(`  └─ ${branch}`);
         }
         if (result.stackUrl !== undefined) {
-          console.log(`🔗 Stack URL: ${result.stackUrl}`);
+          logger.info(`🔗 Stack URL: ${result.stackUrl}`);
         }
-        console.log("💡 Run 'gs stack submit' to create PRs");
+        logger.info("💡 Run 'gs stack submit' to create PRs");
       }
 
       return 0;
     }
 
-    console.error(`❌ Execution failed: ${result.error ?? 'Unknown error'}`);
-    console.error(
+    logger.error(`❌ Execution failed: ${result.error ?? 'Unknown error'}`);
+    logger.error(
       `📊 Tasks: ${result.tasksCompleted}/${result.tasksTotal} completed, ${result.tasksFailed} failed`,
     );
     return 1;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`❌ Run command failed: ${message}`);
+    logger.error(`❌ Run command failed: ${message}`);
     return 1;
   }
 }
