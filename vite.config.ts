@@ -3,9 +3,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@': './src',
-      '@test': './test',
-      '@tmp': './test/tmp',
+      '@': new URL('./src', import.meta.url).pathname,
+      '@test': new URL('./test', import.meta.url).pathname,
+      '@tmp': new URL('./test/tmp', import.meta.url).pathname,
     },
   },
   test: {
