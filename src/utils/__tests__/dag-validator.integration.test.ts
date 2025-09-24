@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 
 import type { Plan } from '@/types/decomposer';
 
-import { DagValidator } from '@/utils/dag-validator';
+import { DagValidator } from '@/validation/dag-validator';
 
 describe('DagValidator integration tests', () => {
   beforeEach(() => {

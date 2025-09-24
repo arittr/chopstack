@@ -6,18 +6,18 @@ import { vi } from 'vitest';
 import type { DecomposeOptions, DecomposerAgent } from '@/types/decomposer';
 
 import { createDecomposerAgent } from '@/agents';
-import { DagValidator } from '@/utils/dag-validator';
-import { generatePlanWithRetry } from '@/utils/plan-generator';
-import { PlanOutputter } from '@/utils/plan-outputter';
+import { generatePlanWithRetry } from '@/planning/plan-generator';
+import { PlanOutputter } from '@/planning/plan-outputter';
+import { DagValidator } from '@/validation/dag-validator';
 
 import { decomposeCommand } from '../decompose';
 
 // Mock external dependencies
 vi.mock('node:fs/promises');
 vi.mock('../../agents');
-vi.mock('../../utils/dag-validator');
-vi.mock('../../utils/plan-generator');
-vi.mock('../../utils/plan-outputter');
+vi.mock('../../validation/dag-validator');
+vi.mock('../../planning/plan-generator');
+vi.mock('../../planning/plan-outputter');
 
 const mockReadFile = vi.mocked(readFile);
 const mockResolve = vi.mocked(path.resolve);
