@@ -95,36 +95,14 @@ export class TestingHarnessWorktreeManager {
       console.log(`🧹 Cleaning up test worktree: ${path.basename(worktreePath)}`);
 
       const git = new GitWrapper(process.cwd());
-      // Always use force removal for test worktrees since they may contain uncommitted changes
       await git.removeWorktree(worktreePath, true);
 
-      // Also try to clean up test-related branches
+      // Also try to clean up the test branch if it exists
       const testId = path.basename(worktreePath);
-
-      // Clean up test branches
       try {
         await git.git.raw(['branch', '-D', `test/${testId}`]);
       } catch {
         // Ignore errors if branch doesn't exist or can't be deleted
-      }
-
-      // Clean up chopstack branches (these are created by the tests)
-      try {
-        const branchList = await git.git.raw(['branch', '--list', 'chopstack/*']);
-        const branches = branchList
-          .split('\n')
-          .map((line) => line.trim().replace(/^\*\s*/, ''))
-          .filter(Boolean);
-
-        for (const branch of branches) {
-          try {
-            await git.git.raw(['branch', '-D', branch]);
-          } catch {
-            // Ignore individual branch deletion errors
-          }
-        }
-      } catch {
-        // Ignore errors if no chopstack branches exist
       }
 
       this.activeWorktrees.delete(worktreePath);

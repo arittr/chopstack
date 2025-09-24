@@ -100,7 +100,7 @@ The codebase follows these architectural patterns:
 - **Pattern Matching**: ts-pattern for functional control flow
 - **Validation**: Zod for schema validation and runtime type checking
 - **External Types**: Official Claude Code SDK types from `@anthropic-ai/claude-code`
-- **Testing**: Jest for unit/E2E tests, custom execution testing framework
+- **Testing**: Vitest for all testing, custom execution testing framework
 
 ## Code Style Requirements
 
@@ -180,11 +180,120 @@ src/
 ├── utils/         # Utility functions and guards
 └── index.ts       # Main MCP server export
 
+src/
+├── **/__tests__/  # Co-located unit and integration tests
+│   ├── *.test.ts           # Unit tests (fast, heavily mocked)
+│   └── *.integration.test.ts # Integration tests (real classes, mocked externals)
+
 test/
 ├── e2e/           # End-to-end integration tests
 ├── execution/     # Execution planning tests (using --permission-mode plan)
-└── unit/          # Unit tests (if any)
+├── integration/   # Legacy integration tests
+├── unit/          # Legacy unit tests
+└── setup/         # Test setup and utilities
 ```
+
+## Testing Strategy
+
+The project follows a modern, comprehensive testing approach with four distinct types of tests organized by purpose and isolation level.
+
+### Test Types
+
+#### 1. Unit Tests (`*.test.ts`)
+**Purpose**: Fast, isolated testing of individual functions and classes
+**Location**: Co-located in `src/**/__tests__/*.test.ts`
+**Characteristics**:
+- Heavy mocking of external dependencies (file system, network, subprocesses)
+- Tests business logic in isolation
+- Very fast execution (< 5000ms timeout)
+- High test coverage of edge cases and error conditions
+
+**Example**:
+```typescript
+// src/utils/__tests__/plan-generator.test.ts
+vi.mock('@/agents');
+vi.mock('@/utils/dag-validator');
+
+// Tests generatePlanWithRetry logic with mocked agent and validator
+expect(mockAgent.decompose).toHaveBeenCalledWith(expectedPrompt, cwd, options);
+```
+
+#### 2. Integration Tests (`*.integration.test.ts`)
+**Purpose**: Test real class interactions while mocking only truly external operations
+**Location**: Co-located in `src/**/__tests__/*.integration.test.ts`
+**Characteristics**:
+- Uses real instances of our classes (DagValidator, PlanGenerator, etc.)
+- Mocks only external dependencies (file I/O, network, git operations)
+- Tests end-to-end workflows within our codebase
+- Medium execution time (< 10000ms timeout)
+- Validates that our classes work together correctly
+
+**Example**:
+```typescript
+// src/commands/__tests__/decompose.integration.test.ts
+// Real generatePlanWithRetry, real DagValidator, real PlanOutputter
+// Mocked: file system, agent API calls, git operations
+const result = await decomposeCommand(options); // Uses real command flow
+expect(result).toBe(0); // Real success/failure
+```
+
+#### 3. E2E Tests (`test/e2e/*.test.ts`)
+**Purpose**: Test complete CLI workflows in controlled environment
+**Location**: `test/e2e/`
+**Characteristics**:
+- Tests actual CLI commands end-to-end
+- Real file system operations in isolated test directories
+- Real subprocess execution where safe
+- Long execution time (< 30000ms timeout)
+- Validates user-facing behavior
+
+#### 4. Execution Planning Tests (`test/execution/*.test.ts`)
+**Purpose**: Validate Claude's task execution planning without expensive implementation
+**Location**: `test/execution/`
+**Characteristics**:
+- Uses `claude --permission-mode plan` for fast execution planning
+- Real API calls to Claude (with rate limiting)
+- Cost-efficient testing (~$0.10-0.20 per task vs $2-5+ for full implementation)
+- Very long execution time (< 60000ms timeout)
+- Quality analysis of execution plans
+
+### Test Commands
+
+```bash
+# All tests
+pnpm test
+
+# By type
+pnpm test:unit                  # Fast unit tests only
+pnpm test:integration          # Integration tests only
+pnpm test:e2e                  # End-to-end CLI tests
+pnpm test:execution            # Execution planning tests
+
+# Development
+pnpm test:watch                # Watch mode
+pnpm test:coverage             # Coverage report
+pnpm test:ui                   # Interactive UI
+```
+
+### Test Organization Principles
+
+1. **Co-location**: Unit and integration tests live next to the code they test
+2. **Clear Separation**: Different file patterns for different test types
+3. **Pyramid Structure**: Many unit tests, fewer integration tests, minimal E2E tests
+4. **Real Class Testing**: Integration tests use real instances of our classes
+5. **External Mocking**: Mock only what we don't control (file system, network, external APIs)
+6. **Cost Efficiency**: Execution planning tests provide high value at low cost
+
+### Test Cleanup and Migration
+
+We recently modernized the test suite by:
+- **Removing 2000+ lines** of problematic tests that tested external dependencies instead of our business logic
+- **Adding comprehensive unit tests** for CLI commands and core utilities
+- **Creating integration tests** that validate real class interactions
+- **Adopting hybrid test layout** with co-located tests for better maintainability
+- **Migrating from Jest to Vitest** for better performance and modern features
+
+The result is a clean, focused test suite that tests our actual functionality rather than external dependencies.
 
 ## Execution Testing Framework
 
