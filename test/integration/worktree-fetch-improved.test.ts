@@ -67,7 +67,7 @@ describe('Worktree Commit Fetching (Improved with TestWorktreeManager)', () => {
           console.log(`✅ Successfully tested worktree isolation with real chopstack repo`);
         } finally {
           // Clean up worktree
-          await worktreeManager.removeWorktree('test-task');
+          await worktreeManager.removeWorktree('test-task', true);
         }
       });
     });
@@ -140,7 +140,7 @@ describe('Worktree Commit Fetching (Improved with TestWorktreeManager)', () => {
           // Clean up all worktrees
           for (const taskId of tasks) {
             try {
-              await worktreeManager.removeWorktree(taskId);
+              await worktreeManager.removeWorktree(taskId, true);
             } catch (error) {
               console.log(`Note: Cleanup error for ${taskId}:`, error);
             }
@@ -266,7 +266,7 @@ export type ButtonSize = 'small' | 'medium' | 'large';
 
           console.log(`✅ Successfully simulated authentic chopstack component development`);
         } finally {
-          await worktreeManager.removeWorktree(componentTask);
+          await worktreeManager.removeWorktree(componentTask, true);
         }
       });
     });
@@ -305,7 +305,7 @@ export type ButtonSize = 'small' | 'medium' | 'large';
 
         // Verify we have the tools we expect in chopstack
         expect(packageJson.devDependencies.typescript).toBeDefined();
-        expect(packageJson.devDependencies.vi).toBeDefined();
+        expect(packageJson.devDependencies.vitest).toBeDefined();
 
         console.log('✅ Verified access to real package.json and dependencies');
       });
