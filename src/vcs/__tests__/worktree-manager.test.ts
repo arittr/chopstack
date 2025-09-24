@@ -21,7 +21,6 @@ const gitMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/utils/git-wrapper', () => ({
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   GitWrapper: vi.fn(() => ({
     createWorktree: gitMocks.createWorktree,
     removeWorktree: gitMocks.removeWorktree,
@@ -95,7 +94,7 @@ describe('WorktreeManager', () => {
         },
       );
       expect(gitMocks.createWorktree).toHaveBeenCalledWith(
-        path.join(TEST_PATHS.TEST_TMP, '.test-shadows/task-1'),
+        '.test-shadows/task-1', // Relative path since GitWrapper is in workdir
         'main',
         'test/task-1',
       );
@@ -133,7 +132,7 @@ describe('WorktreeManager', () => {
 
       expect(context.branchName).toBe('test/task-1-123');
       expect(gitMocks.createWorktree).toHaveBeenCalledWith(
-        path.join(TEST_PATHS.TEST_TMP, '.test-shadows/task-1'),
+        '.test-shadows/task-1', // Relative path since GitWrapper is in workdir
         'main',
         'test/task-1-123',
       );

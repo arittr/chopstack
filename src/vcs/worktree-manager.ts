@@ -318,7 +318,10 @@ export class WorktreeManager extends EventEmitter {
       const branchName = await git.git.revparse(['--abbrev-ref', 'HEAD']);
       const status = await git.status();
       const hasChanges =
-        status.added.length > 0 || status.modified.length > 0 || status.deleted.length > 0;
+        status.added.length > 0 ||
+        status.modified.length > 0 ||
+        status.deleted.length > 0 ||
+        status.untracked.length > 0;
 
       return {
         exists: true,

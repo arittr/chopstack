@@ -4,7 +4,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 // Minimal mocking, allow real filesystem and subprocess operations in controlled environment
 import { resolve } from 'node:path';
 
-import { vi } from 'vitest';
+// import { vi } from 'vitest';
 
 const testDir = resolve(process.cwd(), 'tmp/e2e-tests');
 

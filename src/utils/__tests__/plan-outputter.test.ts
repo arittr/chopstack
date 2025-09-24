@@ -70,7 +70,9 @@ describe('PlanOutputter', () => {
 
       expect(mockStringifyYaml).toHaveBeenCalledWith(mockPlan, {
         indent: 2,
-        lineWidth: 100,
+        lineWidth: 200,
+        defaultStringType: 'QUOTE_DOUBLE',
+        defaultKeyType: 'PLAIN',
       });
 
       // Main logic validation is sufficient - console output is secondary
@@ -123,7 +125,9 @@ describe('PlanOutputter', () => {
 
       expect(mockStringifyYaml).toHaveBeenCalledWith(mockPlan, {
         indent: 2,
-        lineWidth: 100,
+        lineWidth: 200,
+        defaultStringType: 'QUOTE_DOUBLE',
+        defaultKeyType: 'PLAIN',
       });
 
       // Check that the output contains expected elements
@@ -225,7 +229,9 @@ describe('PlanOutputter', () => {
 
       expect(mockStringifyYaml).toHaveBeenCalledWith(mockPlan, {
         indent: 2,
-        lineWidth: 100,
+        lineWidth: 200,
+        defaultStringType: 'QUOTE_DOUBLE',
+        defaultKeyType: 'PLAIN',
       });
     });
 

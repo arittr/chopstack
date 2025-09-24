@@ -4,7 +4,6 @@ import { YamlPlanParser } from '../yaml-parser';
 
 // Mock the Zod schema validation
 vi.mock('../../types/decomposer', () => ({
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   PlanSchema: {
     parse: vi.fn((data: unknown) => {
       // Simple mock - return the data if it has tasks array
