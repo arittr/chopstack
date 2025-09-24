@@ -25,8 +25,6 @@ export default defineConfig({
           include: ['src/**/__tests__/*.test.ts'],
           exclude: [
             'src/**/__tests__/*.integration.test.ts',
-            'src/utils/__tests__/testing-harness-worktree-manager.test.ts',
-            'src/utils/__tests__/cli-runner.test.ts',
             'test/e2e/**/*.test.ts',
             'test/execution/**/*.test.ts',
           ],
@@ -37,11 +35,7 @@ export default defineConfig({
         test: {
           name: 'integration',
           setupFiles: ['test/setup/vitest-integration.setup.ts', 'test/setup/worktree-cleanup.ts'],
-          include: [
-            'src/**/__tests__/*.integration.test.ts',
-            'src/utils/__tests__/testing-harness-worktree-manager.test.ts',
-            'src/utils/__tests__/cli-runner.test.ts',
-          ],
+          include: ['src/**/__tests__/*.integration.test.ts'],
           exclude: ['test/e2e/**/*.test.ts', 'test/execution/**/*.test.ts'],
         },
       },
