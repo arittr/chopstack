@@ -93,6 +93,28 @@ describe('VcsEngine', () => {
   });
 
   describe('generateCommitMessage', () => {
+    let aiGenerateSpy: vi.SpyInstance<
+      Promise<string>,
+      [unknown, { files?: string[]; output?: string }, string]
+    >;
+
+    beforeEach(() => {
+      aiGenerateSpy = vi.spyOn(
+        vcsEngine as unknown as {
+          _generateAICommitMessage: (
+            task: unknown,
+            changes: { files?: string[]; output?: string },
+            workdir: string,
+          ) => Promise<string>;
+        },
+        '_generateAICommitMessage',
+      );
+    });
+
+    afterEach(() => {
+      aiGenerateSpy.mockRestore();
+    });
+
     it('should generate commit message for component task', async () => {
       const mockTask = {
         id: 'add-component',
@@ -114,12 +136,14 @@ describe('VcsEngine', () => {
         output: 'Created User component with props interface',
       };
 
-      // Mock AI generation to test fallback
+      aiGenerateSpy.mockResolvedValueOnce('Add component scaffolding');
+
       const message = await vcsEngine.generateCommitMessage(mockTask, changes, TEST_PATHS.TEST_TMP);
 
-      expect(message).toContain('Add User Component');
+      expect(message.startsWith('Add component scaffolding')).toBe(true);
       expect(message).toContain('🤖 Generated with Claude via chopstack');
       expect(message).toContain('Co-Authored-By: Claude');
+      expect(aiGenerateSpy).toHaveBeenCalledWith(mockTask, changes, TEST_PATHS.TEST_TMP);
     });
 
     it('should generate commit message for API task', async () => {
@@ -143,10 +167,14 @@ describe('VcsEngine', () => {
         output: 'Implemented user CRUD API',
       };
 
+      aiGenerateSpy.mockResolvedValueOnce('Implement user API endpoints');
+
       const message = await vcsEngine.generateCommitMessage(mockTask, changes, TEST_PATHS.TEST_TMP);
 
-      expect(message).toContain('Implement User API');
+      expect(message.startsWith('Implement user API endpoints')).toBe(true);
       expect(message).toContain('🤖 Generated with Claude via chopstack');
+      expect(message).toContain('Co-Authored-By: Claude');
+      expect(aiGenerateSpy).toHaveBeenCalledWith(mockTask, changes, TEST_PATHS.TEST_TMP);
     });
 
     it('should generate commit message for test task', async () => {
@@ -155,7 +183,7 @@ describe('VcsEngine', () => {
         title: 'Add User Tests',
         description: 'Add comprehensive test coverage',
         touches: [],
-        produces: ['src/components/User.test.tsx'],
+        produces: ['src/tests/User.test.tsx'],
         requires: [],
         estimatedLines: 60,
         agentPrompt: 'Create user component tests',
@@ -166,14 +194,17 @@ describe('VcsEngine', () => {
       };
 
       const changes = {
-        files: ['src/components/User.test.tsx'],
+        files: ['src/tests/User.test.tsx'],
         output: 'Added test coverage for user component',
       };
+
+      aiGenerateSpy.mockRejectedValueOnce(new Error('claude unavailable'));
 
       const message = await vcsEngine.generateCommitMessage(mockTask, changes, TEST_PATHS.TEST_TMP);
 
       expect(message).toContain('Add User Tests');
       expect(message).toContain('🤖 Generated with Claude via chopstack');
+      expect(message).toContain('Implements src/tests/User.test.tsx');
     });
   });
 

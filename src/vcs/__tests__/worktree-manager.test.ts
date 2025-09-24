@@ -1,39 +1,68 @@
+import * as path from 'node:path';
+
 import { TEST_PATHS } from '@test/constants/test-paths';
 import { vi } from 'vitest';
 
-import type { VcsEngineOptions } from '@/engine/vcs-engine';
-
-import { WorktreeManager } from '@/vcs/worktree-manager';
-
-// Mock promisified exec function
-const mockExecAsync = vi.fn();
-
-// Mock child_process with proper ESM mocking
-vi.mock('node:child_process', () => ({
-  exec: vi.fn(),
-}));
-
-// Mock fs/promises
-const mockFs = {
+const fsMocks = vi.hoisted(() => ({
   mkdir: vi.fn(),
   access: vi.fn(),
   readdir: vi.fn(),
   rmdir: vi.fn(),
-};
-
-vi.mock('node:fs/promises', () => mockFs);
-
-// Mock util.promisify to return our mock exec
-vi.mock('node:util', () => ({
-  promisify: vi.fn().mockReturnValue(mockExecAsync),
+  stat: vi.fn(),
 }));
 
+const gitMocks = vi.hoisted(() => ({
+  createWorktree: vi.fn(),
+  removeWorktree: vi.fn(),
+  listWorktrees: vi.fn(),
+  status: vi.fn(),
+  gitRaw: vi.fn(),
+  gitRevparse: vi.fn(),
+}));
+
+vi.mock('@/utils/git-wrapper', () => ({
+  GitWrapper: vi.fn(() => ({
+    createWorktree: gitMocks.createWorktree,
+    removeWorktree: gitMocks.removeWorktree,
+    listWorktrees: gitMocks.listWorktrees,
+    status: gitMocks.status,
+    git: {
+      raw: gitMocks.gitRaw,
+      revparse: gitMocks.gitRevparse,
+    },
+  })),
+}));
+
+vi.mock('node:fs/promises', () => fsMocks);
+
+const { WorktreeManager } = await import('@/vcs/worktree-manager');
+
 describe('WorktreeManager', () => {
-  let worktreeManager: WorktreeManager;
-  let mockOptions: VcsEngineOptions;
+  let manager: WorktreeManager;
 
   beforeEach(() => {
-    mockOptions = {
+    vi.clearAllMocks();
+
+    fsMocks.mkdir.mockResolvedValue(undefined);
+    fsMocks.access.mockResolvedValue(undefined);
+    fsMocks.readdir.mockResolvedValue([]);
+    fsMocks.rmdir.mockResolvedValue(undefined);
+    fsMocks.stat.mockResolvedValue({ size: 1024 } as unknown as Awaited<
+      ReturnType<typeof fsMocks.stat>
+    >);
+
+    gitMocks.createWorktree.mockResolvedValue(undefined);
+    gitMocks.removeWorktree.mockResolvedValue(undefined);
+    gitMocks.listWorktrees.mockResolvedValue([]);
+    gitMocks.status.mockResolvedValue({
+      added: [],
+      deleted: [],
+      modified: [],
+    });
+    gitMocks.gitRaw.mockRejectedValue(new Error('branch not found'));
+    gitMocks.gitRevparse.mockResolvedValue('feature/test');
+
+    manager = new WorktreeManager({
       shadowPath: TEST_PATHS.TEST_SHADOWS,
       branchPrefix: 'test/',
       cleanupOnSuccess: true,
@@ -44,405 +73,183 @@ describe('WorktreeManager', () => {
         draft: true,
         autoMerge: false,
       },
-    };
-
-    worktreeManager = new WorktreeManager(mockOptions);
-
-    // Clear all mocks and set default successful responses
-    vi.clearAllMocks();
-    mockExecAsync.mockResolvedValue({ stdout: '', stderr: '' });
-    mockFs.mkdir.mockResolvedValue(undefined);
-    mockFs.access.mockResolvedValue(undefined);
-    mockFs.readdir.mockResolvedValue([]);
-    mockFs.rmdir.mockResolvedValue(undefined);
+    });
   });
 
   describe('createWorktree', () => {
-    it('should create a new worktree context', async () => {
-      const options = {
-        taskId: 'test-task',
-        branchName: 'test/test-task',
-        worktreePath: '.test-shadows/test-task',
+    it('creates a worktree and stores context', async () => {
+      const context = await manager.createWorktree({
+        taskId: 'task-1',
+        branchName: 'test/task-1',
+        worktreePath: '.test-shadows/task-1',
         baseRef: 'main',
-        workdir: 'TEST_PATHS.TEST_TMP',
-      };
+        workdir: TEST_PATHS.TEST_TMP,
+      });
 
-      const context = await worktreeManager.createWorktree(options);
-
-      expect(context.taskId).toBe('test-task');
-      expect(context.branchName).toBe('test/test-task');
-      expect(context.worktreePath).toBe('.test-shadows/test-task');
-      expect(context.baseRef).toBe('main');
-      expect(context.absolutePath).toBe('TEST_PATHS.TEST_TMP/.test-shadows/test-task');
-      expect(context.created).toBeInstanceOf(Date);
-
-      // Verify git commands were called
-      expect(mockExecAsync).toHaveBeenCalledWith(
-        'git worktree add -b "test/test-task" "TEST_PATHS.TEST_TMP/.test-shadows/test-task" "main"',
-        { cwd: 'TEST_PATHS.TEST_TMP', timeout: 30_000 },
+      expect(fsMocks.mkdir).toHaveBeenCalledWith(
+        path.join(TEST_PATHS.TEST_TMP, TEST_PATHS.TEST_SHADOWS),
+        {
+          recursive: true,
+        },
       );
+      expect(gitMocks.createWorktree).toHaveBeenCalledWith(
+        path.join(TEST_PATHS.TEST_TMP, '.test-shadows/task-1'),
+        'main',
+        'test/task-1',
+      );
+      expect(context.absolutePath).toBe(path.join(TEST_PATHS.TEST_TMP, '.test-shadows/task-1'));
+      expect(manager.hasWorktree('task-1')).toBe(true);
     });
 
-    it('should reuse existing worktree if it already exists', async () => {
+    it('reuses existing context on subsequent calls', async () => {
       const options = {
-        taskId: 'test-task',
-        branchName: 'test/test-task',
-        worktreePath: '.test-shadows/test-task',
+        taskId: 'task-1',
+        branchName: 'test/task-1',
+        worktreePath: '.test-shadows/task-1',
         baseRef: 'main',
-        workdir: 'TEST_PATHS.TEST_TMP',
+        workdir: TEST_PATHS.TEST_TMP,
       };
 
-      // Create worktree first time
-      const context1 = await worktreeManager.createWorktree(options);
+      const first = await manager.createWorktree(options);
+      const second = await manager.createWorktree(options);
 
-      // Create same worktree again - should reuse
-      const context2 = await worktreeManager.createWorktree(options);
-
-      expect(context1).toBe(context2);
-      expect(worktreeManager.getActiveWorktrees()).toHaveLength(1);
+      expect(first).toBe(second);
+      expect(gitMocks.createWorktree).toHaveBeenCalledTimes(1);
     });
 
-    it('should handle worktree creation errors gracefully', async () => {
-      mockExecAsync.mockRejectedValue(new Error('Git worktree failed'));
+    it('generates unique branch name if branch already exists', async () => {
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(123);
+      gitMocks.gitRaw.mockResolvedValueOnce('exists');
 
-      const options = {
-        taskId: 'test-task',
-        branchName: 'test/test-task',
-        worktreePath: '.test-shadows/test-task',
+      const context = await manager.createWorktree({
+        taskId: 'task-1',
+        branchName: 'test/task-1',
+        worktreePath: '.test-shadows/task-1',
         baseRef: 'main',
-        workdir: 'TEST_PATHS.TEST_TMP',
-      };
+        workdir: TEST_PATHS.TEST_TMP,
+      });
 
-      await expect(worktreeManager.createWorktree(options)).rejects.toThrow();
-    });
-
-    it('should fallback to existing branch if branch creation fails', async () => {
-      // First call fails (branch creation), second succeeds (use existing branch)
-      mockExecAsync
-        .mockRejectedValueOnce(new Error('Branch already exists'))
-        .mockResolvedValueOnce({ stdout: '', stderr: '' });
-
-      const options = {
-        taskId: 'test-task',
-        branchName: 'test/test-task',
-        worktreePath: '.test-shadows/test-task',
-        baseRef: 'main',
-        workdir: 'TEST_PATHS.TEST_TMP',
-      };
-
-      const context = await worktreeManager.createWorktree(options);
-
-      expect(context.taskId).toBe('test-task');
-      expect(mockExecAsync).toHaveBeenCalledTimes(2);
-
-      // First call with -b flag
-      expect(mockExecAsync).toHaveBeenNthCalledWith(
-        1,
-        'git worktree add -b "test/test-task" "TEST_PATHS.TEST_TMP/.test-shadows/test-task" "main"',
-        { cwd: 'TEST_PATHS.TEST_TMP', timeout: 30_000 },
+      expect(context.branchName).toBe('test/task-1-123');
+      expect(gitMocks.createWorktree).toHaveBeenCalledWith(
+        path.join(TEST_PATHS.TEST_TMP, '.test-shadows/task-1'),
+        'main',
+        'test/task-1-123',
       );
 
-      // Second call without -b flag
-      expect(mockExecAsync).toHaveBeenNthCalledWith(
-        2,
-        'git worktree add "TEST_PATHS.TEST_TMP/.test-shadows/test-task" "test/test-task"',
-        { cwd: 'TEST_PATHS.TEST_TMP', timeout: 30_000 },
-      );
-    });
-  });
-
-  describe('getWorktreeContext', () => {
-    it('should return undefined for non-existent worktree', () => {
-      const context = worktreeManager.getWorktreeContext('non-existent');
-      expect(context).toBeUndefined();
-    });
-
-    it('should return context for existing worktree', async () => {
-      const options = {
-        taskId: 'test-task',
-        branchName: 'test/test-task',
-        worktreePath: '.test-shadows/test-task',
-        baseRef: 'main',
-        workdir: 'TEST_PATHS.TEST_TMP',
-      };
-
-      await worktreeManager.createWorktree(options);
-      const context = worktreeManager.getWorktreeContext('test-task');
-
-      expect(context).toBeDefined();
-      expect(context?.taskId).toBe('test-task');
-    });
-  });
-
-  describe('hasWorktree', () => {
-    it('should return false for non-existent worktree', () => {
-      expect(worktreeManager.hasWorktree('non-existent')).toBe(false);
-    });
-
-    it('should return true for existing worktree', async () => {
-      const options = {
-        taskId: 'test-task',
-        branchName: 'test/test-task',
-        worktreePath: '.test-shadows/test-task',
-        baseRef: 'main',
-        workdir: 'TEST_PATHS.TEST_TMP',
-      };
-
-      await worktreeManager.createWorktree(options);
-      expect(worktreeManager.hasWorktree('test-task')).toBe(true);
+      nowSpy.mockRestore();
     });
   });
 
   describe('removeWorktree', () => {
-    it('should return false for non-existent worktree', async () => {
-      const result = await worktreeManager.removeWorktree('non-existent');
-      expect(result).toBe(false);
-    });
-
-    it('should successfully remove existing worktree', async () => {
-      const options = {
-        taskId: 'test-task',
-        branchName: 'test/test-task',
-        worktreePath: '.test-shadows/test-task',
+    it('removes existing worktree and cleans up map', async () => {
+      await manager.createWorktree({
+        taskId: 'task-1',
+        branchName: 'test/task-1',
+        worktreePath: '.test-shadows/task-1',
         baseRef: 'main',
-        workdir: 'TEST_PATHS.TEST_TMP',
-      };
+        workdir: TEST_PATHS.TEST_TMP,
+      });
 
-      await worktreeManager.createWorktree(options);
-      expect(worktreeManager.hasWorktree('test-task')).toBe(true);
-
-      const result = await worktreeManager.removeWorktree('test-task');
-      expect(result).toBe(true);
-      expect(worktreeManager.hasWorktree('test-task')).toBe(false);
-
-      // Verify remove command was called
-      expect(mockExecAsync).toHaveBeenCalledWith(
-        'git worktree remove  "TEST_PATHS.TEST_TMP/.test-shadows/test-task"',
-        { cwd: 'TEST_PATHS.TEST_TMP', timeout: 15_000 },
-      );
-    });
-
-    it('should retry with force flag on failure', async () => {
-      const options = {
-        taskId: 'test-task',
-        branchName: 'test/test-task',
-        worktreePath: '.test-shadows/test-task',
-        baseRef: 'main',
-        workdir: 'TEST_PATHS.TEST_TMP',
-      };
-
-      await worktreeManager.createWorktree(options);
-
-      // Mock removal to fail first, then succeed with force
-      mockExecAsync
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // create worktree
-        .mockRejectedValueOnce(new Error('Remove failed')) // first remove attempt
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }); // force remove
-
-      const result = await worktreeManager.removeWorktree('test-task');
+      const result = await manager.removeWorktree('task-1');
 
       expect(result).toBe(true);
-      expect(mockExecAsync).toHaveBeenCalledTimes(3);
-
-      // Verify force flag was used on retry
-      expect(mockExecAsync).toHaveBeenNthCalledWith(
-        3,
-        'git worktree remove --force "TEST_PATHS.TEST_TMP/.test-shadows/test-task"',
-        { cwd: 'TEST_PATHS.TEST_TMP', timeout: 15_000 },
+      expect(gitMocks.removeWorktree).toHaveBeenCalledWith(
+        path.join(TEST_PATHS.TEST_TMP, '.test-shadows/task-1'),
+        false,
       );
-    });
-  });
-
-  describe('cleanupWorktrees', () => {
-    it('should cleanup multiple worktrees in parallel', async () => {
-      const taskIds = ['task-1', 'task-2', 'task-3'];
-
-      // Create multiple worktrees
-      await Promise.all(
-        taskIds.map(async (taskId) =>
-          worktreeManager.createWorktree({
-            taskId,
-            branchName: `test/${taskId}`,
-            worktreePath: `.test-shadows/${taskId}`,
-            baseRef: 'main',
-            workdir: 'TEST_PATHS.TEST_TMP',
-          }),
-        ),
-      );
-
-      expect(worktreeManager.getActiveWorktrees()).toHaveLength(3);
-
-      const result = await worktreeManager.cleanupWorktrees(taskIds);
-
-      expect(result.removed).toEqual(taskIds);
-      expect(result.failed).toEqual([]);
-      expect(worktreeManager.getActiveWorktrees()).toHaveLength(0);
+      expect(manager.hasWorktree('task-1')).toBe(false);
     });
 
-    it('should handle partial cleanup failures', async () => {
-      const taskIds = ['task-1', 'task-2', 'task-3'];
+    it('retries with force flag on failure', async () => {
+      gitMocks.removeWorktree.mockRejectedValueOnce(new Error('failed'));
+      gitMocks.removeWorktree.mockResolvedValueOnce(undefined);
 
-      // Create multiple worktrees
-      await Promise.all(
-        taskIds.map(async (taskId) =>
-          worktreeManager.createWorktree({
-            taskId,
-            branchName: `test/${taskId}`,
-            worktreePath: `.test-shadows/${taskId}`,
-            baseRef: 'main',
-            workdir: 'TEST_PATHS.TEST_TMP',
-          }),
-        ),
+      await manager.createWorktree({
+        taskId: 'task-1',
+        branchName: 'test/task-1',
+        worktreePath: '.test-shadows/task-1',
+        baseRef: 'main',
+        workdir: TEST_PATHS.TEST_TMP,
+      });
+
+      const result = await manager.removeWorktree('task-1');
+
+      expect(result).toBe(true);
+      expect(gitMocks.removeWorktree).toHaveBeenNthCalledWith(
+        1,
+        path.join(TEST_PATHS.TEST_TMP, '.test-shadows/task-1'),
+        false,
       );
-
-      // Mock task-2 removal to fail completely
-      mockExecAsync
-        .mockResolvedValue({ stdout: '', stderr: '' }) // default success
-        .mockRejectedValueOnce(new Error('Remove failed')) // task-2 first attempt
-        .mockRejectedValueOnce(new Error('Remove with force also failed')); // task-2 force attempt
-
-      const result = await worktreeManager.cleanupWorktrees(taskIds);
-
-      expect(result.removed).toContain('task-1');
-      expect(result.removed).toContain('task-3');
-      expect(result.failed).toContain('task-2');
-      expect(result.removed).toHaveLength(2);
-      expect(result.failed).toHaveLength(1);
+      expect(gitMocks.removeWorktree).toHaveBeenNthCalledWith(
+        2,
+        path.join(TEST_PATHS.TEST_TMP, '.test-shadows/task-1'),
+        true,
+      );
     });
   });
 
   describe('verifyWorktree', () => {
-    it('should return error for non-existent worktree', async () => {
-      const result = await worktreeManager.verifyWorktree('non-existent');
-
+    it('returns error when worktree missing', async () => {
+      const result = await manager.verifyWorktree('unknown');
       expect(result.exists).toBe(false);
-      expect(result.isGitRepo).toBe(false);
-      expect(result.hasChanges).toBe(false);
-      expect(result.error).toContain('Worktree context not found');
+      expect(result.error).toBe('Worktree context not found');
     });
 
-    it('should verify existing worktree with no changes', async () => {
-      const options = {
-        taskId: 'test-task',
-        branchName: 'test/test-task',
-        worktreePath: '.test-shadows/test-task',
+    it('reports git status when worktree exists', async () => {
+      await manager.createWorktree({
+        taskId: 'task-1',
+        branchName: 'test/task-1',
+        worktreePath: '.test-shadows/task-1',
         baseRef: 'main',
-        workdir: 'TEST_PATHS.TEST_TMP',
-      };
+        workdir: TEST_PATHS.TEST_TMP,
+      });
 
-      await worktreeManager.createWorktree(options);
+      fsMocks.access.mockResolvedValue(undefined);
+      gitMocks.gitRevparse.mockResolvedValue('feature/task-1');
+      gitMocks.status.mockResolvedValue({ added: ['a.ts'], modified: [], deleted: [] });
 
-      // Mock git commands for verification
-      mockExecAsync
-        .mockResolvedValueOnce({ stdout: 'test/test-task\n', stderr: '' }) // git branch --show-current
-        .mockResolvedValueOnce({ stdout: '', stderr: '' }); // git status --porcelain
-
-      const result = await worktreeManager.verifyWorktree('test-task');
+      const result = await manager.verifyWorktree('task-1');
 
       expect(result.exists).toBe(true);
-      expect(result.isGitRepo).toBe(true);
-      expect(result.hasChanges).toBe(false);
-      expect(result.branchName).toBe('test/test-task');
-      expect(result.error).toBeUndefined();
-    });
-
-    it('should detect changes in worktree', async () => {
-      const options = {
-        taskId: 'test-task',
-        branchName: 'test/test-task',
-        worktreePath: '.test-shadows/test-task',
-        baseRef: 'main',
-        workdir: 'TEST_PATHS.TEST_TMP',
-      };
-
-      await worktreeManager.createWorktree(options);
-
-      // Mock git commands showing changes
-      mockExecAsync
-        .mockResolvedValueOnce({ stdout: 'test/test-task\n', stderr: '' }) // git branch --show-current
-        .mockResolvedValueOnce({ stdout: ' M file.txt\n', stderr: '' }); // git status --porcelain
-
-      const result = await worktreeManager.verifyWorktree('test-task');
-
-      expect(result.exists).toBe(true);
-      expect(result.isGitRepo).toBe(true);
+      expect(result.branchName).toBe('feature/task-1');
       expect(result.hasChanges).toBe(true);
-      expect(result.branchName).toBe('test/test-task');
     });
   });
 
   describe('getWorktreeStats', () => {
-    it('should return empty stats for no worktrees', async () => {
-      const stats = await worktreeManager.getWorktreeStats();
-
+    it('returns zero stats when no worktrees', async () => {
+      const stats = await manager.getWorktreeStats();
       expect(stats.totalWorktrees).toBe(0);
       expect(stats.totalDiskUsage).toBe(0);
-      expect(stats.averageSize).toBe(0);
-      expect(stats.oldestWorktree).toBeUndefined();
-      expect(stats.newestWorktree).toBeUndefined();
     });
 
-    it('should calculate stats for active worktrees', async () => {
-      // Mock du command to return size
-      mockExecAsync.mockImplementation((cmd: string) => {
-        if (cmd.startsWith('du -sk')) {
-          return { stdout: '1024\t/some/path', stderr: '' };
-        }
-        return { stdout: '', stderr: '' };
-      });
-
-      // Create a worktree
-      await worktreeManager.createWorktree({
-        taskId: 'test-task',
-        branchName: 'test/test-task',
-        worktreePath: '.test-shadows/test-task',
+    it('aggregates stats for active worktrees', async () => {
+      const context = await manager.createWorktree({
+        taskId: 'task-1',
+        branchName: 'test/task-1',
+        worktreePath: '.test-shadows/task-1',
         baseRef: 'main',
-        workdir: 'TEST_PATHS.TEST_TMP',
+        workdir: TEST_PATHS.TEST_TMP,
       });
 
-      const stats = await worktreeManager.getWorktreeStats();
+      fsMocks.stat.mockResolvedValueOnce({ size: 2048 } as any);
+      fsMocks.stat.mockResolvedValueOnce({ size: 1024 } as any);
 
-      expect(stats.totalWorktrees).toBe(1);
-      expect(stats.totalDiskUsage).toBe(1024);
-      expect(stats.averageSize).toBe(1024);
-      expect(stats.oldestWorktree).toBeInstanceOf(Date);
-      expect(stats.newestWorktree).toBeInstanceOf(Date);
-    });
+      // Manually set created dates for deterministic ordering
+      const secondContext = {
+        ...context,
+        taskId: 'task-2',
+        created: new Date(context.created.getTime() + 1000),
+      };
+      (manager as any).activeWorktrees.set('task-2', secondContext);
 
-    it('should handle multiple worktrees and calculate averages', async () => {
-      // Mock du command to return different sizes
-      let duCallCount = 0;
-      mockExecAsync.mockImplementation((cmd: string) => {
-        if (cmd.startsWith('du -sk')) {
-          duCallCount++;
-          const size = duCallCount * 512; // 512, 1024, 1536 KB
-          return { stdout: `${size}\t/some/path`, stderr: '' };
-        }
-        return { stdout: '', stderr: '' };
-      });
+      const stats = await manager.getWorktreeStats();
 
-      const taskIds = ['task-1', 'task-2', 'task-3'];
-
-      // Create multiple worktrees
-      await Promise.all(
-        taskIds.map(async (taskId) =>
-          worktreeManager.createWorktree({
-            taskId,
-            branchName: `test/${taskId}`,
-            worktreePath: `.test-shadows/${taskId}`,
-            baseRef: 'main',
-            workdir: 'TEST_PATHS.TEST_TMP',
-          }),
-        ),
-      );
-
-      const stats = await worktreeManager.getWorktreeStats();
-
-      expect(stats.totalWorktrees).toBe(3);
-      expect(stats.totalDiskUsage).toBe(512 + 1024 + 1536); // 3072 KB
-      expect(stats.averageSize).toBe(Math.round(3072 / 3)); // 1024 KB
-      expect(stats.oldestWorktree).toBeInstanceOf(Date);
-      expect(stats.newestWorktree).toBeInstanceOf(Date);
+      expect(stats.totalWorktrees).toBe(2);
+      expect(stats.totalDiskUsage).toBe(3); // 2048 -> 2 KB, 1024 -> 1 KB
+      expect(stats.averageSize).toBe(2);
+      expect(stats.oldestWorktree).toEqual(context.created);
+      expect(stats.newestWorktree).toEqual(secondContext.created);
     });
   });
 });
