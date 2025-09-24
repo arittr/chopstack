@@ -4,8 +4,8 @@ import { stringify as stringifyYaml } from 'yaml';
 
 import type { Plan, PlanMetrics } from '../types/decomposer';
 
-import { isNonEmptyString } from './guards';
-import { logger } from './logger';
+import { logger } from '../utils/logger';
+import { isNonEmptyString } from '../validation/guards';
 
 export class PlanOutputter {
   static async outputPlan(plan: Plan, metrics: PlanMetrics, outputPath?: string): Promise<void> {

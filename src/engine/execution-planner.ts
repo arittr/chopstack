@@ -12,8 +12,8 @@ import type {
   ExecutionValidation,
 } from '../types/execution';
 
-import { DagValidator } from '../utils/dag-validator';
-import { isNonEmptyArray } from '../utils/guards';
+import { DagValidator } from '../validation/dag-validator';
+import { isNonEmptyArray } from '../validation/guards';
 
 export class ExecutionPlanner {
   determineStrategy(plan: Plan, options: ExecutionOptions): ExecutionStrategy {

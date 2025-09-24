@@ -6,7 +6,7 @@ import {
   isNonNullish,
   isValidArray,
   stringEquals,
-} from '../guards';
+} from '@/validation/guards';
 
 describe('guards', () => {
   describe('isNonEmptyString', () => {
