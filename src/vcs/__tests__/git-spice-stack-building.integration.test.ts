@@ -148,7 +148,7 @@ describe('Git-spice Stack Building Integration', () => {
     await setupGitSpiceTestRepository();
 
     vcsEngine = new VcsEngine({
-      shadowPath: '.chopstack/shadows',
+      shadowPath: TEST_PATHS.TEST_SHADOWS,
       branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
       cleanupOnSuccess: false, // Keep for inspection during tests
       cleanupOnFailure: false,

@@ -94,7 +94,8 @@ export class WorktreeManager extends EventEmitter {
       }
 
       try {
-        await git.createWorktree(absoluteWorktreePath, baseRef, finalBranchName);
+        // Use relative path since GitWrapper is already in workdir context
+        await git.createWorktree(worktreePath, baseRef, finalBranchName);
       } catch (error) {
         throw new Error(
           `Failed to create worktree for ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
