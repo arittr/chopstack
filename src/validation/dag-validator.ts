@@ -4,7 +4,7 @@ import pkg from '@dagrejs/graphlib';
 
 import type { Plan, PlanMetrics, Task } from '../types/decomposer';
 
-import { PlanValidationError } from './errors';
+import { PlanValidationError } from '../utils/errors';
 
 const { alg, Graph: GraphConstructor } = pkg;
 

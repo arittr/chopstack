@@ -3,8 +3,8 @@ import { execa } from 'execa';
 import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 
 import { GitWrapper, type WorktreeInfo } from '../utils/git-wrapper';
-import { hasContent, isNonEmptyString } from '../utils/guards';
 import { logger } from '../utils/logger';
+import { hasContent, isNonEmptyString } from '../validation/guards';
 
 import type { VcsBackend } from './index';
 
