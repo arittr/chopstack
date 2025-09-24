@@ -39,5 +39,5 @@
     "types": ["node", "vitest/globals"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
-  "exclude": ["node_modules", "dist", "build", "coverage", ".chopstack"]
+  "exclude": ["node_modules", "dist", "build", "coverage", ".chopstack", "test/tmp"]
 }
