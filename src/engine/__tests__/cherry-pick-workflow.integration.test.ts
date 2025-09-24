@@ -7,7 +7,7 @@ import { execa } from 'execa';
 import type { ExecutionTask } from '@/types/execution';
 
 import { VcsEngine } from '@/engine/vcs-engine';
-import { GitWrapper } from '@/utils/git-wrapper';
+import { GitWrapper } from '@/vcs/git-wrapper';
 
 const testRepo = join(TEST_PATHS.TEST_TMP, 'cherry-pick-workflow-integration');
 
