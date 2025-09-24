@@ -6,11 +6,11 @@ import type { Plan } from '../types/decomposer';
 
 import { createDecomposerAgent } from '../agents';
 import { createExecutionEngine } from '../engine';
-import { DagValidator } from '../utils/dag-validator';
-import { isNonEmptyString } from '../utils/guards';
+import { YamlPlanParser } from '../io/yaml-parser';
+import { generatePlanWithRetry } from '../planning/plan-generator';
 import { logger } from '../utils/logger';
-import { generatePlanWithRetry } from '../utils/plan-generator';
-import { YamlPlanParser } from '../utils/yaml-parser';
+import { DagValidator } from '../validation/dag-validator';
+import { isNonEmptyString } from '../validation/guards';
 
 export async function runCommand(options: RunCommandOptions): Promise<number> {
   try {

@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-import { YamlPlanParser } from '../yaml-parser';
+import { YamlPlanParser } from '@/io/yaml-parser';
 
 // Mock the Zod schema validation
 vi.mock('../../types/decomposer', () => ({
