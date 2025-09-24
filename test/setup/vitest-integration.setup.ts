@@ -52,7 +52,7 @@ vi.mock('node:fs/promises', () => ({
         return;
       }
       // Test workspace paths are initially accessible
-      if (path.includes('test/workspace') || path.includes('test/tmp')) {
+      if (path.includes('test/tmp')) {
         // But if they contain a test ID that was cleaned up, they should not exist
         const pathParts = path.split('/');
         const testIdPart = pathParts.find(

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import * as path from 'node:path';
 
 import { vi } from 'vitest';
 
@@ -13,12 +13,11 @@ import { ExecutionEngine } from '@/engine/execution-engine';
 
 // Mock only external dependencies and complex systems
 vi.mock('node:fs/promises');
-vi.mock('node:path');
 vi.mock('@/agents');
 vi.mock('@/engine/execution-engine');
 
 const mockReadFile = vi.mocked(readFile);
-const mockResolve = vi.mocked(resolve);
+const mockResolve = vi.mocked(path.resolve);
 const mockCreateDecomposerAgent = vi.mocked(createDecomposerAgent);
 const mockExecutionEngine = vi.mocked(ExecutionEngine);
 
@@ -73,8 +72,11 @@ describe('runCommand integration tests', () => {
     vi.clearAllMocks();
 
     // Mock external dependencies
-    mockResolve.mockImplementation((path) => `/resolved/${path}`);
+    mockResolve.mockImplementation((input) =>
+      input.startsWith('/') ? input : `/resolved/${input}`,
+    );
     mockReadFile.mockResolvedValue('# Build React Components\n\nCreate reusable components.');
+    mockAgent.decompose = vi.fn().mockResolvedValue(mockPlan);
     mockCreateDecomposerAgent.mockResolvedValue(mockAgent);
 
     // Mock ExecutionEngine with proper interface
@@ -112,6 +114,7 @@ describe('runCommand integration tests', () => {
       const result = await runCommand(options);
 
       expect(result).toBe(0);
+      expect(mockResolve).toHaveBeenCalledWith('components-spec.md');
 
       // Verify real file reading
       expect(mockReadFile).toHaveBeenCalledWith('/resolved/components-spec.md', 'utf8');
@@ -209,6 +212,7 @@ tasks:
       const result = await runCommand(options);
 
       expect(result).toBe(0);
+      expect(mockResolve).toHaveBeenCalledWith('layout-plan.yaml');
       expect(mockReadFile).toHaveBeenCalledWith('/resolved/layout-plan.yaml', 'utf8');
     });
 
@@ -239,6 +243,7 @@ tasks:
       const result = await runCommand(options);
 
       expect(result).toBe(0);
+      expect(mockResolve).toHaveBeenCalledWith('plan.json');
     });
   });
 
