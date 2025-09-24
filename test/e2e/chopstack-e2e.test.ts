@@ -6,8 +6,8 @@ import { parse as parseYaml } from 'yaml';
 
 import type { Plan } from '@/types/decomposer';
 
-import { DagValidator } from '@/utils/dag-validator';
-import { hasContent } from '@/utils/guards';
+import { DagValidator } from '@/validation/dag-validator';
+import { hasContent } from '@/validation/guards';
 
 import { runCliInProcess } from '../utils/cli-runner';
 import {

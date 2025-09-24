@@ -9,7 +9,7 @@ import {
   withTestWorktree,
 } from '@test/utils/testing-harness-worktree-manager';
 
-import { isNonNullish } from '@/utils/guards';
+import { isNonNullish } from '@/validation/guards';
 
 describe('TestWorktreeManager', () => {
   let manager: TestingHarnessWorktreeManager;

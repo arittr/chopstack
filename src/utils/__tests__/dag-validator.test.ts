@@ -1,6 +1,6 @@
 import type { Plan, Task } from '@/types/decomposer';
 
-import { DagValidator } from '../dag-validator';
+import { DagValidator } from '@/validation/dag-validator';
 
 describe('DagValidator', () => {
   const createTask = (overrides: Partial<Task> = {}): Task => ({

@@ -5,7 +5,7 @@ import { stringify as stringifyYaml } from 'yaml';
 
 import type { Plan, PlanMetrics } from '@/types/decomposer';
 
-import { PlanOutputter } from '../plan-outputter';
+import { PlanOutputter } from '@/planning/plan-outputter';
 
 // Mock external dependencies
 vi.mock('node:fs/promises');

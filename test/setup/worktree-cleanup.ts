@@ -1,6 +1,6 @@
 import { afterAll } from 'vitest';
 
-import { isValidArray } from '@/utils/guards';
+import { isValidArray } from '@/validation/guards';
 
 import { testWorktreeManager } from '../utils/testing-harness-worktree-manager';
 

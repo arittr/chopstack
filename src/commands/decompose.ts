@@ -4,11 +4,11 @@ import { resolve } from 'node:path';
 import type { DecomposeOptions } from '../types/decomposer';
 
 import { createDecomposerAgent } from '../agents';
-import { DagValidator } from '../utils/dag-validator';
-import { isValidArray } from '../utils/guards';
+import { generatePlanWithRetry } from '../planning/plan-generator';
+import { PlanOutputter } from '../planning/plan-outputter';
 import { logger } from '../utils/logger';
-import { generatePlanWithRetry } from '../utils/plan-generator';
-import { PlanOutputter } from '../utils/plan-outputter';
+import { DagValidator } from '../validation/dag-validator';
+import { isValidArray } from '../validation/guards';
 
 export async function decomposeCommand(options: DecomposeOptions): Promise<number> {
   try {
