@@ -89,6 +89,14 @@ export async function detectAvailableVcsBackend(): Promise<VcsBackendType | null
   return null;
 }
 
+// Commit message generation
+export {
+  CommitMessageGenerator,
+  type CommitTask,
+  type CommitMessageGeneratorConfig,
+  type CommitMessageOptions,
+} from './commit-message-generator';
+
 // Git utilities
 export { GitWrapper, type GitStatus, type WorktreeInfo } from './git-wrapper';
 
