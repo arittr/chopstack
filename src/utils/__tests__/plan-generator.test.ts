@@ -2,11 +2,11 @@ import { vi } from 'vitest';
 
 import type { DecomposerAgent, Plan } from '@/types/decomposer';
 
-import { DagValidator } from '../dag-validator';
-import { generatePlanWithRetry, type PlanGenerationOptions } from '../plan-generator';
+import { generatePlanWithRetry, type PlanGenerationOptions } from '@/planning/plan-generator';
+import { DagValidator } from '@/validation/dag-validator';
 
 // Mock external dependencies
-vi.mock('../dag-validator');
+vi.mock('@/validation/dag-validator');
 
 const mockDagValidator = vi.mocked(DagValidator);
 

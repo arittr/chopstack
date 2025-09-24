@@ -58,10 +58,18 @@ export default [
       promise: promisePlugin,
       alias: aliasPlugin,
     },
+    settings: {
+      'import/resolver': {
+        typescript: {
+          project: './tsconfig.json',
+        },
+      },
+    },
     rules: {
       // Disable base rule in favor of @typescript-eslint version
       'no-unused-vars': 'off',
       // TypeScript-specific rules (very strict)
+      // 'import/no-relative-parent-imports': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
