@@ -1,4 +1,4 @@
-import { MOCK_RESPONSES, TEST_CONFIG } from '@test/constants/test-paths';
+import { MOCK_RESPONSES } from '@test/constants/test-paths';
 import { vi } from 'vitest';
 
 // Integration test setup - for testing real class interactions
@@ -16,8 +16,13 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   // Check if we're running a test that should use real fs operations
   const testState = expect.getState();
   const testFile = testState.testPath ?? '';
+
+  // VCS and engine tests need real filesystem operations
   const shouldUseRealFs =
-    testFile.includes('vcs-engine.integration.test.ts') || testFile.includes('worktree-manager');
+    testFile.includes('/vcs/') ||
+    testFile.includes('/engine/') ||
+    testFile.includes('worktree-manager') ||
+    testFile.includes('cli-runner.integration.test.ts'); // CLI runner needs real FS too
 
   if (shouldUseRealFs) {
     return actual; // Use real filesystem operations
@@ -113,10 +118,14 @@ vi.mock('node:child_process', async (importOriginal) => {
   // Check if we're running a test that should use real subprocess execution
   const testState = expect.getState();
   const testFile = testState.testPath ?? '';
+
+  // VCS and engine tests need real git operations
   const shouldUseRealSubprocess =
-    testFile.includes('vcs-engine.integration.test.ts') ||
+    testFile.includes('/vcs/') ||
+    testFile.includes('/engine/') ||
     testFile.includes('worktree-manager') ||
-    testFile.includes('run.integration.test.ts');
+    testFile.includes('run.integration.test.ts') ||
+    testFile.includes('cli-runner.integration.test.ts');
 
   if (shouldUseRealSubprocess) {
     return actual; // Use real subprocess execution
@@ -195,9 +204,12 @@ vi.mock('@/engine/execution-engine', async (importOriginal) => {
   // Check if we're running a test that should use real execution engine
   const testState = expect.getState();
   const testFile = testState.testPath ?? '';
+
+  // VCS and engine tests might need real execution engine
   const shouldUseRealEngine =
-    testFile.includes('run.integration.test.ts') ||
-    testFile.includes('vcs-engine.integration.test.ts');
+    testFile.includes('/vcs/') ||
+    testFile.includes('/engine/') ||
+    testFile.includes('run.integration.test.ts');
 
   if (shouldUseRealEngine) {
     return actual; // Use real execution engine
@@ -219,7 +231,4 @@ vi.spyOn(process, 'exit').mockImplementation(() => {
 vi.spyOn(console, 'log').mockImplementation(() => {});
 vi.spyOn(console, 'error').mockImplementation(() => {});
 
-// Integration test configuration
-vi.setConfig({
-  testTimeout: TEST_CONFIG.INTEGRATION_TIMEOUT,
-});
+// Per-project timeout is configured in vitest.config.ts (projects.integration.testTimeout)
