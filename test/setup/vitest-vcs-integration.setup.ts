@@ -8,14 +8,11 @@ import { vi } from 'vitest';
 // But allow real filesystem, git, and subprocess operations
 
 // Mock external agents that make API calls
-vi.mock('@/agents', async (importOriginal) => {
-  const actual = await importOriginal();
-
-  return {
-    ...actual,
-    // Keep real implementations for integration tests that need them
-  };
-});
+const actualAgents = await vi.importActual('@/agents');
+vi.mock('@/agents', () => ({
+  ...actualAgents,
+  // Keep real implementations for integration tests that need them
+}));
 
 // Allow process.cwd() but mock exit
 vi.spyOn(process, 'exit').mockImplementation(() => {

@@ -5,7 +5,7 @@ import type { RunCommandOptions } from '../types/cli';
 import type { Plan } from '../types/decomposer';
 
 import { createDecomposerAgent } from '../agents';
-import { ExecutionEngine } from '../engine/execution-engine';
+import { createExecutionEngine } from '../engine';
 import { DagValidator } from '../utils/dag-validator';
 import { isNonEmptyString } from '../utils/guards';
 import { generatePlanWithRetry } from '../utils/plan-generator';
@@ -77,7 +77,7 @@ export async function runCommand(options: RunCommandOptions): Promise<number> {
     }
 
     // Execute the plan using the execution engine
-    const engine = new ExecutionEngine();
+    const engine = createExecutionEngine();
     console.log(`🚀 Starting execution in ${options.mode} mode with ${options.strategy} strategy`);
 
     const result = await engine.execute(plan, {

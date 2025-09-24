@@ -217,7 +217,6 @@ vi.mock('@/engine/execution-engine', async (importOriginal) => {
 
   // Otherwise use mocked version
   return {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
     ExecutionEngine: vi.fn(),
   };
 });
