@@ -8,6 +8,7 @@ import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 
 import { GitWrapper } from '../utils/git-wrapper';
 import { isNonEmptyString } from '../utils/guards';
+import { logger } from '../utils/logger';
 import { ConflictResolver } from '../vcs/conflict-resolver';
 import { StackBuilder } from '../vcs/stack-builder';
 import { WorktreeManager } from '../vcs/worktree-manager';
@@ -177,9 +178,8 @@ export class VcsEngine extends EventEmitter {
         return this._addChopstackSignature(aiMessage);
       }
     } catch (error) {
-      console.warn(
-        '⚠️ AI commit message generation failed:',
-        error instanceof Error ? error.message : String(error),
+      logger.warn(
+        `⚠️ AI commit message generation failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
 
@@ -226,7 +226,7 @@ export class VcsEngine extends EventEmitter {
     // Create commit - simple-git handles message escaping
     const commitHash = await git.commit(commitMessage);
 
-    console.log(
+    logger.info(
       `📝 Committed task ${task.id}: ${commitHash.slice(0, 7)} - ${commitMessage.split('\n')[0]}`,
     );
 
@@ -271,7 +271,7 @@ export class VcsEngine extends EventEmitter {
       .otherwise(() => this.options.cleanupOnSuccess || this.options.cleanupOnFailure);
 
     if (!shouldCleanup) {
-      console.log('🏗️ Preserving worktrees for debugging');
+      logger.info('🏗️ Preserving worktrees for debugging');
       return;
     }
 

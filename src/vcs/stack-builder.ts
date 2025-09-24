@@ -3,6 +3,8 @@ import { EventEmitter } from 'node:events';
 import type { VcsEngineOptions } from '../engine/vcs-engine';
 import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 
+import { logger } from '../utils/logger';
+
 import type { ConflictResolver } from './conflict-resolver';
 
 import { GitSpiceBackend } from './git-spice';
@@ -42,7 +44,7 @@ export class StackBuilder extends EventEmitter {
     workdir: string,
     options: StackBuildOptions,
   ): Promise<GitSpiceStackInfo> {
-    console.log(`🏗️ Building git-spice stack from ${completedTasks.length} completed tasks...`);
+    logger.info(`🏗️ Building git-spice stack from ${completedTasks.length} completed tasks...`);
 
     // Filter tasks that have commits
     const tasksWithCommits = completedTasks.filter((task) => task.commitHash !== undefined);
@@ -65,7 +67,7 @@ export class StackBuilder extends EventEmitter {
       timestamp: new Date(),
     } as StackEvent);
 
-    console.log(`✅ Built git-spice stack with ${stackInfo.branches.length} branches`);
+    logger.info(`✅ Built git-spice stack with ${stackInfo.branches.length} branches`);
     return stackInfo;
   }
 
@@ -73,11 +75,11 @@ export class StackBuilder extends EventEmitter {
    * Submit stack to GitHub as pull requests
    */
   async submitStack(workdir: string): Promise<string[]> {
-    console.log('🚀 Submitting git-spice stack to GitHub...');
+    logger.info('🚀 Submitting git-spice stack to GitHub...');
 
     const prUrls = await this.gitSpice.submitStack(workdir);
 
-    console.log(`✅ Created ${prUrls.length} pull requests`);
+    logger.info(`✅ Created ${prUrls.length} pull requests`);
     return prUrls;
   }
 
