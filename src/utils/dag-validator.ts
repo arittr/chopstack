@@ -78,6 +78,20 @@ export class DagValidator {
   static calculateMetrics(plan: Plan): PlanMetrics {
     const graph = this._buildDependencyGraph(plan.tasks);
 
+    // Check if the graph has cycles before trying to calculate metrics
+    const cycles = this._detectCycles(graph);
+    if (cycles.length > 0) {
+      // Return minimal metrics for invalid DAG
+      return {
+        taskCount: plan.tasks.length,
+        maxParallelization: 1,
+        estimatedSpeedup: 1,
+        totalEstimatedLines: plan.tasks.reduce((sum, task) => sum + task.estimatedLines, 0),
+        executionLayers: 1,
+        criticalPathLength: plan.tasks.reduce((sum, task) => sum + task.estimatedLines, 0),
+      };
+    }
+
     // Get topological ordering to understand execution layers
     const topologicalOrder = alg.topsort(graph);
     const layers = this._calculateExecutionLayers(graph, topologicalOrder);
@@ -105,6 +119,14 @@ export class DagValidator {
    */
   static getExecutionOrder(plan: Plan): Task[] {
     const graph = this._buildDependencyGraph(plan.tasks);
+
+    // Check for cycles before trying to get topological order
+    const cycles = this._detectCycles(graph);
+    if (cycles.length > 0) {
+      // Return tasks in original order if there are cycles
+      return plan.tasks;
+    }
+
     const topologicalOrder = alg.topsort(graph);
     const taskMap = new Map(plan.tasks.map((task) => [task.id, task]));
 
@@ -122,6 +144,14 @@ export class DagValidator {
    */
   static getExecutionLayers(plan: Plan): Task[][] {
     const graph = this._buildDependencyGraph(plan.tasks);
+
+    // Check for cycles before trying to get topological order
+    const cycles = this._detectCycles(graph);
+    if (cycles.length > 0) {
+      // Return all tasks in a single layer if there are cycles
+      return [plan.tasks];
+    }
+
     const topologicalOrder = alg.topsort(graph);
     const layers = this._calculateExecutionLayers(graph, topologicalOrder);
     const taskMap = new Map(plan.tasks.map((task) => [task.id, task]));

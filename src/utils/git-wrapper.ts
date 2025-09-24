@@ -4,6 +4,7 @@ export type GitStatus = {
   added: string[];
   deleted: string[];
   modified: string[];
+  untracked: string[];
 };
 
 export type WorktreeInfo = {
@@ -28,6 +29,28 @@ export class GitWrapper {
    */
   get git(): SimpleGit {
     return this.gitClient;
+  }
+
+  /**
+   * Initialize a new git repository
+   */
+  async init(): Promise<void> {
+    await this.gitClient.init();
+  }
+
+  /**
+   * Set git config values
+   */
+  async config(key: string, value: string): Promise<void> {
+    await this.gitClient.addConfig(key, value);
+  }
+
+  /**
+   * Get list of branches
+   */
+  async branch(): Promise<string[]> {
+    const branches = await this.gitClient.branch();
+    return branches.all;
   }
 
   /**
@@ -61,6 +84,7 @@ export class GitWrapper {
       added: status.staged,
       modified: status.modified,
       deleted: status.deleted,
+      untracked: status.not_added,
     };
   }
 
