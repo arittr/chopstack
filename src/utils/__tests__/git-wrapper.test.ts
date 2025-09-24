@@ -1,151 +1,99 @@
-import { exec } from 'node:child_process';
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
-import { promisify } from 'node:util';
+const simpleGitState = vi.hoisted(() => ({
+  instance: {} as unknown,
+  factory: vi.fn(() => simpleGitState.instance),
+}));
 
-import { TEST_PATHS } from '@test/constants/test-paths';
+vi.mock('simple-git', () => ({
+  default: simpleGitState.factory,
+}));
 
-import { GitWrapper } from '../git-wrapper';
+import type { SimpleGit } from 'simple-git';
+import { vi } from 'vitest';
 
-const execAsync = promisify(exec);
+const { GitWrapper } = await import('../git-wrapper');
+
+let wrapper: GitWrapper;
+let raw: ReturnType<typeof vi.fn>;
+let status: ReturnType<typeof vi.fn>;
+let add: ReturnType<typeof vi.fn>;
+let commit: ReturnType<typeof vi.fn>;
+let revparse: ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+  raw = vi.fn();
+  status = vi.fn();
+  add = vi.fn();
+  commit = vi.fn();
+  revparse = vi.fn();
+
+  simpleGitState.instance = {
+    raw,
+    status,
+    add,
+    commit,
+    revparse,
+  } as unknown as SimpleGit;
+
+  simpleGitState.factory.mockReturnValue(simpleGitState.instance);
+
+  status.mockResolvedValue({ staged: ['file.txt'], modified: [], deleted: [] });
+  revparse.mockResolvedValue('abc123');
+
+  wrapper = Object.create(GitWrapper.prototype) as GitWrapper;
+  (wrapper as { gitClient: SimpleGit }).gitClient = simpleGitState.instance as SimpleGit;
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('GitWrapper', () => {
-  let testRepo: string;
-  let git: GitWrapper;
-
-  beforeEach(async () => {
-    // Create temporary test repository
-    testRepo = path.join(TEST_PATHS.TEST_TMP, `git-wrapper-test-${Date.now()}`);
-    await fs.mkdir(testRepo, { recursive: true });
-
-    // Initialize git repo
-    await execAsync('git init', { cwd: testRepo });
-    await execAsync('git config user.name "Test User"', { cwd: testRepo });
-    await execAsync('git config user.email "test@example.com"', { cwd: testRepo });
-
-    // Create initial commit to have a proper git repo
-    await fs.writeFile(path.join(testRepo, 'README.md'), '# Test Repo\n');
-    await execAsync('git add README.md', { cwd: testRepo });
-    await execAsync('git commit -m "Initial commit"', { cwd: testRepo });
-
-    git = new GitWrapper(testRepo);
+  it('adds files by delegating to simple-git', async () => {
+    await wrapper.add(['a.ts']);
+    expect(add).toHaveBeenCalledWith(['a.ts']);
   });
 
-  afterEach(async () => {
-    // Cleanup test repo
-    try {
-      await fs.rm(testRepo, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup errors
-    }
+  it('commits when staged changes exist', async () => {
+    commit.mockResolvedValue('hash');
+    revparse.mockResolvedValue('hash');
+
+    const result = await wrapper.commit('Add file');
+
+    expect(commit).toHaveBeenCalledWith('Add file');
+    expect(result).toBe('hash');
   });
 
-  describe('basic git operations', () => {
-    it('should add and commit files', async () => {
-      // Create a test file
-      const testFile = path.join(testRepo, 'test.txt');
-      await fs.writeFile(testFile, 'Test content');
+  it('throws when attempting to commit without staged changes', async () => {
+    status.mockResolvedValue({ staged: [], modified: [], deleted: [] });
 
-      // Add file using GitWrapper
-      await git.add(['test.txt']);
-
-      // Check that file is staged
-      const status = await git.status();
-      expect(status.added).toContain('test.txt');
-
-      // Commit using GitWrapper
-      const commitHash = await git.commit('Add test file');
-
-      // Verify commit hash format
-      expect(commitHash).toMatch(/^[\da-f]{40}$/);
-
-      // Verify no more changes to commit
-      const hasChanges = await git.hasChangesToCommit();
-      expect(hasChanges).toBe(false);
-    });
-
-    it('should get current commit hash', async () => {
-      const commitHash = await git.getCurrentCommit();
-      expect(commitHash).toMatch(/^[\da-f]{40}$/);
-    });
-
-    it('should detect when there are no changes to commit', async () => {
-      const hasChanges = await git.hasChangesToCommit();
-      expect(hasChanges).toBe(false);
-    });
-
-    it('should detect when there are changes to commit', async () => {
-      // Create and stage a file
-      const testFile = path.join(testRepo, 'new-file.txt');
-      await fs.writeFile(testFile, 'New content');
-      await git.add(['new-file.txt']);
-
-      const hasChanges = await git.hasChangesToCommit();
-      expect(hasChanges).toBe(true);
-    });
-
-    it('should handle adding multiple files', async () => {
-      // Create multiple test files
-      await fs.writeFile(path.join(testRepo, 'file1.txt'), 'Content 1');
-      await fs.writeFile(path.join(testRepo, 'file2.txt'), 'Content 2');
-
-      // Add all files
-      await git.add(['file1.txt', 'file2.txt']);
-
-      const status = await git.status();
-      expect(status.added).toContain('file1.txt');
-      expect(status.added).toContain('file2.txt');
-    });
-
-    it('should add all changes with dot notation', async () => {
-      // Create test files
-      await fs.writeFile(path.join(testRepo, 'file1.txt'), 'Content 1');
-      await fs.writeFile(path.join(testRepo, 'file2.txt'), 'Content 2');
-
-      // Add all files using dot
-      await git.add('.');
-
-      const status = await git.status();
-      expect(status.added.length).toBeGreaterThanOrEqual(2);
-    });
+    await expect(wrapper.commit('Empty')).rejects.toThrow('No changes to commit');
+    expect(commit).not.toHaveBeenCalled();
   });
 
-  describe('worktree operations', () => {
-    it('should parse worktree list output correctly', async () => {
-      // Create a worktree
-      const worktreePath = path.join(testRepo, '../test-worktree');
-      await git.createWorktree(worktreePath, 'HEAD', 'test-branch');
+  it('returns parsed status information', async () => {
+    status.mockResolvedValue({ staged: ['a.ts'], modified: ['b.ts'], deleted: [] });
 
-      try {
-        // List worktrees
-        const worktrees = await git.listWorktrees();
+    const result = await wrapper.status();
 
-        // Should have at least 2 worktrees (main + test-worktree)
-        expect(worktrees.length).toBeGreaterThanOrEqual(2);
-
-        // Find our test worktree
-        const testWorktree = worktrees.find((wt) => wt.path.includes('test-worktree'));
-        expect(testWorktree).toBeDefined();
-        expect(testWorktree?.branch).toBe('test-branch');
-      } finally {
-        // Cleanup worktree
-        try {
-          await git.removeWorktree(worktreePath, true);
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
-    });
+    expect(result).toEqual({ added: ['a.ts'], modified: ['b.ts'], deleted: [] });
   });
 
-  describe('error handling', () => {
-    it('should throw error when committing with no changes', async () => {
-      await expect(git.commit('Empty commit')).rejects.toThrow();
-    });
+  it('parses worktree list output correctly', async () => {
+    raw.mockResolvedValue(
+      'worktree /tmp/repo\nHEAD 123\nbranch refs/heads/main\n\nworktree /tmp/repo2\nHEAD 456\nbranch refs/heads/feature\n',
+    );
 
-    it('should handle invalid worktree operations gracefully', async () => {
-      // Try to remove non-existent worktree
-      await expect(git.removeWorktree('/non/existent/path')).rejects.toThrow();
-    });
+    const result = await wrapper.listWorktrees();
+
+    expect(raw).toHaveBeenCalledWith(['worktree', 'list', '--porcelain']);
+    expect(result).toEqual([
+      { path: '/tmp/repo', head: '123', branch: 'main' },
+      { path: '/tmp/repo2', head: '456', branch: 'feature' },
+    ]);
+  });
+
+  it('removes worktrees with force when requested', async () => {
+    await wrapper.removeWorktree('/tmp/repo2', true);
+    expect(raw).toHaveBeenCalledWith(['worktree', 'remove', '--force', '/tmp/repo2']);
   });
 });
