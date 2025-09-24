@@ -25,10 +25,7 @@ vi.mock('simple-git', () => ({
   })),
 }));
 
-// Execution test configuration
-vi.setConfig({
-  testTimeout: 60_000, // Execution planning tests may involve API calls
-});
+// Per-project timeout is configured in vitest.config.ts (projects.execution.testTimeout)
 
 // Test utilities for execution planning
 export const executionTestConfig = {
