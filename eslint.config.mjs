@@ -391,7 +391,7 @@ export default [
       ],
 
       // Core ESLint rules
-      'no-console': ['warn', { allow: ['warn', 'error', 'log'] }],
+      'no-console': 'warn',
       'no-debugger': 'error',
       'no-alert': 'error',
       'no-await-in-loop': 'off', // creates too much noise
@@ -485,6 +485,7 @@ export default [
       'unicorn/no-null': 'off',
       'unicorn/consistent-function-scoping': 'off',
       'unicorn/prevent-abbreviations': 'off',
+      'no-console': 'off',
     },
   },
 
