@@ -26,6 +26,7 @@ export default [
       '*.config.mjs',
       '*.config.ts',
       'coverage/**',
+      'test/tmp/**',
     ],
   },
 
