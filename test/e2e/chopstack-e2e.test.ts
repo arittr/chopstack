@@ -9,38 +9,33 @@ import type { Plan } from '@/types/decomposer';
 import { DagValidator } from '@/utils/dag-validator';
 import { hasContent } from '@/utils/guards';
 
-import { checkWorkspaceAvailable, runCliInProcess } from '../utils/cli-runner';
+import { runCliInProcess } from '../utils/cli-runner';
+import {
+  type TestWorktreeContext,
+  testWorktreeManager,
+} from '../utils/testing-harness-worktree-manager';
 
 describe('Chopstack E2E Integration Tests', () => {
-  const NEXTJS_REPO_PATH = '../typescript-nextjs-starter';
-  const SPEC_PATH = path.join(__dirname, 'specs', 'add-dark-mode.md');
-
-  beforeAll(() => {
-    // Check if workspace is available for tests that need it
-    if (!checkWorkspaceAvailable(NEXTJS_REPO_PATH)) {
-      console.warn(`Workspace not found: ${NEXTJS_REPO_PATH} - some tests will be skipped`);
-    }
-  });
+  const SPEC_PATH = path.resolve(__dirname, 'specs', 'add-stack-summary-command.md');
+  const REPO_ROOT = path.resolve(__dirname, '../..');
 
   describe('decompose command with Claude agent', () => {
     let generatedPlan: Plan;
     let planOutput: string;
     let tempOutputFile: string;
+    let worktreeContext: TestWorktreeContext;
 
     beforeAll(async () => {
-      // Skip if workspace not available
-      if (!checkWorkspaceAvailable(NEXTJS_REPO_PATH)) {
-        throw new Error(
-          `Workspace not found: ${NEXTJS_REPO_PATH} - clone the required test workspace`,
-        );
-      }
+      worktreeContext = await testWorktreeManager.createTestWorktree({
+        testId: 'e2e-stack-summary',
+      });
 
       // Create a temporary file for output
       tempOutputFile = path.join(os.tmpdir(), `chopstack-test-${Date.now()}.yaml`);
 
       try {
         console.log('🚀 Starting chopstack decompose with Claude agent...');
-        console.log(`📁 Working directory: ${NEXTJS_REPO_PATH}`);
+        console.log(`📁 Working directory: ${worktreeContext.absolutePath}`);
         console.log(`📋 Spec file: ${SPEC_PATH}`);
         console.log(`📁 Output file: ${tempOutputFile}`);
         console.log('⏳ This may take a few minutes...');
@@ -61,7 +56,7 @@ describe('Chopstack E2E Integration Tests', () => {
               tempOutputFile,
             ],
             {
-              cwd: NEXTJS_REPO_PATH,
+              cwd: worktreeContext.absolutePath,
               timeout: 300_000, // 5 minute timeout
             },
           );
@@ -123,12 +118,14 @@ describe('Chopstack E2E Integration Tests', () => {
       }
     }, 300_000); // 5 minute timeout for the test
 
-    afterAll(() => {
+    afterAll(async () => {
       // Clean up temporary file
       if (tempOutputFile.length > 0 && fs.existsSync(tempOutputFile)) {
         fs.unlinkSync(tempOutputFile);
         console.log(`🧹 Cleaned up temporary file: ${tempOutputFile}`);
       }
+
+      await worktreeContext.cleanup();
     });
 
     it('should generate a valid plan structure', () => {
@@ -178,21 +175,22 @@ describe('Chopstack E2E Integration Tests', () => {
       console.log('✅ DAG is valid with no cycles');
     });
 
-    it('should generate reasonable task decomposition for dark mode feature', () => {
-      // Check that we have multiple tasks (dark mode should be decomposed into several steps)
+    it('should generate reasonable task decomposition for stack summary command', () => {
+      // Check that we have multiple tasks (the command should be decomposed into several steps)
       expect(generatedPlan.tasks.length).toBeGreaterThan(1);
       expect(generatedPlan.tasks.length).toBeLessThan(15); // Reasonable upper bound
 
-      // Check for expected task types in a dark mode implementation
+      // Check for expected task types in a stack summary implementation
       const taskTitles = generatedPlan.tasks.map((t) => t.title.toLowerCase()).join(' ');
       const taskDescriptions = generatedPlan.tasks
         .map((t) => t.description.toLowerCase())
         .join(' ');
       const combinedContent = `${taskTitles} ${taskDescriptions}`;
 
-      // Should mention key concepts for dark mode
-      expect(combinedContent).toMatch(/theme|dark|light/i);
-      expect(combinedContent).toMatch(/context|provider|state/i);
+      // Should mention key concepts for stack inspection
+      expect(combinedContent).toMatch(/stack/i);
+      expect(combinedContent).toMatch(/summary/i);
+      expect(combinedContent).toMatch(/command|cli/i);
     });
 
     it('should generate tasks with appropriate file targeting', () => {
@@ -201,12 +199,12 @@ describe('Chopstack E2E Integration Tests', () => {
         ...generatedPlan.tasks.flatMap((t) => t.produces),
       ];
 
-      // Should target appropriate file types for a Next.js project
-      const hasReactFiles = allFiles.some((file) => file.endsWith('.tsx') || file.endsWith('.ts'));
+      // Should target TypeScript sources within the chopstack CLI
+      const touchesStackCommand = allFiles.some((file) => file.includes('src/commands/stack'));
+      const touchesCli = allFiles.some((file) => file.includes('src/cli'));
 
-      expect(hasReactFiles).toBe(true);
-      // CSS files are common but not required (could use CSS-in-JS)
-      // expect(hasStyleFiles).toBe(true);
+      expect(allFiles.some((file) => file.endsWith('.ts'))).toBe(true);
+      expect(touchesStackCommand || touchesCli).toBe(true);
     });
 
     it('should calculate reasonable metrics', () => {
@@ -255,7 +253,7 @@ describe('Chopstack E2E Integration Tests', () => {
       const result = await runCliInProcess(
         ['decompose', '--spec', invalidSpecPath, '--agent', 'claude'],
         {
-          cwd: NEXTJS_REPO_PATH,
+          cwd: REPO_ROOT,
         },
       );
 
