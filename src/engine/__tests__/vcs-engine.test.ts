@@ -1,5 +1,6 @@
 /* eslint-disable unicorn/no-unused-properties */
 import { TEST_CONFIG, TEST_PATHS } from '@test/constants/test-paths';
+import { vi } from 'vitest';
 
 import type { Plan } from '@/types/decomposer';
 
@@ -93,14 +94,12 @@ describe('VcsEngine', () => {
   });
 
   describe('generateCommitMessage', () => {
-    let aiGenerateSpy: vi.SpyInstance<
-      Promise<string>,
-      [unknown, { files?: string[]; output?: string }, string]
-    >;
+    let aiGenerateSpy: any;
 
     beforeEach(() => {
       aiGenerateSpy = vi.spyOn(
         vcsEngine as unknown as {
+          // eslint-disable-next-line @typescript-eslint/naming-convention
           _generateAICommitMessage: (
             task: unknown,
             changes: { files?: string[]; output?: string },
