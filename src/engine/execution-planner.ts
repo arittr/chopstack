@@ -1,6 +1,6 @@
-import { execSync } from 'node:child_process';
 import { cpus } from 'node:os';
 
+import { execaSync } from 'execa';
 import { match, P } from 'ts-pattern';
 
 import type { Plan } from '../types/decomposer';
@@ -273,7 +273,7 @@ export class ExecutionPlanner {
 
   private _checkGitWorktreeSupport(): boolean {
     try {
-      execSync('git worktree list', { stdio: 'pipe' });
+      execaSync('git', ['worktree', 'list'], { stdio: 'pipe' });
       return true;
     } catch {
       return false;

@@ -1,14 +1,11 @@
-import { exec as execCallback } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { promisify } from 'node:util';
 
+import { execa } from 'execa';
 import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 
 import { type StreamingUpdate, TaskOrchestrator } from './orchestrator.js';
-
-const exec = promisify(execCallback);
 
 // Schema definitions
 const ExecuteTaskSchema = z.object({
@@ -68,13 +65,13 @@ class GitWorkflowManager {
 
     // Remove existing worktree if it exists
     try {
-      await exec(`git worktree remove ${worktreePath} --force`);
+      await execa('git', ['worktree', 'remove', worktreePath, '--force']);
     } catch {
       // Ignore errors if worktree doesn't exist
     }
 
     // Create worktree with new branch
-    await exec(`git worktree add -b ${branchName} ${worktreePath} ${baseRef}`);
+    await execa('git', ['worktree', 'add', '-b', branchName, worktreePath, baseRef]);
 
     return {
       taskId,
@@ -95,11 +92,11 @@ class GitWorkflowManager {
     // Use git-spice if available, otherwise fall back to git
     try {
       // Check if git-spice is available
-      await exec('which gs');
+      await execa('which', ['gs']);
 
       await (parentBranch !== undefined && parentBranch !== ''
-        ? exec(`gs branch create ${branchName} --parent ${parentBranch}`)
-        : exec(`gs branch create ${branchName}`));
+        ? execa('gs', ['branch', 'create', branchName, '--parent', parentBranch])
+        : execa('gs', ['branch', 'create', branchName]));
       return {
         branchName,
         parentBranch,
@@ -109,7 +106,7 @@ class GitWorkflowManager {
     } catch {
       // Fall back to regular git
       const base = parentBranch ?? 'HEAD';
-      await exec(`git checkout -b ${branchName} ${base}`);
+      await execa('git', ['checkout', '-b', branchName, base]);
       return {
         branchName,
         parentBranch,
@@ -127,16 +124,14 @@ class GitWorkflowManager {
     const { branches, targetBranch, strategy } = params;
 
     // Checkout target branch
-    await exec(`git checkout ${targetBranch}`);
+    await execa('git', ['checkout', targetBranch]);
 
     const results: Array<{ branch: string; error?: string; status: string }> = [];
     for (const branch of branches) {
       try {
-        await exec(
-          strategy === 'merge'
-            ? `git merge ${branch} --no-ff -m "Merge ${branch} into ${targetBranch}"`
-            : `git rebase ${branch}`,
-        );
+        await (strategy === 'merge'
+          ? execa('git', ['merge', branch, '--no-ff', '-m', `Merge ${branch} into ${targetBranch}`])
+          : execa('git', ['rebase', branch]));
         results.push({
           branch,
           status: 'merged',
@@ -164,7 +159,7 @@ class GitWorkflowManager {
 
     try {
       // Remove worktree
-      await exec(`git worktree remove ${worktreePath} --force`);
+      await execa('git', ['worktree', 'remove', worktreePath, '--force']);
       return {
         taskId,
         status: 'cleaned',
@@ -180,7 +175,7 @@ class GitWorkflowManager {
 
   async listWorktrees(): Promise<Worktree[]> {
     try {
-      const { stdout } = await exec('git worktree list --porcelain');
+      const { stdout } = await execa('git', ['worktree', 'list', '--porcelain']);
       const worktrees: Worktree[] = [];
       const lines = stdout.split('\n');
 
@@ -261,8 +256,8 @@ mcp.addTool({
 
       // Commit changes for serial execution
       if (result.status === 'completed') {
-        await exec('git add -A');
-        await exec(`git commit -m "${title}"`);
+        await execa('git', ['add', '-A']);
+        await execa('git', ['commit', '-m', title]);
       }
 
       return JSON.stringify(result);

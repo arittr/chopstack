@@ -1,6 +1,5 @@
-import { execSync, spawnSync } from 'node:child_process';
-
 import chalk from 'chalk';
+import { execaSync } from 'execa';
 
 import { validateStackArgs } from '../types/cli';
 import { hasContent, isNonEmptyString } from '../utils/guards';
@@ -11,7 +10,7 @@ export function stackCommand(rawArgs: unknown): number {
     console.log(chalk.blue('🚀 Creating git stack with automatic commit message...'));
 
     // Check for git status - must have changes to commit
-    const gitStatus = execSync('git status --porcelain', { encoding: 'utf8' });
+    const gitStatus = execaSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).stdout;
     if (!hasContent(gitStatus)) {
       console.log(chalk.yellow('⚠️ No changes to commit. Please make some changes first.'));
       return 1;
@@ -37,7 +36,7 @@ export function stackCommand(rawArgs: unknown): number {
     // Add all changes if auto-add is enabled
     if (args.autoAdd) {
       console.log(chalk.blue('📥 Adding all changes...'));
-      execSync('git add -A');
+      execaSync('git', ['add', '-A']);
     }
 
     // TODO: Support multiple VCS backends (git-spice, GitHub stacks, etc.)
@@ -50,7 +49,7 @@ export function stackCommand(rawArgs: unknown): number {
       try {
         // Check if git-spice is available
         try {
-          execSync('gs --version', { stdio: 'pipe' });
+          execaSync('gs', ['--version'], { stdio: 'pipe' });
         } catch {
           console.log(
             chalk.yellow('⚠️ git-spice (gs) not available. Please install git-spice first.'),
@@ -64,16 +63,19 @@ export function stackCommand(rawArgs: unknown): number {
         console.log(chalk.cyan(`🌿 Creating git-spice branch: ${branchName}`));
 
         // Use git-spice to create branch and commit (arg array to avoid shell quoting issues)
-        const gsResult = spawnSync(
+        const gsResult = execaSync(
           'gs',
           ['branch', 'create', branchName, '--message', commitMessage],
-          { stdio: args.verbose ? 'inherit' : 'pipe', encoding: 'utf8' },
+          {
+            stdio: args.verbose ? 'inherit' : 'pipe',
+            encoding: 'utf8',
+          },
         );
-        if (gsResult.status !== 0) {
+        if (gsResult.exitCode !== 0) {
           if (!args.verbose && isNonEmptyString(gsResult.stderr)) {
             console.error(chalk.dim(gsResult.stderr));
           }
-          throw new Error(`git-spice failed with code ${gsResult.status ?? 'unknown'}`);
+          throw new Error(`git-spice failed with code ${gsResult.exitCode ?? 'unknown'}`);
         }
 
         console.log(chalk.green('✅ Git-spice branch created successfully'));
@@ -92,7 +94,7 @@ export function stackCommand(rawArgs: unknown): number {
       // Just create a regular commit
       console.log(chalk.blue('📦 Creating commit...'));
       try {
-        execSync(`git commit -m "${escapeCommitMessage(commitMessage)}"`, {
+        execaSync('git', ['commit', '-m', commitMessage], {
           stdio: args.verbose ? 'inherit' : 'pipe',
         });
         console.log(chalk.green('✅ Commit created successfully'));
@@ -155,7 +157,7 @@ function generateAICommitMessage(
     // Check if Claude CLI is available
     console.log(chalk.blue('🔍 Checking if Claude CLI is available...'));
     try {
-      execSync('claude --version', { stdio: 'pipe' });
+      execaSync('claude', ['--version'], { stdio: 'pipe' });
       console.log(chalk.green('✅ Claude CLI is available'));
     } catch {
       console.log(chalk.yellow('⚠️ Claude CLI not available, using fallback...'));
@@ -163,8 +165,10 @@ function generateAICommitMessage(
     }
 
     // Get the actual diff to understand what changed
-    const gitDiff = execSync('git diff --cached --stat', { encoding: 'utf8' });
-    const gitDiffDetails = execSync('git diff --cached --name-status', { encoding: 'utf8' });
+    const gitDiff = execaSync('git', ['diff', '--cached', '--stat'], { encoding: 'utf8' }).stdout;
+    const gitDiffDetails = execaSync('git', ['diff', '--cached', '--name-status'], {
+      encoding: 'utf8',
+    }).stdout;
 
     const prompt = `Analyze these git changes and generate a professional commit message:
 
@@ -198,10 +202,10 @@ Output requirements:
     console.log(chalk.blue('🤖 Generating AI-powered commit message...'));
 
     // Use Claude CLI directly for commit message generation
-    const aiResponse = execSync(`claude "${prompt}"`, {
+    const aiResponse = execaSync('claude', [prompt], {
       encoding: 'utf8',
       stdio: 'pipe',
-    });
+    }).stdout;
 
     // Prefer sentinel-extracted content when available
     const startTag = '<<<COMMIT_MESSAGE_START>>>';
@@ -393,9 +397,4 @@ function generateBranchName(commitMessage: string): string {
     .replaceAll(/-+/g, '-')
     .replaceAll(/^-|-$/g, '')
     .slice(0, 50); // Limit length
-}
-
-function escapeCommitMessage(message: string): string {
-  // Escape quotes and special characters for shell
-  return message.replaceAll('"', '\\"').replaceAll('$', '\\$').replaceAll('`', '\\`');
 }

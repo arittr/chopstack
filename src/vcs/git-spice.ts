@@ -1,5 +1,4 @@
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { execa } from 'execa';
 
 import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 
@@ -7,8 +6,6 @@ import { GitWrapper, type WorktreeInfo } from '../utils/git-wrapper';
 import { hasContent, isNonEmptyString } from '../utils/guards';
 
 import type { VcsBackend } from './index';
-
-const execAsync = promisify(exec);
 
 export class GitSpiceError extends Error {
   constructor(
@@ -32,7 +29,7 @@ export class GitSpiceBackend implements VcsBackend {
    */
   async isAvailable(): Promise<boolean> {
     try {
-      await execAsync('gs --version', { timeout: 5000 });
+      await execa('gs', ['--version'], { timeout: 5000 });
       return true;
     } catch {
       return false;
@@ -63,7 +60,7 @@ export class GitSpiceBackend implements VcsBackend {
 
     try {
       // Initialize git-spice with detected trunk branch (no remote needed for local testing)
-      await execAsync(`gs repo init --trunk=${trunkBranch}`, {
+      await execa('gs', ['repo', 'init', `--trunk=${trunkBranch}`], {
         cwd: workdir,
         timeout: 10_000,
       });
@@ -151,8 +148,9 @@ export class GitSpiceBackend implements VcsBackend {
         }
 
         // Create new branch with a message to avoid prompting
-        await execAsync(
-          `gs branch create ${finalBranchName} --message "Create branch for task ${task.id}"`,
+        await execa(
+          'gs',
+          ['branch', 'create', finalBranchName, '--message', `Create branch for task ${task.id}`],
           {
             cwd: workdir,
             timeout: 10_000,
@@ -244,7 +242,7 @@ export class GitSpiceBackend implements VcsBackend {
    */
   async submitStack(workdir: string): Promise<string[]> {
     try {
-      const { stdout } = await execAsync('gs stack submit --draft', {
+      const { stdout } = await execa('gs', ['stack', 'submit', '--draft'], {
         cwd: workdir,
         timeout: 60_000, // Allow more time for GitHub API calls
       });

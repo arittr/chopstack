@@ -1,7 +1,6 @@
-import { exec } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { promisify } from 'node:util';
 
+import { execa } from 'execa';
 import { match } from 'ts-pattern';
 
 import type { Plan } from '../types/decomposer';
@@ -12,8 +11,6 @@ import { isNonEmptyString } from '../utils/guards';
 import { ConflictResolver } from '../vcs/conflict-resolver';
 import { StackBuilder } from '../vcs/stack-builder';
 import { WorktreeManager } from '../vcs/worktree-manager';
-
-const execAsync = promisify(exec);
 
 export type VcsEngineOptions = {
   branchPrefix: string; // Default: 'chopstack/'
@@ -116,7 +113,7 @@ export class VcsEngine extends EventEmitter {
     let estimatedDiskUsage = 0;
     if (requiresWorktrees) {
       try {
-        const { stdout } = await execAsync('du -sk .', { cwd: workdir });
+        const { stdout } = await execa('du', ['-sk', '.'], { cwd: workdir });
         const repoSizeKb = Number.parseInt(stdout.split('\t')[0] ?? '0', 10);
         estimatedDiskUsage = repoSizeKb * maxConcurrentTasks; // KB
       } catch {
@@ -320,7 +317,7 @@ Return ONLY the commit message content between these markers:
 <<<COMMIT_MESSAGE_END>>>`;
 
     try {
-      const { stdout: aiResponse } = await execAsync(`claude "${prompt}"`, {
+      const { stdout: aiResponse } = await execa('claude', [prompt], {
         cwd: workdir,
         timeout: 30_000,
       });
