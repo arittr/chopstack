@@ -3,7 +3,7 @@ import {
   checkWorkspaceAvailable,
   CliTestRunner,
   runCliInProcess,
-} from '../../../test/utils/cli-runner';
+} from '@test/utils/cli-runner';
 
 describe('CLI Runner', () => {
   describe('runCliInProcess', () => {
