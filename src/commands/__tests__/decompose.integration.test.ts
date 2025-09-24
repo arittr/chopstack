@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import * as path from 'node:path';
 
 import { vi } from 'vitest';
 
@@ -16,7 +15,6 @@ vi.mock('node:fs/promises', () => ({
 vi.mock('@/agents');
 
 const mockReadFile = vi.mocked(readFile);
-const mockResolve = vi.mocked(path.resolve);
 const mockCreateDecomposerAgent = vi.mocked(createDecomposerAgent);
 
 describe('decomposeCommand integration tests', () => {
@@ -53,7 +51,6 @@ describe('decomposeCommand integration tests', () => {
     vi.clearAllMocks();
 
     // Mock external dependencies
-    mockResolve.mockReturnValue('/resolved/path/test-spec.md');
     mockAgent.decompose = vi.fn().mockResolvedValue(mockPlan);
     mockReadFile.mockResolvedValue(
       '# Create React App\n\nBuild a simple React application with routing.',
