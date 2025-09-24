@@ -3,39 +3,40 @@ import { execaSync } from 'execa';
 
 import { validateStackArgs } from '../types/cli';
 import { hasContent, isNonEmptyString } from '../utils/guards';
+import { logger } from '../utils/logger';
 
 export function stackCommand(rawArgs: unknown): number {
   try {
     const args = validateStackArgs(rawArgs);
-    console.log(chalk.blue('🚀 Creating git stack with automatic commit message...'));
+    logger.info(chalk.blue('🚀 Creating git stack with automatic commit message...'));
 
     // Check for git status - must have changes to commit
     const gitStatus = execaSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).stdout;
     if (!hasContent(gitStatus)) {
-      console.log(chalk.yellow('⚠️ No changes to commit. Please make some changes first.'));
+      logger.warn(chalk.yellow('⚠️ No changes to commit. Please make some changes first.'));
       return 1;
     }
 
     // Show what changes will be committed
-    console.log(chalk.cyan('📝 Changes to be committed:'));
+    logger.info(chalk.cyan('📝 Changes to be committed:'));
     const statusLines = gitStatus.trim().split('\n');
     for (const line of statusLines) {
       const status = line.slice(0, 2);
       const file = line.slice(3);
       const statusColor = getStatusColor(status);
-      console.log(chalk.gray('  ') + statusColor(status) + chalk.white(` ${file}`));
+      logger.info(chalk.gray('  ') + statusColor(status) + chalk.white(` ${file}`));
     }
-    console.log();
+    logger.info('');
 
     // Generate AI-powered commit message based on changes
     const commitMessage = generateAICommitMessage(statusLines, args);
-    console.log(chalk.green('💬 Generated commit message:'));
-    console.log(chalk.white(`   ${commitMessage}`));
-    console.log();
+    logger.info(chalk.green('💬 Generated commit message:'));
+    logger.info(chalk.white(`   ${commitMessage}`));
+    logger.info('');
 
     // Add all changes if auto-add is enabled
     if (args.autoAdd) {
-      console.log(chalk.blue('📥 Adding all changes...'));
+      logger.info(chalk.blue('📥 Adding all changes...'));
       execaSync('git', ['add', '-A']);
     }
 
@@ -44,23 +45,23 @@ export function stackCommand(rawArgs: unknown): number {
 
     // Create git-spice branch with commit
     if (args.createStack) {
-      console.log(chalk.blue('📚 Creating git-spice branch...'));
+      logger.info(chalk.blue('📚 Creating git-spice branch...'));
 
       try {
         // Check if git-spice is available
         try {
           execaSync('gs', ['--version'], { stdio: 'pipe' });
         } catch {
-          console.log(
+          logger.info(
             chalk.yellow('⚠️ git-spice (gs) not available. Please install git-spice first.'),
           );
-          console.log(chalk.gray('💡 Install with: curl -fsSL https://git-spice.zip | bash'));
+          logger.info(chalk.gray('💡 Install with: curl -fsSL https://git-spice.zip | bash'));
           return 1;
         }
 
         // Generate branch name from commit message
         const branchName = generateBranchName(commitMessage);
-        console.log(chalk.cyan(`🌿 Creating git-spice branch: ${branchName}`));
+        logger.info(chalk.cyan(`🌿 Creating git-spice branch: ${branchName}`));
 
         // Use git-spice to create branch and commit (arg array to avoid shell quoting issues)
         const gsResult = execaSync(
@@ -73,46 +74,46 @@ export function stackCommand(rawArgs: unknown): number {
         );
         if (gsResult.exitCode !== 0) {
           if (!args.verbose && isNonEmptyString(gsResult.stderr)) {
-            console.error(chalk.dim(gsResult.stderr));
+            logger.error(chalk.dim(gsResult.stderr));
           }
           throw new Error(`git-spice failed with code ${gsResult.exitCode ?? 'unknown'}`);
         }
 
-        console.log(chalk.green('✅ Git-spice branch created successfully'));
-        console.log(chalk.cyan('💡 Next steps:'));
-        console.log(chalk.gray('   • Continue making changes and use `/stack` again'));
-        console.log(chalk.gray('   • Run `gs stack submit` when ready to create PRs'));
-        console.log(chalk.gray('   • Use `gs status` to see your stack'));
+        logger.info(chalk.green('✅ Git-spice branch created successfully'));
+        logger.info(chalk.cyan('💡 Next steps:'));
+        logger.info(chalk.gray('   • Continue making changes and use `/stack` again'));
+        logger.info(chalk.gray('   • Run `gs stack submit` when ready to create PRs'));
+        logger.info(chalk.gray('   • Use `gs status` to see your stack'));
       } catch (error) {
-        console.error(chalk.red('❌ Failed to create git-spice branch'));
+        logger.error(chalk.red('❌ Failed to create git-spice branch'));
         if (args.verbose && error instanceof Error) {
-          console.error(chalk.dim(error.message));
+          logger.error(chalk.dim(error.message));
         }
         return 1;
       }
     } else {
       // Just create a regular commit
-      console.log(chalk.blue('📦 Creating commit...'));
+      logger.info(chalk.blue('📦 Creating commit...'));
       try {
         execaSync('git', ['commit', '-m', commitMessage], {
           stdio: args.verbose ? 'inherit' : 'pipe',
         });
-        console.log(chalk.green('✅ Commit created successfully'));
+        logger.info(chalk.green('✅ Commit created successfully'));
       } catch (error) {
-        console.error(chalk.red('❌ Failed to create commit'));
+        logger.error(chalk.red('❌ Failed to create commit'));
         if (args.verbose && error instanceof Error) {
-          console.error(error.message);
+          logger.error(error.message);
         }
         return 1;
       }
     }
 
-    console.log(chalk.green(`🎉 Stack command completed successfully!`));
+    logger.info(chalk.green(`🎉 Stack command completed successfully!`));
     return 0;
   } catch (error: unknown) {
-    console.error(chalk.red('❌ Stack command failed:'));
+    logger.error(chalk.red('❌ Stack command failed:'));
     if (error instanceof Error) {
-      console.error(chalk.red(error.message));
+      logger.error(chalk.red(error.message));
     }
     return 1;
   }
@@ -155,12 +156,12 @@ function generateAICommitMessage(
 
   try {
     // Check if Claude CLI is available
-    console.log(chalk.blue('🔍 Checking if Claude CLI is available...'));
+    logger.info(chalk.blue('🔍 Checking if Claude CLI is available...'));
     try {
       execaSync('claude', ['--version'], { stdio: 'pipe' });
-      console.log(chalk.green('✅ Claude CLI is available'));
+      logger.info(chalk.green('✅ Claude CLI is available'));
     } catch {
-      console.log(chalk.yellow('⚠️ Claude CLI not available, using fallback...'));
+      logger.info(chalk.yellow('⚠️ Claude CLI not available, using fallback...'));
       return generateFallbackCommitMessage(statusLines);
     }
 
@@ -199,7 +200,7 @@ Output requirements:
 - If you include bullet points, use '-' or numbered list items
 - Keep the message concise and readable`;
 
-    console.log(chalk.blue('🤖 Generating AI-powered commit message...'));
+    logger.info(chalk.blue('🤖 Generating AI-powered commit message...'));
 
     // Use Claude CLI directly for commit message generation
     const aiResponse = execaSync('claude', [prompt], {
@@ -344,7 +345,7 @@ Output requirements:
     // Add chopstack signature
     return `${commitMessage}\n\n🤖 Generated with Claude via chopstack\n\nCo-Authored-By: Claude <noreply@anthropic.com>`;
   } catch {
-    console.log(chalk.yellow('⚠️ AI generation failed, using fallback...'));
+    logger.info(chalk.yellow('⚠️ AI generation failed, using fallback...'));
     return generateFallbackCommitMessage(statusLines);
   }
 }

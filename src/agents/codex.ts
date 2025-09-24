@@ -8,6 +8,7 @@ import type { DecomposerAgent, Plan } from '../types/decomposer';
 
 import { AgentNotFoundError, PlanParsingError } from '../utils/errors';
 import { isNonEmptyString, isNonNullish } from '../utils/guards';
+import { logger } from '../utils/logger';
 import { PromptBuilder } from '../utils/prompts';
 import { type ParsedContent, YamlPlanParser } from '../utils/yaml-parser';
 
@@ -52,10 +53,10 @@ function parseArgsFromJson(value: string): string[] | null {
     ) {
       return [...parsed];
     }
-    console.warn('⚠️ CODEX_CLI_ARGS_JSON must be a JSON array of strings. Ignoring override.');
+    logger.warn('⚠️ CODEX_CLI_ARGS_JSON must be a JSON array of strings. Ignoring override.');
     return null;
   } catch (error) {
-    console.warn('⚠️ Failed to parse CODEX_CLI_ARGS_JSON. Ignoring override.', error);
+    logger.warn('⚠️ Failed to parse CODEX_CLI_ARGS_JSON. Ignoring override.', { error });
     return null;
   }
 }
@@ -135,8 +136,8 @@ export class CodexDecomposer implements DecomposerAgent {
     cwd: string,
     verbose: boolean,
   ): Promise<string> {
-    console.log('🔍 Running Codex CLI in non-interactive mode...');
-    console.log(`📁 Working directory: ${cwd}`);
+    logger.info('🔍 Running Codex CLI in non-interactive mode...');
+    logger.info(`📁 Working directory: ${cwd}`);
 
     return new Promise<string>((resolve, reject) => {
       const { command, args } = resolveCodexInvocation();
@@ -155,9 +156,9 @@ export class CodexDecomposer implements DecomposerAgent {
   }
 
   private _parseCodexResponse(stdout: string): ParsedContent {
-    console.log(`📤 Codex stdout length: ${stdout.length} characters`);
+    logger.debug(`📤 Codex stdout length: ${stdout.length} characters`);
     if (stdout.length < 500) {
-      console.log(`📤 Codex stdout: ${stdout}`);
+      logger.debug(`📤 Codex stdout: ${stdout}`);
     }
 
     const parsedContent = this._extractPlanContent(stdout);
@@ -165,30 +166,30 @@ export class CodexDecomposer implements DecomposerAgent {
       return parsedContent;
     }
 
-    console.error('❌ No YAML or JSON plan found in Codex output');
-    console.error(`📤 Full stdout for debugging:\n${stdout}`);
+    logger.error('❌ No YAML or JSON plan found in Codex output');
+    logger.error(`📤 Full stdout for debugging:\n${stdout}`);
     throw new PlanParsingError('No YAML or JSON plan found in Codex CLI output', stdout);
   }
 
   private _extractPlanContent(stdout: string): ParsedContent | null {
-    console.log('🔍 Extracting YAML/JSON plan from Codex response...');
+    logger.info('🔍 Extracting YAML/JSON plan from Codex response...');
 
     // First try markdown-wrapped content
     const yamlPlan = YamlPlanParser.extractYamlFromMarkdown(stdout);
     if (isNonEmptyString(yamlPlan)) {
-      console.log(`✅ Found YAML plan in markdown, length: ${yamlPlan.length} characters`);
+      logger.debug(`✅ Found YAML plan in markdown, length: ${yamlPlan.length} characters`);
       return { content: yamlPlan, source: 'yaml' };
     }
 
     const jsonPlan = YamlPlanParser.extractJsonFromMarkdown(stdout);
     if (isNonEmptyString(jsonPlan)) {
-      console.log(`✅ Found JSON plan in markdown, length: ${jsonPlan.length} characters`);
+      logger.debug(`✅ Found JSON plan in markdown, length: ${jsonPlan.length} characters`);
       return { content: jsonPlan, source: 'json' };
     }
 
     // If no markdown blocks found, try raw YAML (common for Codex)
     if (stdout.trim().startsWith('tasks:')) {
-      console.log(`✅ Found raw YAML plan, length: ${stdout.length} characters`);
+      logger.debug(`✅ Found raw YAML plan, length: ${stdout.length} characters`);
       return { content: stdout.trim(), source: 'yaml' };
     }
 
@@ -197,7 +198,7 @@ export class CodexDecomposer implements DecomposerAgent {
     const jsonEnd = stdout.lastIndexOf('}');
     if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
       const jsonString = stdout.slice(jsonStart, jsonEnd + 1);
-      console.log(`✅ Found raw JSON plan, length: ${jsonString.length} characters`);
+      logger.debug(`✅ Found raw JSON plan, length: ${jsonString.length} characters`);
       return { content: jsonString, source: 'json' };
     }
 
@@ -378,9 +379,9 @@ class CodexStreamCollector {
     }
 
     if (code !== 0) {
-      console.error(chalk.red(`❌ Codex CLI exited with code ${code}`));
+      logger.error(chalk.red(`❌ Codex CLI exited with code ${code}`));
       if (this._stderr !== '') {
-        console.error(chalk.dim(`Stderr: ${this._stderr}`));
+        logger.error(chalk.dim(`Stderr: ${this._stderr}`));
       }
       this._reject(new Error(`Codex CLI exited with code ${code}`));
       return;

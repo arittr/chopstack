@@ -9,6 +9,7 @@ import type { DecomposerAgent, Plan } from '../types/decomposer';
 
 import { AgentNotFoundError, PlanParsingError } from '../utils/errors';
 import { isNonEmptyString, isNonNullish } from '../utils/guards';
+import { logger } from '../utils/logger';
 import { PromptBuilder } from '../utils/prompts';
 import { type ParsedContent, YamlPlanParser } from '../utils/yaml-parser';
 
@@ -56,8 +57,8 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
     cwd: string,
     verbose: boolean,
   ): Promise<string> {
-    console.log('🔍 Running Claude with stdin input...');
-    console.log(`📁 Working directory: ${cwd}`);
+    logger.info('🔍 Running Claude with stdin input...');
+    logger.info(`📁 Working directory: ${cwd}`);
 
     return new Promise<string>((resolve, reject) => {
       const child = spawn(
@@ -79,12 +80,12 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
   }
 
   private _parseClaudeResponse(stdout: string): ParsedContent {
-    console.log(`📤 Claude stdout length: ${stdout.length} characters`);
+    logger.debug(`📤 Claude stdout length: ${stdout.length} characters`);
     if (stdout.length < 500) {
-      console.log(`📤 Claude stdout: ${stdout}`);
+      logger.debug(`📤 Claude stdout: ${stdout}`);
     }
 
-    console.log('🔍 Searching for YAML or JSON in Claude response...');
+    logger.info('🔍 Searching for YAML or JSON in Claude response...');
 
     // Try JSON wrapper format first (Claude CLI stream-json)
     const jsonResult = this._tryParseJsonWrapper(stdout);
@@ -110,7 +111,7 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
           const json = JSON.parse(line) as ClaudeResponse;
           // Look for the final result object
           if (json.type === 'result' && isNonEmptyString(json.result)) {
-            console.log('✅ Found JSON result object, extracting content...');
+            logger.debug('✅ Found JSON result object, extracting content...');
             return this._extractContentFromResult(json.result);
           }
         } catch {
@@ -129,36 +130,36 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
     // Try YAML code block
     const yamlMatch = result.match(/```yaml\n([\S\s]+?)\n```/);
     if (isNonNullish(yamlMatch) && isNonEmptyString(yamlMatch[1])) {
-      console.log(`✅ Found YAML plan in JSON result, length: ${yamlMatch[1].length} characters`);
+      logger.debug(`✅ Found YAML plan in JSON result, length: ${yamlMatch[1].length} characters`);
       return { content: yamlMatch[1], source: 'yaml' };
     }
 
     // Try JSON code block
     const jsonMatch = result.match(/```json\n([\S\s]+?)\n```/);
     if (isNonNullish(jsonMatch) && isNonEmptyString(jsonMatch[1])) {
-      console.log(`✅ Found JSON plan in JSON result, length: ${jsonMatch[1].length} characters`);
+      logger.debug(`✅ Found JSON plan in JSON result, length: ${jsonMatch[1].length} characters`);
       return { content: jsonMatch[1], source: 'json' };
     }
 
     // Try direct YAML parsing
-    console.log('🔍 Attempting to parse result field directly as YAML...');
+    logger.debug('🔍 Attempting to parse result field directly as YAML...');
     return { content: result, source: 'yaml' };
   }
 
   private _tryParseDirectContent(stdout: string): ParsedContent {
-    console.log('🔍 Not a JSON wrapper, trying direct YAML/JSON extraction...');
+    logger.debug('🔍 Not a JSON wrapper, trying direct YAML/JSON extraction...');
 
     // Try YAML code block
     const yamlMatch = stdout.match(/```yaml\n([\S\s]+?)\n```/);
     if (isNonNullish(yamlMatch) && isNonEmptyString(yamlMatch[1])) {
-      console.log(`✅ Found YAML plan, length: ${yamlMatch[1].length} characters`);
+      logger.debug(`✅ Found YAML plan, length: ${yamlMatch[1].length} characters`);
       return { content: yamlMatch[1], source: 'yaml' };
     }
 
     // Try JSON code block
     const jsonMatch = stdout.match(/```json\n([\S\s]+?)\n```/);
     if (isNonNullish(jsonMatch) && isNonEmptyString(jsonMatch[1])) {
-      console.log(`✅ Found JSON plan, length: ${jsonMatch[1].length} characters`);
+      logger.debug(`✅ Found JSON plan, length: ${jsonMatch[1].length} characters`);
       return { content: jsonMatch[1], source: 'json' };
     }
 
@@ -167,12 +168,12 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
     const jsonEnd = stdout.lastIndexOf('}');
     if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
       const jsonString = stdout.slice(jsonStart, jsonEnd + 1);
-      console.log(`✅ Found raw JSON plan, length: ${jsonString.length} characters`);
+      logger.debug(`✅ Found raw JSON plan, length: ${jsonString.length} characters`);
       return { content: jsonString, source: 'json' };
     }
 
-    console.error('❌ No YAML or JSON plan found in Claude output');
-    console.error(`📤 Full stdout for debugging:\n${stdout}`);
+    logger.error('❌ No YAML or JSON plan found in Claude output');
+    logger.error(`📤 Full stdout for debugging:\n${stdout}`);
     throw new Error('No YAML or JSON plan found in Claude output');
   }
 
@@ -306,14 +307,14 @@ class ClaudeStreamHandler {
             this._spinner.fail(`Claude error: ${errorMessage}`);
             this._spinner = null;
           } else {
-            console.error(chalk.red(`❌ Claude error: ${errorMessage}`));
+            logger.error(chalk.red(`❌ Claude error: ${errorMessage}`));
           }
         })
         .with('rate_limit', () => {
           if (isNonNullish(this._spinner)) {
             this._spinner.warn(`Rate limit: ${JSON.stringify(json)}`);
           } else {
-            console.warn(chalk.yellow(`⚠️ Rate limit: ${JSON.stringify(json)}`));
+            logger.warn(chalk.yellow(`⚠️ Rate limit: ${JSON.stringify(json)}`));
           }
         })
         .otherwise(() => {
@@ -352,9 +353,9 @@ class ClaudeStreamHandler {
     }
 
     if (code !== 0) {
-      console.error(chalk.red(`❌ Claude exited with code ${code}`));
+      logger.error(chalk.red(`❌ Claude exited with code ${code}`));
       if (this._errorOutput !== '') {
-        console.error(chalk.dim(`Stderr: ${this._errorOutput}`));
+        logger.error(chalk.dim(`Stderr: ${this._errorOutput}`));
       }
       this._reject(new Error(`Claude exited with code ${code}`));
     } else {

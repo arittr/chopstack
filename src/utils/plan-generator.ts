@@ -2,6 +2,7 @@ import type { DecomposerAgent, Plan } from '../types/decomposer';
 
 import { DagValidator } from './dag-validator';
 import { isValidArray } from './guards';
+import { logger } from './logger';
 
 export type PlanGenerationOptions = {
   maxRetries?: number;
@@ -30,9 +31,9 @@ export async function generatePlanWithRetry(
 
   while (attempt <= maxRetries) {
     if (attempt === 1) {
-      console.log('🔍 Analyzing codebase and generating plan...');
+      logger.info('🔍 Analyzing codebase and generating plan...');
     } else {
-      console.log(
+      logger.info(
         `🔄 Retry attempt ${attempt}/${maxRetries}: Regenerating plan to resolve conflicts...`,
       );
     }
@@ -42,7 +43,7 @@ export async function generatePlanWithRetry(
 
     // Decompose the specification into a plan
     const plan = await agent.decompose(enhancedContent, cwd, { verbose });
-    console.log(`📋 Generated plan with ${plan.tasks.length} tasks`);
+    logger.info(`📋 Generated plan with ${plan.tasks.length} tasks`);
 
     // Validate the plan
     const validation = DagValidator.validatePlan(plan);
@@ -50,7 +51,7 @@ export async function generatePlanWithRetry(
     if (validation.valid) {
       // Success!
       if (attempt > 1) {
-        console.log(`✅ Plan regenerated successfully after ${attempt - 1} retries`);
+        logger.info(`✅ Plan regenerated successfully after ${attempt - 1} retries`);
       }
       return {
         plan,
@@ -64,16 +65,16 @@ export async function generatePlanWithRetry(
     if (attempt === maxRetries) {
       // Final attempt failed
       if (verbose) {
-        console.error('❌ Plan validation failed after all retry attempts:');
+        logger.error('❌ Plan validation failed after all retry attempts:');
         if (isValidArray(validation.conflicts)) {
-          console.error('  File conflicts:', validation.conflicts.join(', '));
+          logger.error(`  File conflicts: ${validation.conflicts.join(', ')}`);
         }
         if (isValidArray(validation.circularDependencies)) {
-          console.error('  Circular dependencies:', validation.circularDependencies.join(' -> '));
+          logger.error(`  Circular dependencies: ${validation.circularDependencies.join(' -> ')}`);
         }
         if (isValidArray(validation.errors)) {
           for (const error of validation.errors) {
-            console.error(`  Error: ${error}`);
+            logger.error(`  Error: ${error}`);
           }
         }
       }
@@ -90,17 +91,16 @@ export async function generatePlanWithRetry(
     if (isValidArray(validation.conflicts)) {
       conflictHistory.push(...validation.conflicts);
       if (verbose) {
-        console.log(`⚠️ Attempt ${attempt} had file conflicts:`, validation.conflicts.join(', '));
+        logger.warn(`⚠️ Attempt ${attempt} had file conflicts: ${validation.conflicts.join(', ')}`);
       }
     }
     if (isValidArray(validation.circularDependencies) && verbose) {
-      console.log(
-        `⚠️ Attempt ${attempt} had circular dependencies:`,
-        validation.circularDependencies.join(' -> '),
+      logger.warn(
+        `⚠️ Attempt ${attempt} had circular dependencies: ${validation.circularDependencies.join(' -> ')}`,
       );
     }
     if (isValidArray(validation.errors) && verbose) {
-      console.log(`⚠️ Attempt ${attempt} had errors:`, validation.errors.join(', '));
+      logger.warn(`⚠️ Attempt ${attempt} had errors: ${validation.errors.join(', ')}`);
     }
 
     attempt++;

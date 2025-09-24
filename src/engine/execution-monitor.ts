@@ -12,6 +12,7 @@ import type {
   TaskState,
 } from '../types/execution';
 
+import { logger } from '../utils/logger';
 import {
   createProgressLine,
   ProgressFormatter,
@@ -135,7 +136,7 @@ export class ExecutionMonitor extends EventEmitter {
     );
 
     if (task.retryCount < task.maxRetries) {
-      console.log(
+      logger.info(
         chalk.yellow(`⟳ Will retry ${task.id} (attempt ${task.retryCount + 1}/${task.maxRetries})`),
       );
     }
