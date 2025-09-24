@@ -9,74 +9,96 @@ const createdPaths = new Set<string>();
 const cleanedUpPaths = new Set<string>();
 
 // Mock Node.js file system operations - we don't want to actually write files
-vi.mock('node:fs/promises', () => ({
-  readFile: vi.fn().mockImplementation((path: unknown) => {
-    if (typeof path === 'string') {
-      if (path.includes('package.json')) {
-        return '{"name": "chopstack"}';
+// But allow real operations for tests that specifically need them (like VcsEngine integration)
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal();
+
+  // Check if we're running a test that should use real fs operations
+  const testState = expect.getState();
+  const testFile = testState.testPath ?? '';
+  const shouldUseRealFs =
+    testFile.includes('vcs-engine.integration.test.ts') || testFile.includes('worktree-manager');
+
+  if (shouldUseRealFs) {
+    return actual; // Use real filesystem operations
+  }
+
+  // Otherwise use our mocked version
+  return {
+    readFile: vi.fn().mockImplementation((path: unknown) => {
+      if (typeof path === 'string') {
+        if (path.includes('package.json')) {
+          return '{"name": "chopstack"}';
+        }
+        if (path.includes('chopstack.ts') || path.includes('cli.js')) {
+          return 'import { cli } from "./cli.js"; // chopstack CLI';
+        }
       }
-      if (path.includes('chopstack.ts') || path.includes('cli.js')) {
-        return 'import { cli } from "./cli.js"; // chopstack CLI';
+      return 'mock file content';
+    }),
+    writeFile: vi.fn().mockImplementation((path: unknown) => {
+      if (typeof path === 'string') {
+        createdPaths.add(path);
       }
-    }
-    return 'mock file content';
-  }),
-  writeFile: vi.fn().mockImplementation((path: unknown) => {
-    if (typeof path === 'string') {
-      createdPaths.add(path);
-    }
-  }),
-  mkdir: vi.fn().mockImplementation((path: unknown) => {
-    if (typeof path === 'string') {
-      createdPaths.add(path);
-    }
-  }),
-  stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
-  access: vi.fn().mockImplementation((path: unknown) => {
-    if (typeof path === 'string') {
-      // If path was cleaned up, it should not be accessible
-      if (cleanedUpPaths.has(path)) {
-        throw new Error(`ENOENT: no such file or directory, access '${path}'`);
+    }),
+    mkdir: vi.fn().mockImplementation((path: unknown) => {
+      if (typeof path === 'string') {
+        createdPaths.add(path);
       }
-      // Standard paths that should exist (src/, package.json, .git)
-      if (path.includes('src/') || path.includes('package.json') || path.includes('.git')) {
-        return;
-      }
-      // Paths that were created should be accessible until cleanup
-      if (createdPaths.has(path)) {
-        return;
-      }
-      // Parent directories of created paths should be accessible
-      const parentPath = path.split('/').slice(0, -1).join('/');
-      if (createdPaths.has(parentPath)) {
-        return;
-      }
-      // Test workspace paths are initially accessible
-      if (path.includes('test/tmp')) {
-        // But if they contain a test ID that was cleaned up, they should not exist
-        const pathParts = path.split('/');
-        const testIdPart = pathParts.find(
-          (part) =>
-            part.startsWith('test-') ||
-            part.startsWith('basic-test') ||
-            part.startsWith('bulk-test'),
-        );
-        if (testIdPart !== undefined && cleanedUpPaths.has(path)) {
+    }),
+    stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+    access: vi.fn().mockImplementation((path: unknown) => {
+      if (typeof path === 'string') {
+        // If path was cleaned up, it should not be accessible
+        if (cleanedUpPaths.has(path)) {
           throw new Error(`ENOENT: no such file or directory, access '${path}'`);
         }
-        return;
+        // Standard paths that should exist (src/, package.json, .git)
+        if (path.includes('src/') || path.includes('package.json') || path.includes('.git')) {
+          return;
+        }
+        // Paths that were created should be accessible until cleanup
+        if (createdPaths.has(path)) {
+          return;
+        }
+        // Parent directories of created paths should be accessible
+        const parentPath = path.split('/').slice(0, -1).join('/');
+        if (createdPaths.has(parentPath)) {
+          return;
+        }
+        // Test workspace paths are initially accessible
+        if (path.includes('test/tmp')) {
+          // But if they contain a test ID that was cleaned up, they should not exist
+          const pathParts = path.split('/');
+          const testIdPart = pathParts.find(
+            (part) =>
+              part.startsWith('test-') ||
+              part.startsWith('basic-test') ||
+              part.startsWith('bulk-test'),
+          );
+          if (testIdPart !== undefined && cleanedUpPaths.has(path)) {
+            throw new Error(`ENOENT: no such file or directory, access '${path}'`);
+          }
+          return;
+        }
+        // Other paths should not exist
+        throw new Error(`ENOENT: no such file or directory, access '${path}'`);
       }
-      // Other paths should not exist
-      throw new Error(`ENOENT: no such file or directory, access '${path}'`);
-    }
-  }),
-  unlink: vi.fn().mockImplementation((path: unknown) => {
-    if (typeof path === 'string') {
-      createdPaths.delete(path);
-      cleanedUpPaths.add(path);
-    }
-  }),
-}));
+    }),
+    unlink: vi.fn().mockImplementation((path: unknown) => {
+      if (typeof path === 'string') {
+        createdPaths.delete(path);
+        cleanedUpPaths.add(path);
+      }
+    }),
+    rm: vi.fn().mockImplementation((path: unknown) => {
+      if (typeof path === 'string') {
+        createdPaths.delete(path);
+        cleanedUpPaths.add(path);
+      }
+    }),
+  };
+});
 
 // Helper to simulate cleanup
 export const mockFsCleanup = (path: string): void => {
@@ -84,60 +106,107 @@ export const mockFsCleanup = (path: string): void => {
   cleanedUpPaths.add(path);
 };
 
-// Mock subprocess execution - we don't want to run real git/CLI commands
-vi.mock('node:child_process', () => ({
-  spawn: vi.fn(),
-  // eslint-disable-next-line promise/prefer-await-to-callbacks
-  exec: vi.fn().mockImplementation((cmd: unknown, options?: unknown, callback?: unknown) => {
-    // Handle promisified exec (used by util.promisify(exec))
-    let actualCallback = callback;
+// Mock subprocess execution - but allow real execution for integration tests
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal();
 
-    if (typeof options === 'function') {
-      actualCallback = options;
-    }
+  // Check if we're running a test that should use real subprocess execution
+  const testState = expect.getState();
+  const testFile = testState.testPath ?? '';
+  const shouldUseRealSubprocess =
+    testFile.includes('vcs-engine.integration.test.ts') ||
+    testFile.includes('worktree-manager') ||
+    testFile.includes('run.integration.test.ts');
 
-    // Mock du -sk . command for disk usage estimation
-    if (typeof cmd === 'string' && cmd.includes('du -sk')) {
+  if (shouldUseRealSubprocess) {
+    return actual; // Use real subprocess execution
+  }
+
+  // Otherwise use our mocked version
+  return {
+    spawn: vi.fn(),
+    // eslint-disable-next-line promise/prefer-await-to-callbacks
+    exec: vi.fn().mockImplementation((cmd: unknown, options?: unknown, callback?: unknown) => {
+      // Handle promisified exec (used by util.promisify(exec))
+      let actualCallback = callback;
+
+      if (typeof options === 'function') {
+        actualCallback = options;
+      }
+
+      // Mock du -sk . command for disk usage estimation
+      if (typeof cmd === 'string' && cmd.includes('du -sk')) {
+        if (typeof actualCallback === 'function') {
+          process.nextTick(() => {
+            actualCallback(null, { stdout: MOCK_RESPONSES.DISK_USAGE, stderr: '' });
+          });
+        }
+        return { stdout: MOCK_RESPONSES.DISK_USAGE, stderr: '' };
+      }
+
+      // Mock Claude CLI calls - simulate failure to force fallback to rule-based generation
+      if (typeof cmd === 'string' && cmd.includes('claude')) {
+        const error = new Error(MOCK_RESPONSES.CLAUDE_CLI_ERROR);
+        if (typeof actualCallback === 'function') {
+          process.nextTick(() => {
+            actualCallback(error);
+          });
+        }
+        throw error;
+      }
+
+      // Default mock response for other commands
       if (typeof actualCallback === 'function') {
         process.nextTick(() => {
-          actualCallback(null, { stdout: MOCK_RESPONSES.DISK_USAGE, stderr: '' });
+          actualCallback(null, { stdout: MOCK_RESPONSES.GENERIC_COMMAND, stderr: '' });
         });
       }
-      return { stdout: MOCK_RESPONSES.DISK_USAGE, stderr: '' };
-    }
+      return { stdout: MOCK_RESPONSES.GENERIC_COMMAND, stderr: '' };
+    }),
+    execSync: vi.fn(),
+  };
+});
 
-    // Mock Claude CLI calls - simulate failure to force fallback to rule-based generation
-    if (typeof cmd === 'string' && cmd.includes('claude')) {
-      const error = new Error(MOCK_RESPONSES.CLAUDE_CLI_ERROR);
-      if (typeof actualCallback === 'function') {
-        process.nextTick(() => {
-          actualCallback(error);
-        });
-      }
-      throw error;
-    }
+// Mock external agents that make API calls - but allow real calls for integration tests
+vi.mock('@/agents', async (importOriginal) => {
+  const actual = await importOriginal();
 
-    // Default mock response for other commands
-    if (typeof actualCallback === 'function') {
-      process.nextTick(() => {
-        actualCallback(null, { stdout: MOCK_RESPONSES.GENERIC_COMMAND, stderr: '' });
-      });
-    }
-    return { stdout: MOCK_RESPONSES.GENERIC_COMMAND, stderr: '' };
-  }),
-  execSync: vi.fn(),
-}));
+  // Check if we're running a test that should use real agents
+  const testState = expect.getState();
+  const testFile = testState.testPath ?? '';
+  const shouldUseRealAgents = testFile.includes('integration.test.ts');
 
-// Mock external agents that make API calls
-vi.mock('@/agents', () => ({
-  createDecomposerAgent: vi.fn(),
-}));
+  if (shouldUseRealAgents) {
+    return actual; // Use real agent implementations
+  }
 
-// Mock complex execution engine to avoid git operations
-vi.mock('@/engine/execution-engine', () => ({
-  // eslint-disable-next-line @typescript-eslint/naming-convention
-  ExecutionEngine: vi.fn(),
-}));
+  // Otherwise use mocked version
+  return {
+    createDecomposerAgent: vi.fn(),
+  };
+});
+
+// Mock complex execution engine - but allow real for integration tests
+vi.mock('@/engine/execution-engine', async (importOriginal) => {
+  const actual = await importOriginal();
+
+  // Check if we're running a test that should use real execution engine
+  const testState = expect.getState();
+  const testFile = testState.testPath ?? '';
+  const shouldUseRealEngine =
+    testFile.includes('run.integration.test.ts') ||
+    testFile.includes('vcs-engine.integration.test.ts');
+
+  if (shouldUseRealEngine) {
+    return actual; // Use real execution engine
+  }
+
+  // Otherwise use mocked version
+  return {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    ExecutionEngine: vi.fn(),
+  };
+});
 
 // Allow process.cwd() but mock exit
 vi.spyOn(process, 'exit').mockImplementation(() => {
