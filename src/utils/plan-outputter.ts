@@ -5,6 +5,7 @@ import { stringify as stringifyYaml } from 'yaml';
 import type { Plan, PlanMetrics } from '../types/decomposer';
 
 import { isNonEmptyString } from './guards';
+import { logger } from './logger';
 
 export class PlanOutputter {
   static async outputPlan(plan: Plan, metrics: PlanMetrics, outputPath?: string): Promise<void> {
@@ -12,9 +13,9 @@ export class PlanOutputter {
 
     if (isNonEmptyString(outputPath)) {
       await writeFile(outputPath, output, 'utf8');
-      console.log(`Plan written to ${outputPath}`);
+      logger.info(`Plan written to ${outputPath}`);
     } else {
-      console.log(output);
+      logger.raw(output);
     }
   }
 
@@ -42,12 +43,12 @@ export class PlanOutputter {
   }
 
   static logMetrics(metrics: PlanMetrics): void {
-    console.log('\n📊 Enhanced Plan Metrics:');
-    console.log(`  Tasks: ${metrics.taskCount}`);
-    console.log(`  Execution Layers: ${metrics.executionLayers}`);
-    console.log(`  Max Parallel: ${metrics.maxParallelization}`);
-    console.log(`  Critical Path: ${metrics.criticalPathLength} lines`);
-    console.log(`  Est. Speedup: ${metrics.estimatedSpeedup.toFixed(2)}x`);
-    console.log(`  Est. Lines: ${metrics.totalEstimatedLines}`);
+    logger.info('\n📊 Enhanced Plan Metrics:');
+    logger.info(`  Tasks: ${metrics.taskCount}`);
+    logger.info(`  Execution Layers: ${metrics.executionLayers}`);
+    logger.info(`  Max Parallel: ${metrics.maxParallelization}`);
+    logger.info(`  Critical Path: ${metrics.criticalPathLength} lines`);
+    logger.info(`  Est. Speedup: ${metrics.estimatedSpeedup.toFixed(2)}x`);
+    logger.info(`  Est. Lines: ${metrics.totalEstimatedLines}`);
   }
 }
