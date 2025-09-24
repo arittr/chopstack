@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { GitWrapper } from '@/utils/git-wrapper';
+import { GitWrapper } from '@/vcs/git-wrapper';
 
 import { TEST_PATHS } from '../constants/test-paths';
 
