@@ -3,6 +3,7 @@ import { execa } from 'execa';
 import type { AgentType } from '../types/decomposer';
 
 import { AgentNotFoundError } from './errors';
+import { logger } from './logger';
 
 /**
  * Validates that required tools/dependencies are available for each agent type
@@ -34,40 +35,40 @@ export class AgentValidator {
   }
 
   private static async _validateClaudeCLI(): Promise<void> {
-    console.log('🔍 Checking if Claude CLI is available...');
+    logger.info('🔍 Checking if Claude CLI is available...');
 
     try {
       await execa('claude', ['--version'], { timeout: this.CLI_CHECK_TIMEOUT });
-      console.log('✅ Claude CLI is available');
+      logger.info('✅ Claude CLI is available');
     } catch (error) {
-      console.warn('⚠️ Claude CLI not found. Please install the Claude CLI first.');
-      console.warn('⚠️ You can install it from: https://github.com/anthropics/claude-cli');
+      logger.warn('⚠️ Claude CLI not found. Please install the Claude CLI first.');
+      logger.warn('⚠️ You can install it from: https://github.com/anthropics/claude-cli');
       throw new AgentNotFoundError('claude', error instanceof Error ? error : undefined);
     }
   }
 
   private static async _validateCodexCLI(): Promise<void> {
-    console.log('🔍 Checking if Codex CLI is available...');
+    logger.info('🔍 Checking if Codex CLI is available...');
 
     try {
       await execa('codex', ['--version'], { timeout: this.CLI_CHECK_TIMEOUT });
-      console.log('✅ Codex CLI is available');
+      logger.info('✅ Codex CLI is available');
     } catch (error) {
-      console.warn('⚠️ Codex CLI not found. Please install Codex CLI first.');
-      console.warn('⚠️ Install via `npm install -g @openai/codex` or `brew install codex`.');
+      logger.warn('⚠️ Codex CLI not found. Please install Codex CLI first.');
+      logger.warn('⚠️ Install via `npm install -g @openai/codex` or `brew install codex`.');
       throw new AgentNotFoundError('codex', error instanceof Error ? error : undefined);
     }
   }
 
   private static async _validateAiderCLI(): Promise<void> {
-    console.log('🔍 Checking if Aider is available...');
+    logger.info('🔍 Checking if Aider is available...');
 
     try {
       await execa('aider', ['--version'], { timeout: this.CLI_CHECK_TIMEOUT });
-      console.log('✅ Aider is available');
+      logger.info('✅ Aider is available');
     } catch (error) {
-      console.warn('⚠️ Aider not found. Please install Aider first.');
-      console.warn('⚠️ You can install it with: pip install aider-chat');
+      logger.warn('⚠️ Aider not found. Please install Aider first.');
+      logger.warn('⚠️ You can install it with: pip install aider-chat');
       throw new AgentNotFoundError('aider', error instanceof Error ? error : undefined);
     }
   }
