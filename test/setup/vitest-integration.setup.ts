@@ -145,6 +145,8 @@ vi.mock('node:child_process', async (importOriginal) => {
       }
 
       // Mock Claude CLI calls - simulate failure to force fallback to rule-based generation
+      // NOTE: This produces expected "Claude CLI not found" warnings during tests
+      // This is normal behavior when Claude CLI is not installed on the system
       if (typeof cmd === 'string' && cmd.includes('claude')) {
         const error = new Error(MOCK_RESPONSES.CLAUDE_CLI_ERROR);
         if (typeof actualCallback === 'function') {
