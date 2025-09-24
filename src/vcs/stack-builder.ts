@@ -1,7 +1,4 @@
 import { EventEmitter } from 'node:events';
-// TODO: Remove these imports once git-spice integration is complete
-// import { exec } from 'node:child_process';
-// import { promisify } from 'node:util';
 
 import type { VcsEngineOptions } from '../engine/vcs-engine';
 import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
@@ -9,9 +6,6 @@ import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 import type { ConflictResolver } from './conflict-resolver';
 
 import { GitSpiceBackend } from './git-spice';
-
-// Keeping import for potential future use
-// const execAsync = promisify(exec);
 
 export type StackBuildOptions = {
   conflictResolver: ConflictResolver;

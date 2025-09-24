@@ -1,11 +1,8 @@
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { execa } from 'execa';
 
 import type { AgentType } from '../types/decomposer';
 
 import { AgentNotFoundError } from './errors';
-
-const execAsync = promisify(exec);
 
 /**
  * Validates that required tools/dependencies are available for each agent type
@@ -40,7 +37,7 @@ export class AgentValidator {
     console.log('🔍 Checking if Claude CLI is available...');
 
     try {
-      await execAsync('claude --version', { timeout: this.CLI_CHECK_TIMEOUT });
+      await execa('claude', ['--version'], { timeout: this.CLI_CHECK_TIMEOUT });
       console.log('✅ Claude CLI is available');
     } catch (error) {
       console.warn('⚠️ Claude CLI not found. Please install the Claude CLI first.');
@@ -53,7 +50,7 @@ export class AgentValidator {
     console.log('🔍 Checking if Codex CLI is available...');
 
     try {
-      await execAsync('codex --version', { timeout: this.CLI_CHECK_TIMEOUT });
+      await execa('codex', ['--version'], { timeout: this.CLI_CHECK_TIMEOUT });
       console.log('✅ Codex CLI is available');
     } catch (error) {
       console.warn('⚠️ Codex CLI not found. Please install Codex CLI first.');
@@ -66,7 +63,7 @@ export class AgentValidator {
     console.log('🔍 Checking if Aider is available...');
 
     try {
-      await execAsync('aider --version', { timeout: this.CLI_CHECK_TIMEOUT });
+      await execa('aider', ['--version'], { timeout: this.CLI_CHECK_TIMEOUT });
       console.log('✅ Aider is available');
     } catch (error) {
       console.warn('⚠️ Aider not found. Please install Aider first.');
