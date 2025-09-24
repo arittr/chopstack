@@ -1,21 +1,130 @@
+import { MOCK_RESPONSES, TEST_CONFIG } from '@test/constants/test-paths';
 import { vi } from 'vitest';
 
 // Integration test setup - for testing real class interactions
 // Mock only truly external dependencies (file system, network, subprocess calls)
 
+// Track created paths for more realistic fs behavior
+const createdPaths = new Set<string>();
+const cleanedUpPaths = new Set<string>();
+
 // Mock Node.js file system operations - we don't want to actually write files
 vi.mock('node:fs/promises', () => ({
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-  mkdir: vi.fn(),
-  stat: vi.fn(),
-  access: vi.fn(),
+  readFile: vi.fn().mockImplementation((path: unknown) => {
+    if (typeof path === 'string') {
+      if (path.includes('package.json')) {
+        return '{"name": "chopstack"}';
+      }
+      if (path.includes('chopstack.ts') || path.includes('cli.js')) {
+        return 'import { cli } from "./cli.js"; // chopstack CLI';
+      }
+    }
+    return 'mock file content';
+  }),
+  writeFile: vi.fn().mockImplementation((path: unknown) => {
+    if (typeof path === 'string') {
+      createdPaths.add(path);
+    }
+  }),
+  mkdir: vi.fn().mockImplementation((path: unknown) => {
+    if (typeof path === 'string') {
+      createdPaths.add(path);
+    }
+  }),
+  stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+  access: vi.fn().mockImplementation((path: unknown) => {
+    if (typeof path === 'string') {
+      // If path was cleaned up, it should not be accessible
+      if (cleanedUpPaths.has(path)) {
+        throw new Error(`ENOENT: no such file or directory, access '${path}'`);
+      }
+      // Standard paths that should exist (src/, package.json, .git)
+      if (path.includes('src/') || path.includes('package.json') || path.includes('.git')) {
+        return;
+      }
+      // Paths that were created should be accessible until cleanup
+      if (createdPaths.has(path)) {
+        return;
+      }
+      // Parent directories of created paths should be accessible
+      const parentPath = path.split('/').slice(0, -1).join('/');
+      if (createdPaths.has(parentPath)) {
+        return;
+      }
+      // Test workspace paths are initially accessible
+      if (path.includes('test/workspace') || path.includes('test/tmp')) {
+        // But if they contain a test ID that was cleaned up, they should not exist
+        const pathParts = path.split('/');
+        const testIdPart = pathParts.find(
+          (part) =>
+            part.startsWith('test-') ||
+            part.startsWith('basic-test') ||
+            part.startsWith('bulk-test'),
+        );
+        if (testIdPart !== undefined && cleanedUpPaths.has(path)) {
+          throw new Error(`ENOENT: no such file or directory, access '${path}'`);
+        }
+        return;
+      }
+      // Other paths should not exist
+      throw new Error(`ENOENT: no such file or directory, access '${path}'`);
+    }
+  }),
+  unlink: vi.fn().mockImplementation((path: unknown) => {
+    if (typeof path === 'string') {
+      createdPaths.delete(path);
+      cleanedUpPaths.add(path);
+    }
+  }),
 }));
+
+// Helper to simulate cleanup
+export const mockFsCleanup = (path: string): void => {
+  createdPaths.delete(path);
+  cleanedUpPaths.add(path);
+};
 
 // Mock subprocess execution - we don't want to run real git/CLI commands
 vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
-  exec: vi.fn(),
+  // eslint-disable-next-line promise/prefer-await-to-callbacks
+  exec: vi.fn().mockImplementation((cmd: unknown, options?: unknown, callback?: unknown) => {
+    // Handle promisified exec (used by util.promisify(exec))
+    let actualCallback = callback;
+
+    if (typeof options === 'function') {
+      actualCallback = options;
+    }
+
+    // Mock du -sk . command for disk usage estimation
+    if (typeof cmd === 'string' && cmd.includes('du -sk')) {
+      if (typeof actualCallback === 'function') {
+        process.nextTick(() => {
+          actualCallback(null, { stdout: MOCK_RESPONSES.DISK_USAGE, stderr: '' });
+        });
+      }
+      return { stdout: MOCK_RESPONSES.DISK_USAGE, stderr: '' };
+    }
+
+    // Mock Claude CLI calls - simulate failure to force fallback to rule-based generation
+    if (typeof cmd === 'string' && cmd.includes('claude')) {
+      const error = new Error(MOCK_RESPONSES.CLAUDE_CLI_ERROR);
+      if (typeof actualCallback === 'function') {
+        process.nextTick(() => {
+          actualCallback(error);
+        });
+      }
+      throw error;
+    }
+
+    // Default mock response for other commands
+    if (typeof actualCallback === 'function') {
+      process.nextTick(() => {
+        actualCallback(null, { stdout: MOCK_RESPONSES.GENERIC_COMMAND, stderr: '' });
+      });
+    }
+    return { stdout: MOCK_RESPONSES.GENERIC_COMMAND, stderr: '' };
+  }),
   execSync: vi.fn(),
 }));
 
@@ -41,5 +150,5 @@ vi.spyOn(console, 'error').mockImplementation(() => {});
 
 // Integration test configuration
 vi.setConfig({
-  testTimeout: 10_000, // Integration tests can take a bit longer
+  testTimeout: TEST_CONFIG.INTEGRATION_TIMEOUT,
 });

@@ -26,17 +26,33 @@ describe('TaskOrchestrator Mode Support', () => {
 
     test('builds dry-run mode arguments correctly', () => {
       const args = (orchestrator as any)._buildClaudeArgs('dry-run', 'Test prompt');
-      expect(args).toEqual(['--dry-run', '--message', 'Test prompt']);
+      // Dry-run uses plan mode since Claude CLI doesn't have a dedicated dry-run mode
+      expect(args).toEqual([
+        '-p',
+        '--permission-mode',
+        'plan',
+        '--output-format',
+        'json',
+        'Test prompt',
+      ]);
     });
 
     test('builds execute mode arguments correctly', () => {
       const args = (orchestrator as any)._buildClaudeArgs('execute', 'Test prompt');
-      expect(args).toEqual(['--message', 'Test prompt']);
+      expect(args).toEqual(['-p', 'Test prompt']);
     });
 
     test('builds validate mode arguments correctly', () => {
       const args = (orchestrator as any)._buildClaudeArgs('validate', 'Test prompt');
-      expect(args).toEqual(['--validate-only', '--message', 'Test prompt']);
+      // Validate uses plan mode since Claude CLI doesn't have a dedicated validate mode
+      expect(args).toEqual([
+        '-p',
+        '--permission-mode',
+        'plan',
+        '--output-format',
+        'json',
+        'Test prompt',
+      ]);
     });
 
     test('throws error for unsupported mode', () => {

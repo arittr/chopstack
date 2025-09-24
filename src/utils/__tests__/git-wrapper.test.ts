@@ -3,6 +3,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 
+import { TEST_PATHS } from '@test/constants/test-paths';
+
 import { GitWrapper } from '../git-wrapper';
 
 const execAsync = promisify(exec);
@@ -13,7 +15,7 @@ describe('GitWrapper', () => {
 
   beforeEach(async () => {
     // Create temporary test repository
-    testRepo = path.join(__dirname, '../../tmp', `git-wrapper-test-${Date.now()}`);
+    testRepo = path.join(TEST_PATHS.TEST_TMP, `git-wrapper-test-${Date.now()}`);
     await fs.mkdir(testRepo, { recursive: true });
 
     // Initialize git repo
