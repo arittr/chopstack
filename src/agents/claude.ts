@@ -7,11 +7,11 @@ import { match } from 'ts-pattern';
 
 import type { DecomposerAgent, Plan } from '../types/decomposer';
 
+import { type ParsedContent, YamlPlanParser } from '../io/yaml-parser';
+import { PromptBuilder } from '../planning/prompts';
 import { AgentNotFoundError, PlanParsingError } from '../utils/errors';
-import { isNonEmptyString, isNonNullish } from '../utils/guards';
 import { logger } from '../utils/logger';
-import { PromptBuilder } from '../utils/prompts';
-import { type ParsedContent, YamlPlanParser } from '../utils/yaml-parser';
+import { isNonEmptyString, isNonNullish } from '../validation/guards';
 
 type StreamingMessage = {
   delta?: {

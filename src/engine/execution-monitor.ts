@@ -12,12 +12,12 @@ import type {
   TaskState,
 } from '../types/execution';
 
-import { logger } from '../utils/logger';
 import {
   createProgressLine,
   ProgressFormatter,
   TaskProgressManager,
-} from '../utils/progress-formatter';
+} from '../planning/progress-formatter';
+import { logger } from '../utils/logger';
 
 import { StateManager } from './state-manager';
 

@@ -14,8 +14,8 @@ import type {
 } from '../types/execution';
 
 import { toErrorMessage } from '../utils/errors';
-import { hasContent } from '../utils/guards';
 import { logger } from '../utils/logger';
+import { hasContent } from '../validation/guards';
 import { createVcsBackend, detectAvailableVcsBackend } from '../vcs';
 
 import type { ExecutionMonitor } from './execution-monitor';
