@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 
 import { match } from 'ts-pattern';
 
+import type { TaskOrchestrator } from '../mcp/orchestrator';
 import type { Plan } from '../types/decomposer';
 import type {
   ExecutionOptions,
@@ -12,15 +13,22 @@ import type {
   TaskExecutionResult,
 } from '../types/execution';
 
-import { TaskOrchestrator } from '../mcp/orchestrator';
 import { toErrorMessage } from '../utils/errors';
 import { hasContent } from '../utils/guards';
 import { createVcsBackend, detectAvailableVcsBackend } from '../vcs';
 
-import { ExecutionMonitor } from './execution-monitor';
-import { ExecutionPlanner } from './execution-planner';
-import { StateManager } from './state-manager';
-import { VcsEngine, type WorktreeExecutionContext } from './vcs-engine';
+import type { ExecutionMonitor } from './execution-monitor';
+import type { ExecutionPlanner } from './execution-planner';
+import type { StateManager } from './state-manager';
+import type { VcsEngine, WorktreeExecutionContext } from './vcs-engine';
+
+export type ExecutionEngineDependencies = {
+  monitor: ExecutionMonitor;
+  orchestrator: TaskOrchestrator;
+  planner: ExecutionPlanner;
+  stateManager: StateManager;
+  vcsEngine: VcsEngine;
+};
 
 export class ExecutionEngine extends EventEmitter {
   private readonly planner: ExecutionPlanner;
@@ -31,14 +39,14 @@ export class ExecutionEngine extends EventEmitter {
   private readonly vcsEngine: VcsEngine;
   private readonly worktreeContexts: Map<string, WorktreeExecutionContext>;
 
-  constructor() {
+  constructor(dependencies: ExecutionEngineDependencies) {
     super();
-    this.planner = new ExecutionPlanner();
-    this.stateManager = new StateManager();
-    this.monitor = new ExecutionMonitor();
-    this.orchestrator = new TaskOrchestrator();
+    this.planner = dependencies.planner;
+    this.stateManager = dependencies.stateManager;
+    this.monitor = dependencies.monitor;
+    this.orchestrator = dependencies.orchestrator;
+    this.vcsEngine = dependencies.vcsEngine;
     this.activePlans = new Map();
-    this.vcsEngine = new VcsEngine();
     this.worktreeContexts = new Map();
 
     this._setupEventForwarding();

@@ -39,7 +39,7 @@ export default defineConfig({
           setupFiles: ['test/setup/vitest-integration.setup.ts', 'test/setup/worktree-cleanup.ts'],
           include: ['src/**/__tests__/*.integration.test.ts'],
           exclude: ['test/e2e/**/*.test.ts', 'test/execution/**/*.test.ts'],
-          testTimeout: 15000,
+          testTimeout: 15_000,
         },
       },
       {
@@ -49,7 +49,7 @@ export default defineConfig({
           setupFiles: ['test/setup/vitest-e2e.setup.ts'],
           include: ['test/e2e/**/*.test.ts'],
           exclude: ['test/execution/**/*.test.ts'],
-          testTimeout: 30000,
+          testTimeout: 30_000,
         },
       },
       {
@@ -59,7 +59,7 @@ export default defineConfig({
           setupFiles: ['test/setup/vitest-execution.setup.ts'],
           include: ['test/execution/**/*.test.ts'],
           exclude: ['test/e2e/**/*.test.ts'],
-          testTimeout: 60000,
+          testTimeout: 60_000,
         },
       },
     ],

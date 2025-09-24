@@ -21,7 +21,9 @@ export class PlanOutputter {
   static formatPlanOutput(plan: Plan, metrics: PlanMetrics): string {
     const yamlPlan = stringifyYaml(plan, {
       indent: 2,
-      lineWidth: 100,
+      lineWidth: 200, // Increase to avoid line breaks
+      defaultStringType: 'QUOTE_DOUBLE', // Force quotes on strings
+      defaultKeyType: 'PLAIN',
     });
 
     const metricsOutput = this._formatMetrics(metrics);
