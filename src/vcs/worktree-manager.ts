@@ -74,17 +74,31 @@ export class WorktreeManager extends EventEmitter {
 
       // Create the worktree with a new branch using GitWrapper
       const git = new GitWrapper(workdir);
+
+      // Check if branch already exists
+      let finalBranchName = branchName;
+      let branchExists = false;
+
       try {
-        await git.createWorktree(absoluteWorktreePath, baseRef, branchName);
+        await git.git.raw(['rev-parse', '--verify', branchName]);
+        branchExists = true;
+      } catch {
+        // Branch doesn't exist, which is what we want
+      }
+
+      if (branchExists) {
+        // Add timestamp to make branch name unique
+        const timestamp = Date.now();
+        finalBranchName = `${branchName}-${timestamp}`;
+        console.log(`⚠️ Branch ${branchName} already exists, using ${finalBranchName} instead`);
+      }
+
+      try {
+        await git.createWorktree(absoluteWorktreePath, baseRef, finalBranchName);
       } catch (error) {
-        // If branch already exists, try to create worktree without new branch
-        try {
-          await git.createWorktree(absoluteWorktreePath, branchName);
-        } catch {
-          throw new Error(
-            `Failed to create worktree for ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
+        throw new Error(
+          `Failed to create worktree for ${taskId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
 
       // Verify worktree was created successfully
@@ -101,7 +115,7 @@ export class WorktreeManager extends EventEmitter {
       const context: WorktreeContext = {
         taskId,
         worktreePath,
-        branchName,
+        branchName: finalBranchName,
         baseRef,
         absolutePath: absoluteWorktreePath,
         created: new Date(),

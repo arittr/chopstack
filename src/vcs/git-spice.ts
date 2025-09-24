@@ -57,16 +57,29 @@ export class GitSpiceBackend implements VcsBackend {
       // Not initialized, proceed with initialization
     }
 
+    // Detect the current branch to use as trunk
+    const currentBranch = await git.git.raw(['rev-parse', '--abbrev-ref', 'HEAD']);
+    const trunkBranch = currentBranch.trim() === 'HEAD' ? 'main' : currentBranch.trim();
+
     try {
-      // Initialize git-spice with main as trunk branch (no remote needed for local testing)
-      await execAsync('gs repo init --trunk=main', {
+      // Initialize git-spice with detected trunk branch (no remote needed for local testing)
+      await execAsync(`gs repo init --trunk=${trunkBranch}`, {
         cwd: workdir,
         timeout: 10_000,
       });
-      console.log('🌿 Initialized git-spice in repository');
+      console.log(`🌿 Initialized git-spice in repository with trunk=${trunkBranch}`);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
-      throw new GitSpiceError('Failed to initialize git-spice', 'gs repo init', stderr);
+      const command = `gs repo init --trunk=${trunkBranch}`;
+
+      console.error(`❌ git-spice init failed: ${command}`);
+      console.error(`❌ Error: ${errorMessage}`);
+      if (hasContent(stderr)) {
+        console.error(`❌ Stderr: ${stderr}`);
+      }
+
+      throw new GitSpiceError('Failed to initialize git-spice', command, stderr);
     }
   }
 
@@ -106,13 +119,45 @@ export class GitSpiceBackend implements VcsBackend {
 
         // Switch to parent branch using GitWrapper
         const git = new GitWrapper(workdir);
-        await git.checkout(parentBranch);
 
-        // Create new branch
-        await execAsync(`gs branch create ${branchName}`, {
-          cwd: workdir,
-          timeout: 10_000,
-        });
+        // Check if parent branch is safe to checkout (not in use by another worktree)
+        try {
+          await git.checkout(parentBranch);
+        } catch (error) {
+          // If checkout fails (likely due to branch being used by another worktree),
+          // use the current branch instead
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          if (errorMessage.includes('already used by worktree')) {
+            const currentBranch = await git.git.raw(['rev-parse', '--abbrev-ref', 'HEAD']);
+            console.log(
+              `⚠️ ${parentBranch} is in use, using current branch ${currentBranch.trim()} instead`,
+            );
+            // Don't checkout, just continue with current branch
+          } else {
+            throw error; // Re-throw if it's a different error
+          }
+        }
+
+        // Check if branch already exists and make it unique if needed
+        let finalBranchName = branchName;
+        try {
+          await git.git.raw(['rev-parse', '--verify', branchName]);
+          // Branch exists, add timestamp to make it unique
+          const timestamp = Date.now();
+          finalBranchName = `${branchName}-${timestamp}`;
+          console.log(`⚠️ Branch ${branchName} already exists, using ${finalBranchName} instead`);
+        } catch {
+          // Branch doesn't exist, which is what we want
+        }
+
+        // Create new branch with a message to avoid prompting
+        await execAsync(
+          `gs branch create ${finalBranchName} --message "Create branch for task ${task.id}"`,
+          {
+            cwd: workdir,
+            timeout: 10_000,
+          },
+        );
 
         // If task has a commit hash, cherry-pick it using GitWrapper
         if (isNonEmptyString(task.commitHash)) {
@@ -166,20 +211,25 @@ export class GitSpiceBackend implements VcsBackend {
         }
 
         branches.push({
-          name: branchName,
+          name: finalBranchName,
           parent: parentBranch,
           taskId: task.id,
           commitHash: task.commitHash ?? '',
         });
 
-        console.log(`🌿 Created branch: ${branchName} (parent: ${parentBranch})`);
+        console.log(`🌿 Created branch: ${finalBranchName} (parent: ${parentBranch})`);
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
-        throw new GitSpiceError(
-          `Failed to create branch for task ${task.id}`,
-          `gs branch create ${branchName}`,
-          stderr,
-        );
+        const command = `gs branch create ${branchName}`;
+
+        console.error(`❌ git-spice command failed: ${command}`);
+        console.error(`❌ Error: ${errorMessage}`);
+        if (hasContent(stderr)) {
+          console.error(`❌ Stderr: ${stderr}`);
+        }
+
+        throw new GitSpiceError(`Failed to create branch for task ${task.id}`, command, stderr);
       }
     }
 

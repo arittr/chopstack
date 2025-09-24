@@ -1,0 +1,10 @@
+tasks:
+  - id: simple-task
+    title: Simple Task
+    description: A simple task for testing
+    touches: []
+    produces:
+      - simple.txt
+    requires: []
+    estimatedLines: 10
+    agentPrompt: Create simple.txt
