@@ -5,8 +5,8 @@ import type { ExecutionTask } from '@/types/execution';
 import type { WorktreeContext } from '@/vcs/worktree-manager';
 
 import { VcsEngine } from '@/engine/vcs-engine';
-import { GitWrapper } from '@/utils/git-wrapper';
 import { ConflictResolver } from '@/vcs/conflict-resolver';
+import { GitWrapper } from '@/vcs/git-wrapper';
 import { StackBuilder } from '@/vcs/stack-builder';
 import { WorktreeManager } from '@/vcs/worktree-manager';
 

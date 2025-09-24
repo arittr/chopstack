@@ -8,8 +8,8 @@ import { vi } from 'vitest';
 import type { ExecutionTask } from '@/types/execution';
 
 import { VcsEngine } from '@/engine/vcs-engine';
-import { GitWrapper } from '@/utils/git-wrapper';
 import { GitSpiceBackend } from '@/vcs/git-spice';
+import { GitWrapper } from '@/vcs/git-wrapper';
 
 const testRepo = join(TEST_PATHS.TEST_TMP, 'git-spice-stack-integration');
 
