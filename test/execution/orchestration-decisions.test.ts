@@ -8,21 +8,22 @@ import type { Plan, Task } from '@/types/decomposer';
 
 import { DagValidator } from '@/utils/dag-validator';
 
-import { checkWorkspaceAvailable, runCliInProcess } from '../utils/cli-runner';
+import { runCliInProcess } from '../utils/cli-runner';
+import {
+  type TestWorktreeContext,
+  testWorktreeManager,
+} from '../utils/testing-harness-worktree-manager';
 
 describe('Orchestration Decision Making', () => {
-  const NEXTJS_REPO_PATH = '../typescript-nextjs-starter';
-  const SPEC_PATH = path.join(__dirname, '../e2e/specs/add-dark-mode.md');
+  const SPEC_PATH = path.resolve(__dirname, '../e2e/specs/add-stack-summary-command.md');
 
   let generatedPlan: Plan;
+  let worktreeContext: TestWorktreeContext;
 
   beforeAll(async (): Promise<void> => {
-    // Check if workspace is available, skip if not
-    if (!checkWorkspaceAvailable(NEXTJS_REPO_PATH)) {
-      throw new Error(
-        `Workspace not found: ${NEXTJS_REPO_PATH} - clone the required test workspace`,
-      );
-    }
+    worktreeContext = await testWorktreeManager.createTestWorktree({
+      testId: 'execution-stack-summary',
+    });
 
     // Generate the plan using in-process CLI runner
     const tempOutputFile = path.join(
@@ -34,7 +35,7 @@ describe('Orchestration Decision Making', () => {
       const result = await runCliInProcess(
         ['decompose', '--spec', SPEC_PATH, '--agent', 'claude', '--output', tempOutputFile],
         {
-          cwd: NEXTJS_REPO_PATH,
+          cwd: worktreeContext.absolutePath,
           timeout: 300_000, // 5 minutes
         },
       );
@@ -53,6 +54,10 @@ describe('Orchestration Decision Making', () => {
     } catch (error) {
       throw new Error(`Failed to generate plan: ${String(error)}`);
     }
+  });
+
+  afterAll(async (): Promise<void> => {
+    await worktreeContext.cleanup();
   });
 
   describe('dependency analysis and parallelization decisions', () => {

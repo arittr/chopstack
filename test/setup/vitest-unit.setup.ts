@@ -12,13 +12,15 @@ vi.mock('node:fs/promises', () => ({
   access: vi.fn(),
 }));
 
-// Mock Node.js path operations (these are usually safe but we mock for consistency)
+// Provide real path helpers but allow spying/mocking when needed
+const actualPath = await vi.importActual('node:path');
 vi.mock('node:path', () => ({
-  resolve: vi.fn(),
-  join: vi.fn(),
-  dirname: vi.fn(),
-  basename: vi.fn(),
-  extname: vi.fn(),
+  ...actualPath,
+  resolve: vi.fn((actualPath as any).resolve),
+  join: vi.fn((actualPath as any).join),
+  dirname: vi.fn((actualPath as any).dirname),
+  basename: vi.fn((actualPath as any).basename),
+  extname: vi.fn((actualPath as any).extname),
 }));
 
 // Mock process operations

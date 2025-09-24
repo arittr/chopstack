@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import * as path from 'node:path';
 
 import { vi } from 'vitest';
 
@@ -16,7 +16,6 @@ import { YamlPlanParser } from '@/utils/yaml-parser';
 
 // Mock external dependencies
 vi.mock('node:fs/promises');
-vi.mock('node:path');
 vi.mock('../../agents');
 vi.mock('../../engine/execution-engine');
 vi.mock('../../utils/dag-validator');
@@ -24,7 +23,7 @@ vi.mock('../../utils/plan-generator');
 vi.mock('../../utils/yaml-parser');
 
 const mockReadFile = vi.mocked(readFile);
-const mockResolve = vi.mocked(resolve);
+const mockResolve = vi.mocked(path.resolve);
 const mockCreateDecomposerAgent = vi.mocked(createDecomposerAgent);
 const mockExecutionEngine = vi.mocked(ExecutionEngine);
 const mockDagValidator = vi.mocked(DagValidator);
@@ -78,8 +77,11 @@ describe('runCommand', () => {
     vi.clearAllMocks();
 
     // Default successful mocks
-    mockResolve.mockImplementation((path) => `/resolved/${path}`);
+    mockResolve.mockImplementation((input) =>
+      input.startsWith('/') ? input : `/resolved/${input}`,
+    );
     mockReadFile.mockResolvedValue('# Test content');
+    mockAgent.decompose = vi.fn().mockResolvedValue(mockPlan);
     mockCreateDecomposerAgent.mockResolvedValue(mockAgent);
     mockGeneratePlanWithRetry.mockResolvedValue({
       plan: mockPlan,
