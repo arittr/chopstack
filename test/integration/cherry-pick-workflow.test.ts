@@ -88,7 +88,7 @@ describe('SNU-47: Improved Cherry-pick Workflow', () => {
           console.log(`✅ Successfully tested cherry-pick workflow setup for task ${taskId}`);
         } finally {
           // Clean up worktree
-          await worktreeManager.removeWorktree(taskId, true);
+          await worktreeManager.removeWorktree(taskId);
         }
       });
     });
@@ -140,7 +140,7 @@ describe('SNU-47: Improved Cherry-pick Workflow', () => {
           // Clean up all worktrees
           for (const taskId of tasks) {
             try {
-              await worktreeManager.removeWorktree(taskId, true);
+              await worktreeManager.removeWorktree(taskId);
             } catch (error) {
               console.log(`Note: Cleanup error for ${taskId}:`, error);
             }
@@ -186,7 +186,7 @@ describe('SNU-47: Improved Cherry-pick Workflow', () => {
               `✅ Strategy test passed for ${testCase.taskId} (${testCase.expectedStrategy})`,
             );
           } finally {
-            await worktreeManager.removeWorktree(testCase.taskId, true);
+            await worktreeManager.removeWorktree(testCase.taskId);
           }
         }
       });

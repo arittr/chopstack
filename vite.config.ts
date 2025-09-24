@@ -10,8 +10,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: ['test/setup/worktree-cleanup.ts'],
     include: ['src/**/__tests__/**/*.test.ts', 'test/**/*.test.ts'],
-    exclude: ['node_modules/**', 'dist/**', 'test/workspace/**'],
+    exclude: ['node_modules/**', 'dist/**'],
   },
 });
