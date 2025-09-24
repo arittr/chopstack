@@ -1,3 +1,4 @@
+import { TEST_PATHS } from '@test/constants/test-paths';
 import {
   checkGitSpiceAvailable,
   checkWorkspaceAvailable,
@@ -39,7 +40,7 @@ describe('CLI Runner', () => {
     });
 
     it('should handle working directory changes', async () => {
-      const tempDir = '/tmp';
+      const tempDir = TEST_PATHS.TEST_TMP;
       const result = await runCliInProcess(['--help'], { cwd: tempDir });
 
       expect(result.exitCode).toBe(0);
