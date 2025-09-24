@@ -8,7 +8,7 @@ export const TEST_PATHS = {
   TEST_TMP: 'test/tmp',
 
   /** Test workspace directory for isolated test environments */
-  TEST_WORKSPACE: 'test/workspace',
+  TEST_WORKSPACE: 'test/tmp',
 
   /** Test shadows directory for worktree isolation */
   TEST_SHADOWS: '.test-shadows',

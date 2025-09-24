@@ -3,6 +3,8 @@ import * as path from 'node:path';
 
 import { GitWrapper } from '@/utils/git-wrapper';
 
+import { TEST_PATHS } from '../constants/test-paths';
+
 export type TestWorktreeOptions = {
   baseRef?: string;
   preserveOnFailure?: boolean;
@@ -26,7 +28,7 @@ export class TestingHarnessWorktreeManager {
   private readonly activeWorktrees: Set<string> = new Set();
 
   constructor(projectRoot?: string) {
-    this.workspaceRoot = path.join(projectRoot ?? process.cwd(), 'test', 'workspace');
+    this.workspaceRoot = path.join(projectRoot ?? process.cwd(), TEST_PATHS.TEST_WORKSPACE);
   }
 
   /**

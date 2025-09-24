@@ -12,7 +12,12 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHOPSTACK_BIN="../../dist/bin/chopstack.js"
 SPECS_DIR="$SCRIPT_DIR/specs"
-TEST_WORKSPACE="${TEST_WORKSPACE:-/Users/drewritter/projects/typescript-nextjs-starter}"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+TEST_ID="${TEST_ID:-e2e-shell}"
+BASE_REF="${BASE_REF:-HEAD}"
+TEST_WORKSPACE_ROOT="${TEST_WORKSPACE_ROOT:-$REPO_ROOT/test/tmp}"
+TEST_WORKSPACE="$TEST_WORKSPACE_ROOT/$TEST_ID"
+TEST_BRANCH="test/$TEST_ID"
 
 # Colors for output
 RED='\033[0;31m'
@@ -53,6 +58,7 @@ run_test() {
     log_info "Running test: $test_name (mode: $MODE, strategy: $STRATEGY)"
     echo "════════════════════════════════════════════════════════════════"
 
+    ensure_worktree
     cd "$TEST_WORKSPACE"
 
     # Run the chopstack command
@@ -68,22 +74,32 @@ run_test() {
 
 cleanup_test_artifacts() {
     log_info "Cleaning up test artifacts..."
-    cd "$TEST_WORKSPACE"
-
-    # Remove test files (but be careful not to remove important files)
-    rm -f README-test.md chopstack-test-config.json
-    rm -rf test-files/ src/types/test.ts src/utils/test.ts src/components/ src/main.ts
-
-    # Clean up worktrees if they exist
-    if git worktree list | grep -q ".chopstack/shadows"; then
-        log_info "Cleaning up git worktrees..."
-        git worktree list | grep ".chopstack/shadows" | while read line; do
-            worktree_path=$(echo "$line" | awk '{print $1}')
-            git worktree remove "$worktree_path" --force 2>/dev/null || true
-        done
+    if [ -d "$TEST_WORKSPACE" ]; then
+        cd "$REPO_ROOT"
+        git worktree remove "$TEST_WORKSPACE" --force 2>/dev/null || true
+        git branch -D "$TEST_BRANCH" 2>/dev/null || true
     fi
 
     log_success "Cleanup completed"
+}
+
+ensure_worktree() {
+    mkdir -p "$TEST_WORKSPACE_ROOT"
+
+    if [ -d "$TEST_WORKSPACE/.git" ]; then
+        return
+    fi
+
+    if git -C "$REPO_ROOT" worktree list | grep -q " $TEST_WORKSPACE "; then
+        return
+    fi
+
+    if ! git -C "$REPO_ROOT" worktree add "$TEST_WORKSPACE" "$BASE_REF" -b "$TEST_BRANCH" 2>/dev/null; then
+        if ! git -C "$REPO_ROOT" worktree add "$TEST_WORKSPACE" "$TEST_BRANCH" 2>/dev/null; then
+            log_error "Failed to create test worktree at $TEST_WORKSPACE"
+            exit 1
+        fi
+    fi
 }
 
 # Available tests

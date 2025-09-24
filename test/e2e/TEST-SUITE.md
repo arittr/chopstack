@@ -134,10 +134,9 @@ git worktree list
 ./run-tests.sh test-name dry-run parallel
 
 # Check test workspace for artifacts
-ls -la /Users/drewritter/projects/typescript-nextjs-starter/
+ls -la test/tmp/
 
 # Check git worktree status
-cd /Users/drewritter/projects/typescript-nextjs-starter
 git worktree list
 
 # Clean up if needed
