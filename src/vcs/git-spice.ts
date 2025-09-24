@@ -4,6 +4,7 @@ import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
 
 import { GitWrapper, type WorktreeInfo } from '../utils/git-wrapper';
 import { hasContent, isNonEmptyString } from '../utils/guards';
+import { logger } from '../utils/logger';
 
 import type { VcsBackend } from './index';
 
@@ -47,7 +48,7 @@ export class GitSpiceBackend implements VcsBackend {
 
       if (hasContent(trunkBranch.trim())) {
         // Already initialized
-        console.log('🌿 git-spice already initialized');
+        logger.info('🌿 git-spice already initialized');
         return;
       }
     } catch {
@@ -64,16 +65,16 @@ export class GitSpiceBackend implements VcsBackend {
         cwd: workdir,
         timeout: 10_000,
       });
-      console.log(`🌿 Initialized git-spice in repository with trunk=${trunkBranch}`);
+      logger.info(`🌿 Initialized git-spice in repository with trunk=${trunkBranch}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
       const command = `gs repo init --trunk=${trunkBranch}`;
 
-      console.error(`❌ git-spice init failed: ${command}`);
-      console.error(`❌ Error: ${errorMessage}`);
+      logger.error(`❌ git-spice init failed: ${command}`);
+      logger.error(`❌ Error: ${errorMessage}`);
       if (hasContent(stderr)) {
-        console.error(`❌ Stderr: ${stderr}`);
+        logger.error(`❌ Stderr: ${stderr}`);
       }
 
       throw new GitSpiceError('Failed to initialize git-spice', command, stderr);
@@ -126,7 +127,7 @@ export class GitSpiceBackend implements VcsBackend {
           const errorMessage = error instanceof Error ? error.message : String(error);
           if (errorMessage.includes('already used by worktree')) {
             const currentBranch = await git.git.raw(['rev-parse', '--abbrev-ref', 'HEAD']);
-            console.log(
+            logger.warn(
               `⚠️ ${parentBranch} is in use, using current branch ${currentBranch.trim()} instead`,
             );
             // Don't checkout, just continue with current branch
@@ -142,7 +143,7 @@ export class GitSpiceBackend implements VcsBackend {
           // Branch exists, add timestamp to make it unique
           const timestamp = Date.now();
           finalBranchName = `${branchName}-${timestamp}`;
-          console.log(`⚠️ Branch ${branchName} already exists, using ${finalBranchName} instead`);
+          logger.warn(`⚠️ Branch ${branchName} already exists, using ${finalBranchName} instead`);
         } catch {
           // Branch doesn't exist, which is what we want
         }
@@ -165,7 +166,7 @@ export class GitSpiceBackend implements VcsBackend {
 
             // The commit should now be accessible after fetching from worktrees
             await git.cherryPick(task.commitHash);
-            console.log(
+            logger.info(
               `🔀 Cherry-picked commit ${task.commitHash.slice(0, 7)} for task ${task.id}`,
             );
           } catch (error) {
@@ -182,27 +183,27 @@ export class GitSpiceBackend implements VcsBackend {
                   task.commitHash,
                 ]);
                 if (remoteReferences.trim().length > 0) {
-                  console.log(
+                  logger.info(
                     `🔄 Found commit in remote refs, retrying cherry-pick for task ${task.id}`,
                   );
                   await git.cherryPick(task.commitHash);
-                  console.log(
+                  logger.info(
                     `🔀 Successfully cherry-picked commit ${task.commitHash.slice(0, 7)} for task ${task.id} (retry)`,
                   );
                 } else {
-                  console.error(
+                  logger.error(
                     `❌ Commit ${task.commitHash.slice(0, 7)} not found for task ${task.id}`,
                   );
                   continue;
                 }
               } catch (retryError) {
-                console.error(
+                logger.error(
                   `❌ Failed to cherry-pick commit for task ${task.id} (retry failed): ${retryError instanceof Error ? retryError.message : String(retryError)}`,
                 );
                 continue;
               }
             } else {
-              console.error(`❌ Failed to cherry-pick commit for task ${task.id}: ${errorMessage}`);
+              logger.error(`❌ Failed to cherry-pick commit for task ${task.id}: ${errorMessage}`);
               continue;
             }
           }
@@ -215,16 +216,16 @@ export class GitSpiceBackend implements VcsBackend {
           commitHash: task.commitHash ?? '',
         });
 
-        console.log(`🌿 Created branch: ${finalBranchName} (parent: ${parentBranch})`);
+        logger.info(`🌿 Created branch: ${finalBranchName} (parent: ${parentBranch})`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
         const command = `gs branch create ${branchName}`;
 
-        console.error(`❌ git-spice command failed: ${command}`);
-        console.error(`❌ Error: ${errorMessage}`);
+        logger.error(`❌ git-spice command failed: ${command}`);
+        logger.error(`❌ Error: ${errorMessage}`);
         if (hasContent(stderr)) {
-          console.error(`❌ Stderr: ${stderr}`);
+          logger.error(`❌ Stderr: ${stderr}`);
         }
 
         throw new GitSpiceError(`Failed to create branch for task ${task.id}`, command, stderr);
@@ -251,9 +252,9 @@ export class GitSpiceBackend implements VcsBackend {
       const prUrls = this._extractPrUrls(stdout);
 
       if (prUrls.length > 0) {
-        console.log('🚀 Pull requests created:');
+        logger.info('🚀 Pull requests created:');
         for (const url of prUrls) {
-          console.log(`  └─ ${url}`);
+          logger.info(`  └─ ${url}`);
         }
       }
 
@@ -302,7 +303,7 @@ export class GitSpiceBackend implements VcsBackend {
    * Fetch all commits from worktrees to make them accessible in the main repository
    */
   private async _fetchWorktreeCommits(tasks: ExecutionTask[], workdir: string): Promise<void> {
-    console.log('🔄 Fetching commits from worktrees...');
+    logger.info('🔄 Fetching commits from worktrees...');
 
     const git = new GitWrapper(workdir);
 
@@ -324,7 +325,7 @@ export class GitSpiceBackend implements VcsBackend {
             // First, try to see if the commit is already accessible
             try {
               await git.git.raw(['cat-file', '-e', task.commitHash]);
-              console.log(
+              logger.debug(
                 `✅ Commit ${task.commitHash.slice(0, 7)} already accessible for task ${task.id}`,
               );
               continue;
@@ -342,7 +343,7 @@ export class GitSpiceBackend implements VcsBackend {
               `+refs/heads/*:refs/remotes/worktree-${task.id}/*`,
             ]);
 
-            console.log(`✅ Fetched commits from worktree for task ${task.id}`);
+            logger.info(`✅ Fetched commits from worktree for task ${task.id}`);
           } catch (error) {
             // Try alternative approach: fetch the specific commit directly if we know its branch
             if (taskWorktree.branch !== undefined) {
@@ -352,26 +353,26 @@ export class GitSpiceBackend implements VcsBackend {
                   taskWorktree.path,
                   `+refs/heads/${taskWorktree.branch}:refs/remotes/worktree-${task.id}/${taskWorktree.branch}`,
                 ]);
-                console.log(
+                logger.info(
                   `✅ Fetched branch ${taskWorktree.branch} from worktree for task ${task.id}`,
                 );
               } catch (fetchError) {
-                console.warn(
+                logger.warn(
                   `⚠️ Could not fetch from worktree for task ${task.id}: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`,
                 );
               }
             } else {
-              console.warn(
+              logger.warn(
                 `⚠️ Could not fetch from worktree for task ${task.id}: ${error instanceof Error ? error.message : String(error)}`,
               );
             }
           }
         } else {
-          console.warn(`⚠️ Could not find worktree for task ${task.id}`);
+          logger.warn(`⚠️ Could not find worktree for task ${task.id}`);
         }
       }
     } catch (error) {
-      console.warn(
+      logger.warn(
         `⚠️ Could not list worktrees: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
