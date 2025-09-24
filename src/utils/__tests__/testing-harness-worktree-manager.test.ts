@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { TEST_PATHS } from '@test/constants/test-paths';
 import {
   TestingHarnessWorktreeManager,
   type TestWorktreeContext,
@@ -31,7 +32,7 @@ describe('TestWorktreeManager', () => {
 
       // Verify worktree exists
       expect(context.testId).toBe('basic-test');
-      expect(context.absolutePath).toContain('test/workspace/basic-test');
+      expect(context.absolutePath).toContain(path.join(TEST_PATHS.TEST_WORKSPACE, 'basic-test'));
       expect(context.baseRef).toBe('HEAD');
 
       // Verify directory exists

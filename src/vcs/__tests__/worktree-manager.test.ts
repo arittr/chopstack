@@ -1,3 +1,4 @@
+import { TEST_PATHS } from '@test/constants/test-paths';
 import { vi } from 'vitest';
 
 import type { VcsEngineOptions } from '@/engine/vcs-engine';
@@ -19,6 +20,7 @@ const mockFs = {
   readdir: vi.fn(),
   rmdir: vi.fn(),
 };
+
 vi.mock('node:fs/promises', () => mockFs);
 
 // Mock util.promisify to return our mock exec
@@ -32,7 +34,7 @@ describe('WorktreeManager', () => {
 
   beforeEach(() => {
     mockOptions = {
-      shadowPath: '.test-shadows',
+      shadowPath: TEST_PATHS.TEST_SHADOWS,
       branchPrefix: 'test/',
       cleanupOnSuccess: true,
       cleanupOnFailure: false,
@@ -62,7 +64,7 @@ describe('WorktreeManager', () => {
         branchName: 'test/test-task',
         worktreePath: '.test-shadows/test-task',
         baseRef: 'main',
-        workdir: '/tmp/test',
+        workdir: 'TEST_PATHS.TEST_TMP',
       };
 
       const context = await worktreeManager.createWorktree(options);
@@ -71,13 +73,13 @@ describe('WorktreeManager', () => {
       expect(context.branchName).toBe('test/test-task');
       expect(context.worktreePath).toBe('.test-shadows/test-task');
       expect(context.baseRef).toBe('main');
-      expect(context.absolutePath).toBe('/tmp/test/.test-shadows/test-task');
+      expect(context.absolutePath).toBe('TEST_PATHS.TEST_TMP/.test-shadows/test-task');
       expect(context.created).toBeInstanceOf(Date);
 
       // Verify git commands were called
       expect(mockExecAsync).toHaveBeenCalledWith(
-        'git worktree add -b "test/test-task" "/tmp/test/.test-shadows/test-task" "main"',
-        { cwd: '/tmp/test', timeout: 30_000 },
+        'git worktree add -b "test/test-task" "TEST_PATHS.TEST_TMP/.test-shadows/test-task" "main"',
+        { cwd: 'TEST_PATHS.TEST_TMP', timeout: 30_000 },
       );
     });
 
@@ -87,7 +89,7 @@ describe('WorktreeManager', () => {
         branchName: 'test/test-task',
         worktreePath: '.test-shadows/test-task',
         baseRef: 'main',
-        workdir: '/tmp/test',
+        workdir: 'TEST_PATHS.TEST_TMP',
       };
 
       // Create worktree first time
@@ -108,7 +110,7 @@ describe('WorktreeManager', () => {
         branchName: 'test/test-task',
         worktreePath: '.test-shadows/test-task',
         baseRef: 'main',
-        workdir: '/tmp/test',
+        workdir: 'TEST_PATHS.TEST_TMP',
       };
 
       await expect(worktreeManager.createWorktree(options)).rejects.toThrow();
@@ -125,7 +127,7 @@ describe('WorktreeManager', () => {
         branchName: 'test/test-task',
         worktreePath: '.test-shadows/test-task',
         baseRef: 'main',
-        workdir: '/tmp/test',
+        workdir: 'TEST_PATHS.TEST_TMP',
       };
 
       const context = await worktreeManager.createWorktree(options);
@@ -136,15 +138,15 @@ describe('WorktreeManager', () => {
       // First call with -b flag
       expect(mockExecAsync).toHaveBeenNthCalledWith(
         1,
-        'git worktree add -b "test/test-task" "/tmp/test/.test-shadows/test-task" "main"',
-        { cwd: '/tmp/test', timeout: 30_000 },
+        'git worktree add -b "test/test-task" "TEST_PATHS.TEST_TMP/.test-shadows/test-task" "main"',
+        { cwd: 'TEST_PATHS.TEST_TMP', timeout: 30_000 },
       );
 
       // Second call without -b flag
       expect(mockExecAsync).toHaveBeenNthCalledWith(
         2,
-        'git worktree add "/tmp/test/.test-shadows/test-task" "test/test-task"',
-        { cwd: '/tmp/test', timeout: 30_000 },
+        'git worktree add "TEST_PATHS.TEST_TMP/.test-shadows/test-task" "test/test-task"',
+        { cwd: 'TEST_PATHS.TEST_TMP', timeout: 30_000 },
       );
     });
   });
@@ -161,7 +163,7 @@ describe('WorktreeManager', () => {
         branchName: 'test/test-task',
         worktreePath: '.test-shadows/test-task',
         baseRef: 'main',
-        workdir: '/tmp/test',
+        workdir: 'TEST_PATHS.TEST_TMP',
       };
 
       await worktreeManager.createWorktree(options);
@@ -183,7 +185,7 @@ describe('WorktreeManager', () => {
         branchName: 'test/test-task',
         worktreePath: '.test-shadows/test-task',
         baseRef: 'main',
-        workdir: '/tmp/test',
+        workdir: 'TEST_PATHS.TEST_TMP',
       };
 
       await worktreeManager.createWorktree(options);
@@ -203,7 +205,7 @@ describe('WorktreeManager', () => {
         branchName: 'test/test-task',
         worktreePath: '.test-shadows/test-task',
         baseRef: 'main',
-        workdir: '/tmp/test',
+        workdir: 'TEST_PATHS.TEST_TMP',
       };
 
       await worktreeManager.createWorktree(options);
@@ -215,8 +217,8 @@ describe('WorktreeManager', () => {
 
       // Verify remove command was called
       expect(mockExecAsync).toHaveBeenCalledWith(
-        'git worktree remove  "/tmp/test/.test-shadows/test-task"',
-        { cwd: '/tmp/test', timeout: 15_000 },
+        'git worktree remove  "TEST_PATHS.TEST_TMP/.test-shadows/test-task"',
+        { cwd: 'TEST_PATHS.TEST_TMP', timeout: 15_000 },
       );
     });
 
@@ -226,7 +228,7 @@ describe('WorktreeManager', () => {
         branchName: 'test/test-task',
         worktreePath: '.test-shadows/test-task',
         baseRef: 'main',
-        workdir: '/tmp/test',
+        workdir: 'TEST_PATHS.TEST_TMP',
       };
 
       await worktreeManager.createWorktree(options);
@@ -245,8 +247,8 @@ describe('WorktreeManager', () => {
       // Verify force flag was used on retry
       expect(mockExecAsync).toHaveBeenNthCalledWith(
         3,
-        'git worktree remove --force "/tmp/test/.test-shadows/test-task"',
-        { cwd: '/tmp/test', timeout: 15_000 },
+        'git worktree remove --force "TEST_PATHS.TEST_TMP/.test-shadows/test-task"',
+        { cwd: 'TEST_PATHS.TEST_TMP', timeout: 15_000 },
       );
     });
   });
@@ -263,7 +265,7 @@ describe('WorktreeManager', () => {
             branchName: `test/${taskId}`,
             worktreePath: `.test-shadows/${taskId}`,
             baseRef: 'main',
-            workdir: '/tmp/test',
+            workdir: 'TEST_PATHS.TEST_TMP',
           }),
         ),
       );
@@ -288,7 +290,7 @@ describe('WorktreeManager', () => {
             branchName: `test/${taskId}`,
             worktreePath: `.test-shadows/${taskId}`,
             baseRef: 'main',
-            workdir: '/tmp/test',
+            workdir: 'TEST_PATHS.TEST_TMP',
           }),
         ),
       );
@@ -325,7 +327,7 @@ describe('WorktreeManager', () => {
         branchName: 'test/test-task',
         worktreePath: '.test-shadows/test-task',
         baseRef: 'main',
-        workdir: '/tmp/test',
+        workdir: 'TEST_PATHS.TEST_TMP',
       };
 
       await worktreeManager.createWorktree(options);
@@ -350,7 +352,7 @@ describe('WorktreeManager', () => {
         branchName: 'test/test-task',
         worktreePath: '.test-shadows/test-task',
         baseRef: 'main',
-        workdir: '/tmp/test',
+        workdir: 'TEST_PATHS.TEST_TMP',
       };
 
       await worktreeManager.createWorktree(options);
@@ -395,7 +397,7 @@ describe('WorktreeManager', () => {
         branchName: 'test/test-task',
         worktreePath: '.test-shadows/test-task',
         baseRef: 'main',
-        workdir: '/tmp/test',
+        workdir: 'TEST_PATHS.TEST_TMP',
       });
 
       const stats = await worktreeManager.getWorktreeStats();
@@ -429,7 +431,7 @@ describe('WorktreeManager', () => {
             branchName: `test/${taskId}`,
             worktreePath: `.test-shadows/${taskId}`,
             baseRef: 'main',
-            workdir: '/tmp/test',
+            workdir: 'TEST_PATHS.TEST_TMP',
           }),
         ),
       );

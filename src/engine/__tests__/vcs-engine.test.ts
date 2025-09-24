@@ -1,4 +1,6 @@
 /* eslint-disable unicorn/no-unused-properties */
+import { TEST_CONFIG, TEST_PATHS } from '@test/constants/test-paths';
+
 import type { Plan } from '@/types/decomposer';
 
 import { VcsEngine } from '@/engine/vcs-engine';
@@ -8,8 +10,8 @@ describe('VcsEngine', () => {
 
   beforeEach(() => {
     vcsEngine = new VcsEngine({
-      shadowPath: '.test-shadows',
-      branchPrefix: 'test/',
+      shadowPath: TEST_PATHS.TEST_SHADOWS,
+      branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
       cleanupOnSuccess: true,
       cleanupOnFailure: false,
       conflictStrategy: 'auto',
@@ -48,7 +50,7 @@ describe('VcsEngine', () => {
         ],
       };
 
-      const analysis = await vcsEngine.analyzeWorktreeNeeds(plan, '/tmp/test');
+      const analysis = await vcsEngine.analyzeWorktreeNeeds(plan, TEST_PATHS.TEST_TMP);
 
       expect(analysis.requiresWorktrees).toBe(true);
       expect(analysis.maxConcurrentTasks).toBe(2);
@@ -82,7 +84,7 @@ describe('VcsEngine', () => {
         ],
       };
 
-      const analysis = await vcsEngine.analyzeWorktreeNeeds(plan, '/tmp/test');
+      const analysis = await vcsEngine.analyzeWorktreeNeeds(plan, TEST_PATHS.TEST_TMP);
 
       expect(analysis.requiresWorktrees).toBe(false);
       expect(analysis.maxConcurrentTasks).toBe(1);
@@ -113,7 +115,7 @@ describe('VcsEngine', () => {
       };
 
       // Mock AI generation to test fallback
-      const message = await vcsEngine.generateCommitMessage(mockTask, changes, '/tmp/test');
+      const message = await vcsEngine.generateCommitMessage(mockTask, changes, TEST_PATHS.TEST_TMP);
 
       expect(message).toContain('Add User Component');
       expect(message).toContain('🤖 Generated with Claude via chopstack');
@@ -141,7 +143,7 @@ describe('VcsEngine', () => {
         output: 'Implemented user CRUD API',
       };
 
-      const message = await vcsEngine.generateCommitMessage(mockTask, changes, '/tmp/test');
+      const message = await vcsEngine.generateCommitMessage(mockTask, changes, TEST_PATHS.TEST_TMP);
 
       expect(message).toContain('Implement User API');
       expect(message).toContain('🤖 Generated with Claude via chopstack');
@@ -168,7 +170,7 @@ describe('VcsEngine', () => {
         output: 'Added test coverage for user component',
       };
 
-      const message = await vcsEngine.generateCommitMessage(mockTask, changes, '/tmp/test');
+      const message = await vcsEngine.generateCommitMessage(mockTask, changes, TEST_PATHS.TEST_TMP);
 
       expect(message).toContain('Add User Tests');
       expect(message).toContain('🤖 Generated with Claude via chopstack');
