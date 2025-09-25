@@ -77,8 +77,10 @@ describe('plan-generator', () => {
 
         expect(mockAgent.decompose).toHaveBeenCalledWith(specContent, cwd, { verbose: false });
         expect(mockDagValidator.validatePlan).toHaveBeenCalledWith(mockPlan);
-        expect(mockConsoleLog).toHaveBeenCalledWith('🔍 Analyzing codebase and generating plan...');
-        expect(mockConsoleLog).toHaveBeenCalledWith('📋 Generated plan with 2 tasks');
+        expect(mockConsoleLog).toHaveBeenCalledWith(
+          '[INFO] 🔍 Analyzing codebase and generating plan...',
+        );
+        expect(mockConsoleLog).toHaveBeenCalledWith('[INFO] 📋 Generated plan with 2 tasks');
       });
 
       it('should use custom options when provided', async () => {

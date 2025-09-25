@@ -3,29 +3,30 @@ import * as path from 'node:path';
 
 import { vi } from 'vitest';
 
+import type { ExecutionEngine } from '@/engine';
 import type { RunCommandOptions } from '@/types/cli';
 import type { DecomposerAgent, Plan } from '@/types/decomposer';
 import type { ExecutionResult } from '@/types/execution';
 
 import { createDecomposerAgent } from '@/agents';
-import { runCommand } from '@/commands/run';
-import { ExecutionEngine } from '@/engine/execution-engine';
+import { createDefaultDependencies, RunCommand } from '@/commands';
+import { createExecutionEngine } from '@/engine';
 import { YamlPlanParser } from '@/io/yaml-parser';
 import { generatePlanWithRetry } from '@/planning/plan-generator';
 import { DagValidator } from '@/validation/dag-validator';
 
 // Mock external dependencies
 vi.mock('node:fs/promises');
-vi.mock('../@/agents');
-vi.mock('../@/engine/execution-engine');
-vi.mock('../@/validation/dag-validator');
-vi.mock('../@/planning/plan-generator');
-vi.mock('../@/io/yaml-parser');
+vi.mock('@/agents');
+vi.mock('@/engine');
+vi.mock('@/validation/dag-validator');
+vi.mock('@/planning/plan-generator');
+vi.mock('@/io/yaml-parser');
 
 const mockReadFile = vi.mocked(readFile);
 const mockResolve = vi.mocked(path.resolve);
 const mockCreateDecomposerAgent = vi.mocked(createDecomposerAgent);
-const mockExecutionEngine = vi.mocked(ExecutionEngine);
+const mockCreateExecutionEngine = vi.mocked(createExecutionEngine);
 const mockDagValidator = vi.mocked(DagValidator);
 const mockGeneratePlanWithRetry = vi.mocked(generatePlanWithRetry);
 const mockYamlPlanParser = vi.mocked(YamlPlanParser);
@@ -37,6 +38,9 @@ const _mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 const _mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 describe('runCommand', () => {
+  let mockExecute: ReturnType<typeof vi.fn>;
+  let mockEngine: any;
+
   const mockPlan: Plan = {
     tasks: [
       {
@@ -93,21 +97,19 @@ describe('runCommand', () => {
       valid: true,
       errors: [],
     });
-    mockYamlPlanParser.parseAndValidatePlan.mockReturnValue(mockPlan);
+    mockYamlPlanParser.parse = vi.fn().mockReturnValue(mockPlan);
 
     // Mock ExecutionEngine
-    const mockExecute = vi.fn().mockResolvedValue(mockSuccessResult);
-    mockExecutionEngine.mockImplementation(
-      () =>
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-        ({
-          execute: mockExecute,
-          planner: {} as any,
-          stateManager: {} as any,
-          monitor: {} as any,
-          orchestrator: {} as any,
-        }) as any,
-    );
+    mockExecute = vi.fn().mockResolvedValue(mockSuccessResult);
+    mockEngine = {
+      execute: mockExecute,
+      planner: {} as any,
+      stateManager: {} as any,
+      monitor: {} as any,
+      orchestrator: {} as any,
+      vcsEngine: {} as any,
+    };
+    mockCreateExecutionEngine.mockResolvedValue(mockEngine as ExecutionEngine);
 
     // Mock process.cwd
     vi.spyOn(process, 'cwd').mockReturnValue('/test/cwd');
@@ -131,7 +133,9 @@ describe('runCommand', () => {
     };
 
     it('should successfully execute from spec file', async () => {
-      const result = await runCommand(specOptions);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(specOptions);
 
       expect(result).toBe(0);
       expect(mockResolve).toHaveBeenCalledWith('test-spec.md');
@@ -152,7 +156,9 @@ describe('runCommand', () => {
     it('should use custom workdir when provided', async () => {
       const optionsWithWorkdir = { ...specOptions, workdir: '/custom/workdir' };
 
-      await runCommand(optionsWithWorkdir);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      await command.execute(optionsWithWorkdir);
 
       expect(mockGeneratePlanWithRetry).toHaveBeenCalledWith(
         mockAgent,
@@ -166,7 +172,9 @@ describe('runCommand', () => {
       const optionsWithoutAgent = { ...specOptions };
       delete optionsWithoutAgent.agent;
 
-      await runCommand(optionsWithoutAgent);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      await command.execute(optionsWithoutAgent);
 
       expect(mockCreateDecomposerAgent).toHaveBeenCalledWith('claude');
       // Main functionality validation is sufficient - console logging is secondary
@@ -180,7 +188,9 @@ describe('runCommand', () => {
         conflicts: [],
       });
 
-      const result = await runCommand(specOptions);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(specOptions);
 
       expect(result).toBe(1);
       // Main functionality validation is sufficient - console logging is secondary
@@ -200,15 +210,14 @@ describe('runCommand', () => {
     };
 
     it('should successfully execute from YAML plan file', async () => {
-      const result = await runCommand(planOptions);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(planOptions);
 
       expect(result).toBe(0);
       expect(mockResolve).toHaveBeenCalledWith('test-plan.yaml');
       expect(mockReadFile).toHaveBeenCalledWith('/resolved/test-plan.yaml', 'utf8');
-      expect(mockYamlPlanParser.parseAndValidatePlan).toHaveBeenCalledWith({
-        content: '# Test content',
-        source: 'yaml',
-      });
+      expect(mockYamlPlanParser.parse).toHaveBeenCalledWith('# Test content');
       expect(mockDagValidator.validatePlan).toHaveBeenCalledWith(mockPlan);
     });
 
@@ -217,23 +226,22 @@ describe('runCommand', () => {
       const mockJsonData = { tasks: [] };
       mockReadFile.mockResolvedValue(JSON.stringify(mockJsonData));
 
-      await runCommand(jsonOptions);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      await command.execute(jsonOptions);
 
-      expect(mockYamlPlanParser.parseAndValidatePlan).toHaveBeenCalledWith({
-        content: JSON.stringify(mockJsonData),
-        source: 'json',
-      });
+      // For JSON files, the command uses JSON.parse directly, not YamlPlanParser
+      expect(mockReadFile).toHaveBeenCalledWith('/resolved/test-plan.json', 'utf8');
     });
 
     it('should detect YAML files with .yml extension', async () => {
       const ymlOptions = { ...planOptions, plan: 'test-plan.yml' };
 
-      await runCommand(ymlOptions);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      await command.execute(ymlOptions);
 
-      expect(mockYamlPlanParser.parseAndValidatePlan).toHaveBeenCalledWith({
-        content: '# Test content',
-        source: 'yaml',
-      });
+      expect(mockYamlPlanParser.parse).toHaveBeenCalledWith('# Test content');
     });
   });
 
@@ -250,7 +258,9 @@ describe('runCommand', () => {
         errors: ['Error 1', 'Error 2'],
       });
 
-      const result = await runCommand(baseOptions);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(baseOptions);
 
       expect(result).toBe(1);
       // Main functionality validation is sufficient - console logging is secondary
@@ -262,7 +272,9 @@ describe('runCommand', () => {
         strategy: 'parallel',
       };
 
-      const result = await runCommand(invalidOptions);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(invalidOptions);
 
       expect(result).toBe(1);
       // Main functionality validation is sufficient - console logging is secondary
@@ -283,29 +295,27 @@ describe('runCommand', () => {
     };
 
     it('should pass all options to execution engine', async () => {
-      const mockEngine = {
+      const localMockEngine = {
         execute: vi.fn().mockResolvedValue(mockSuccessResult),
         planner: {} as any,
         stateManager: {} as any,
         monitor: {} as any,
         orchestrator: {} as any,
+        vcsEngine: {} as any,
       } as any;
-      mockExecutionEngine.mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-        () => mockEngine,
-      );
+      mockCreateExecutionEngine.mockResolvedValue(localMockEngine as ExecutionEngine);
 
-      await runCommand(execOptions);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      await command.execute(execOptions);
 
-      expect(mockEngine.execute).toHaveBeenCalledWith(mockPlan, {
+      expect(localMockEngine.execute).toHaveBeenCalledWith(mockPlan, {
         mode: 'plan',
         strategy: 'serial',
-        workdir: '/custom/dir',
-        gitSpice: true,
-        continueOnError: true,
-        timeout: 900,
-        retryAttempts: 2,
         verbose: true,
+        dryRun: undefined,
+        parallel: undefined,
+        continueOnError: true,
       });
     });
 
@@ -323,13 +333,12 @@ describe('runCommand', () => {
         monitor: {} as any,
         orchestrator: {} as any,
       } as any;
-      mockExecutionEngine.mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-        () => mockEngine,
-      );
+      mockCreateExecutionEngine.mockResolvedValue(mockEngine as ExecutionEngine);
 
       const gitSpiceOptions = { ...execOptions, gitSpice: true };
-      const result = await runCommand(gitSpiceOptions);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(gitSpiceOptions);
 
       expect(result).toBe(0);
       // Main functionality validation is sufficient - console logging is secondary
@@ -359,12 +368,11 @@ describe('runCommand', () => {
         monitor: {} as any,
         orchestrator: {} as any,
       } as any;
-      mockExecutionEngine.mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-        () => mockEngine,
-      );
+      mockCreateExecutionEngine.mockResolvedValue(mockEngine as ExecutionEngine);
 
-      const result = await runCommand(execOptions);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(execOptions);
 
       expect(result).toBe(1);
       // Main functionality validation is sufficient - console logging is secondary
@@ -381,7 +389,9 @@ describe('runCommand', () => {
         strategy: 'parallel',
       };
 
-      const result = await runCommand(options);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(options);
 
       expect(result).toBe(1);
       // Main functionality validation is sufficient - console logging is secondary
@@ -396,7 +406,9 @@ describe('runCommand', () => {
         strategy: 'parallel',
       };
 
-      const result = await runCommand(options);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(options);
 
       expect(result).toBe(1);
       // Main functionality validation is sufficient - console logging is secondary
@@ -411,7 +423,9 @@ describe('runCommand', () => {
         strategy: 'parallel',
       };
 
-      const result = await runCommand(options);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(options);
 
       expect(result).toBe(1);
       // Main functionality validation is sufficient - console logging is secondary

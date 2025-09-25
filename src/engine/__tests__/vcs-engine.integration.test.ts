@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { TEST_CONFIG, TEST_PATHS } from '@test/constants/test-paths';
 import { execa } from 'execa';
 
-import { VcsEngine } from '@/engine/vcs-engine';
+import { createTestVcsEngine } from '@/vcs/engine/vcs-engine-factory';
 
 const integrationRepo = join(TEST_PATHS.TEST_TMP, 'vcs-engine-integration');
 
@@ -33,18 +33,21 @@ describe('VcsEngine integration', () => {
     await writeFile(filePath, 'export const User = () => null;\n');
     await execa('git', ['add', '.'], { cwd: integrationRepo });
 
-    const vcsEngine = new VcsEngine({
-      shadowPath: join(integrationRepo, '.chopstack/shadows'),
-      branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
-      cleanupOnSuccess: true,
-      cleanupOnFailure: false,
-      conflictStrategy: 'auto',
-      stackSubmission: {
-        enabled: false,
-        draft: true,
-        autoMerge: false,
+    const vcsEngine = await createTestVcsEngine(
+      {},
+      {
+        shadowPath: join(integrationRepo, '.chopstack/shadows'),
+        branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
+        cleanupOnSuccess: true,
+        cleanupOnFailure: false,
+        conflictStrategy: 'auto',
+        stackSubmission: {
+          enabled: false,
+          draft: true,
+          autoMerge: false,
+        },
       },
-    });
+    );
 
     const mockTask = {
       id: 'integration-component',
