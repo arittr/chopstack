@@ -2,9 +2,9 @@ import { EventEmitter } from 'node:events';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import type { VcsEngineOptions } from '../engine/vcs-engine';
+import type { VcsEngineOptions } from '@/engine/vcs-engine';
 
-import { logger } from '../utils/logger';
+import { logger } from '@/utils/logger';
 
 import { GitWrapper } from './git-wrapper';
 

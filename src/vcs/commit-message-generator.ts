@@ -1,6 +1,6 @@
 import { execa } from 'execa';
 
-import { hasContent } from '../validation/guards';
+import { hasContent } from '@/validation/guards';
 
 /**
  * Minimal task interface for commit message generation

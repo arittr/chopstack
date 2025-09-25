@@ -14,10 +14,10 @@ import { decomposeCommand } from '../decompose';
 
 // Mock external dependencies
 vi.mock('node:fs/promises');
-vi.mock('../../agents');
-vi.mock('../../validation/dag-validator');
-vi.mock('../../planning/plan-generator');
-vi.mock('../../planning/plan-outputter');
+vi.mock('../@/agents');
+vi.mock('../@/validation/dag-validator');
+vi.mock('../@/planning/plan-generator');
+vi.mock('../@/planning/plan-outputter');
 
 const mockReadFile = vi.mocked(readFile);
 const mockResolve = vi.mocked(path.resolve);
