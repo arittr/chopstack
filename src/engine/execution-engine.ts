@@ -14,6 +14,7 @@ import type {
 } from '@/types/execution';
 import type { VcsEngine, WorktreeExecutionContext } from '@/vcs/engine/vcs-engine';
 
+import { TaskTransitionManager } from '@/core/execution/task-transitions';
 import { toErrorMessage } from '@/utils/errors';
 import { logger } from '@/utils/logger';
 import { hasContent } from '@/validation/guards';
@@ -34,6 +35,7 @@ export type ExecutionEngineDependencies = {
 export class ExecutionEngine extends EventEmitter {
   private readonly planner: ExecutionPlanner;
   private readonly stateManager: StateManager;
+  private readonly taskTransitionManager: TaskTransitionManager;
   private readonly monitor: ExecutionMonitor;
   private readonly orchestrator: TaskOrchestrator;
   private readonly activePlans: Map<string, ExecutionPlan>;
@@ -44,6 +46,7 @@ export class ExecutionEngine extends EventEmitter {
     super();
     this.planner = dependencies.planner;
     this.stateManager = dependencies.stateManager;
+    this.taskTransitionManager = new TaskTransitionManager();
     this.monitor = dependencies.monitor;
     this.orchestrator = dependencies.orchestrator;
     this.vcsEngine = dependencies.vcsEngine;
@@ -74,6 +77,13 @@ export class ExecutionEngine extends EventEmitter {
   async execute(plan: Plan, options: ExecutionOptions): Promise<ExecutionResult> {
     const executionPlan = this.planner.createExecutionPlan(plan, options);
     this.activePlans.set(executionPlan.id, executionPlan);
+
+    // Initialize the task transition manager with the plan tasks
+    const planTasks = plan.tasks.map((task) => ({
+      ...task,
+      requires: task.requires,
+    }));
+    this.taskTransitionManager.initialize(planTasks);
 
     try {
       const validation = this.planner.validateExecutionPlan(executionPlan);
