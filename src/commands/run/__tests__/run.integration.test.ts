@@ -127,12 +127,10 @@ describe('runCommand integration tests', () => {
       expect(mockExecute).toHaveBeenCalledWith(mockPlan, {
         mode: 'execute',
         strategy: 'parallel',
-        workdir: '/test/project',
-        gitSpice: undefined,
-        continueOnError: undefined,
-        timeout: undefined,
-        retryAttempts: undefined,
         verbose: false,
+        dryRun: undefined,
+        parallel: undefined,
+        continueOnError: undefined,
       });
     });
 
@@ -348,12 +346,10 @@ tasks:
       expect(executionEngineInstance.execute).toHaveBeenCalledWith(mockPlan, {
         mode: 'plan',
         strategy: 'serial',
-        workdir: '/custom/workdir',
-        gitSpice: true,
-        continueOnError: true,
-        timeout: 600,
-        retryAttempts: 5,
         verbose: true,
+        dryRun: undefined,
+        parallel: undefined,
+        continueOnError: true,
       });
     });
   });
