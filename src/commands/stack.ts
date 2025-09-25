@@ -1,9 +1,9 @@
 import chalk from 'chalk';
 import { execaSync } from 'execa';
 
-import { validateStackArgs } from '../types/cli';
-import { logger } from '../utils/logger';
-import { hasContent, isNonEmptyString } from '../validation/guards';
+import { validateStackArgs } from '@/types/cli';
+import { logger } from '@/utils/logger';
+import { hasContent, isNonEmptyString } from '@/validation/guards';
 
 export function stackCommand(rawArgs: unknown): number {
   try {

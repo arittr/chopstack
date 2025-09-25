@@ -3,15 +3,15 @@ import { EventEmitter } from 'node:events';
 import { execa } from 'execa';
 import { match } from 'ts-pattern';
 
-import type { Plan } from '../types/decomposer';
-import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
+import type { Plan } from '@/types/decomposer';
+import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
 
-import { logger } from '../utils/logger';
-import { CommitMessageGenerator } from '../vcs/commit-message-generator';
-import { ConflictResolver } from '../vcs/conflict-resolver';
-import { GitWrapper } from '../vcs/git-wrapper';
-import { StackBuilder } from '../vcs/stack-builder';
-import { WorktreeManager } from '../vcs/worktree-manager';
+import { logger } from '@/utils/logger';
+import { CommitMessageGenerator } from '@/vcs/commit-message-generator';
+import { ConflictResolver } from '@/vcs/conflict-resolver';
+import { GitWrapper } from '@/vcs/git-wrapper';
+import { StackBuilder } from '@/vcs/stack-builder';
+import { WorktreeManager } from '@/vcs/worktree-manager';
 
 export type VcsEngineOptions = {
   branchPrefix: string; // Default: 'chopstack/'
