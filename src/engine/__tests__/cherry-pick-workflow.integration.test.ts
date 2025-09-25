@@ -5,8 +5,9 @@ import { TEST_CONFIG, TEST_PATHS } from '@test/constants/test-paths';
 import { execa } from 'execa';
 
 import type { ExecutionTask } from '@/types/execution';
+import type { VcsEngine } from '@/vcs/engine/vcs-engine';
 
-import { VcsEngine } from '@/engine/vcs-engine';
+import { createTestVcsEngine } from '@/vcs/engine/vcs-engine-factory';
 import { GitWrapper } from '@/vcs/git-wrapper';
 
 const testRepo = join(TEST_PATHS.TEST_TMP, 'cherry-pick-workflow-integration');
@@ -71,18 +72,21 @@ describe.skip('Cherry-pick Workflow Integration', () => {
   beforeAll(async () => {
     await setupTestRepository();
 
-    vcsEngine = new VcsEngine({
-      shadowPath: TEST_PATHS.TEST_SHADOWS,
-      branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
-      cleanupOnSuccess: false, // Keep worktrees for inspection during tests
-      cleanupOnFailure: false,
-      conflictStrategy: 'auto',
-      stackSubmission: {
-        enabled: false,
-        draft: true,
-        autoMerge: false,
+    vcsEngine = await createTestVcsEngine(
+      {},
+      {
+        shadowPath: TEST_PATHS.TEST_SHADOWS,
+        branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
+        cleanupOnSuccess: false, // Keep worktrees for inspection during tests
+        cleanupOnFailure: false,
+        conflictStrategy: 'auto',
+        stackSubmission: {
+          enabled: false,
+          draft: true,
+          autoMerge: false,
+        },
       },
-    });
+    );
 
     git = new GitWrapper(testRepo);
   });

@@ -20,7 +20,7 @@ const gitMocks = vi.hoisted(() => ({
   gitRevparse: vi.fn(),
 }));
 
-vi.mock('@/utils/git-wrapper', () => ({
+vi.mock('@/vcs/git-wrapper', () => ({
   GitWrapper: vi.fn(() => ({
     createWorktree: gitMocks.createWorktree,
     removeWorktree: gitMocks.removeWorktree,

@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import type { DecomposeOptions } from '@/types/decomposer';
 
 import { createDecomposerAgent } from '@/agents';
-import { decomposeCommand } from '@/commands/decompose';
+import { createDefaultDependencies, DecomposeCommand } from '@/commands';
 
 // Mock only external dependencies, not our own classes
 vi.mock('node:fs/promises', () => ({
@@ -75,7 +75,9 @@ describe('decomposeCommand integration tests', () => {
       verbose: false,
     };
 
-    const result = await decomposeCommand(options);
+    const deps = createDefaultDependencies();
+    const command = new DecomposeCommand(deps);
+    const result = await command.execute(options);
 
     expect(result).toBe(0);
 
@@ -124,21 +126,25 @@ describe('decomposeCommand integration tests', () => {
       verbose: true,
     };
 
-    const result = await decomposeCommand(options);
+    const deps = createDefaultDependencies();
+    const command = new DecomposeCommand(deps);
+    const result = await command.execute(options);
 
     // Should return error code due to real validation failure
     expect(result).toBe(1);
     expect(mockAgent.decompose).toHaveBeenCalled();
   });
 
-  it('should use real PlanOutputter for metrics and output', async () => {
+  it('should use real PlanOutputter for metrics and output', () => {
     const options: DecomposeOptions = {
       spec: 'test-spec.md',
       agent: 'claude',
       verbose: true, // This will trigger metrics logging
     };
 
-    const result = await decomposeCommand(options);
+    const deps = createDefaultDependencies();
+    const command = new DecomposeCommand(deps);
+    const result = command.execute(options);
 
     expect(result).toBe(0);
 
@@ -184,7 +190,9 @@ describe('decomposeCommand integration tests', () => {
       verbose: false,
     };
 
-    const result = await decomposeCommand(options);
+    const deps = createDefaultDependencies();
+    const command = new DecomposeCommand(deps);
+    const result = await command.execute(options);
 
     expect(result).toBe(0);
     // Should have called decompose twice due to retry logic
@@ -202,7 +210,9 @@ describe('decomposeCommand integration tests', () => {
       verbose: true,
     };
 
-    const result = await decomposeCommand(options);
+    const deps = createDefaultDependencies();
+    const command = new DecomposeCommand(deps);
+    const result = await command.execute(options);
 
     expect(result).toBe(0);
 
