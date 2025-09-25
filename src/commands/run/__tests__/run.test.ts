@@ -3,10 +3,10 @@ import * as path from 'node:path';
 
 import { vi } from 'vitest';
 
+import type { ExecutionResult } from '@/core/execution/interfaces';
 import type { ExecutionEngine } from '@/services/execution';
 import type { RunCommandOptions } from '@/types/cli';
 import type { DecomposerAgent, Plan } from '@/types/decomposer';
-import type { ExecutionResult } from '@/types/execution';
 
 import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, RunCommand } from '@/commands';
@@ -61,20 +61,10 @@ describe('runCommand', () => {
   };
 
   const mockSuccessResult: ExecutionResult = {
-    success: true,
-    planId: 'test-plan',
-    mode: 'execute' as const,
-    strategy: 'parallel' as const,
-    startTime: new Date(),
-    endTime: new Date(),
-    duration: 1000,
+    totalDuration: 1000,
     tasks: [],
-    tasksCompleted: 1,
-    tasksTotal: 1,
-    tasksFailed: 0,
-    tasksSkipped: 0,
-    gitBranches: ['feature/task-1'],
-    stackUrl: 'https://github.com/user/repo/pull/123',
+    branches: ['feature/task-1'],
+    commits: [],
   };
 
   beforeEach(() => {
@@ -322,8 +312,7 @@ describe('runCommand', () => {
     it('should handle execution success with git-spice output', async () => {
       const gitSpiceResult: ExecutionResult = {
         ...mockSuccessResult,
-        gitBranches: ['feature/task-1', 'feature/task-2'],
-        stackUrl: 'https://github.com/user/repo/pull/123',
+        branches: ['feature/task-1', 'feature/task-2'],
       };
 
       const mockEngine = {
@@ -346,19 +335,10 @@ describe('runCommand', () => {
 
     it('should handle execution failure', async () => {
       const failureResult: ExecutionResult = {
-        success: false,
-        planId: 'test-plan',
-        mode: 'plan' as const,
-        strategy: 'serial' as const,
-        startTime: new Date(),
-        endTime: new Date(),
-        duration: 1000,
+        totalDuration: 1000,
         tasks: [],
-        tasksCompleted: 1,
-        tasksTotal: 3,
-        tasksFailed: 2,
-        tasksSkipped: 0,
-        error: 'Execution timeout',
+        branches: [],
+        commits: [],
       };
 
       const mockEngine = {

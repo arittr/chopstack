@@ -1,5 +1,5 @@
+import type { ExecutionTask } from '@/core/execution/types';
 import type { CommitOptions, CommitService, WorktreeContext } from '@/core/vcs/domain-services';
-import type { ExecutionTask } from '@/types/execution';
 
 import { CommitMessageGenerator } from '@/adapters/vcs/commit-message-generator';
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
