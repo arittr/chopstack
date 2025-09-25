@@ -8,11 +8,11 @@ import type { RunCommandOptions } from '@/types/cli';
 import type { DecomposerAgent, Plan } from '@/types/decomposer';
 import type { ExecutionResult } from '@/types/execution';
 
-import { createDecomposerAgent } from '@/agents';
+import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, RunCommand } from '@/commands';
 import { createExecutionEngine } from '@/engine';
 import { YamlPlanParser } from '@/io/yaml-parser';
-import { generatePlanWithRetry } from '@/planning/plan-generator';
+import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { DagValidator } from '@/validation/dag-validator';
 
 // Mock external dependencies

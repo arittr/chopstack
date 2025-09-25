@@ -8,9 +8,10 @@ import { vi } from 'vitest';
 import type { ExecutionTask } from '@/types/execution';
 import type { VcsEngine } from '@/vcs/engine/vcs-engine';
 
+import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
+import { initGitSpiceRepo } from '@/adapters/vcs/git-spice/helpers';
+import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { createTestVcsEngine } from '@/vcs/engine/vcs-engine-factory';
-import { GitSpiceBackend, initGitSpiceRepo } from '@/vcs/git-spice';
-import { GitWrapper } from '@/vcs/git-wrapper';
 
 const testRepo = join(TEST_PATHS.TEST_TMP, 'git-spice-stack-integration');
 

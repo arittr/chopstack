@@ -10,12 +10,12 @@ import chalk from 'chalk';
 import type { RunCommandOptions } from '@/types/cli';
 import type { Plan } from '@/types/decomposer';
 
-import { createDecomposerAgent } from '@/agents';
+import { createDecomposerAgent } from '@/adapters/agents';
 import { RegisterCommand } from '@/commands/command-factory';
 import { BaseCommand, type CommandDependencies } from '@/commands/types';
 import { createExecutionEngine } from '@/engine';
 import { YamlPlanParser } from '@/io/yaml-parser';
-import { generatePlanWithRetry } from '@/planning/plan-generator';
+import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { DagValidator } from '@/validation/dag-validator';
 import { isNonEmptyString } from '@/validation/guards';
 
