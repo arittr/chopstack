@@ -5,8 +5,15 @@
 
 import type { VcsEngineService } from '@/core/vcs/interfaces';
 
+import {
+  ExecutionMonitorServiceImpl,
+  ExecutionOrchestrator,
+  ExecutionPlannerServiceImpl,
+  StateManager,
+} from '@/services/execution';
+import { ClaudeCliTaskExecutionAdapter, TaskOrchestrator } from '@/services/orchestration';
 import { type VcsEngineConfig, VcsEngineServiceImpl } from '@/services/vcs';
-import { isNonEmptyString, isNonNullish } from '@/validation/guards';
+import { isNonEmptyString } from '@/validation/guards';
 
 import type { ExecutionEngine } from './execution-engine';
 import type { ExecutionEngineFactoryConfig } from './execution-engine-factory';
@@ -54,12 +61,35 @@ export async function createEnginesFromConfig(config: EngineConfiguration): Prom
 
   const vcsEngine = new VcsEngineServiceImpl(defaultVcsConfig);
 
-  // Create execution engine with optional custom dependencies
+  const taskExecutionAdapter = new ClaudeCliTaskExecutionAdapter();
+  const taskOrchestrator = new TaskOrchestrator(taskExecutionAdapter);
+  const orchestrator =
+    config.execution?.customDependencies?.orchestrator ??
+    new ExecutionOrchestrator({
+      taskOrchestrator,
+      vcsEngine,
+    });
+
+  const plannerService =
+    config.execution?.customDependencies?.plannerService ?? new ExecutionPlannerServiceImpl();
+
+  const monitorService =
+    config.execution?.customDependencies?.monitorService ??
+    new ExecutionMonitorServiceImpl({
+      enableProgressBar: true,
+      enableRealTimeStats: true,
+      logLevel: 'info',
+    });
+
+  const stateManager = config.execution?.customDependencies?.stateManager ?? new StateManager();
+
   const executionEngine = await createExecutionEngine({
     customDependencies: {
       ...config.execution?.customDependencies,
-      // Allow overriding the vcsEngine in execution engine
-      ...(isNonNullish(config.execution?.customDependencies?.vcsEngine) ? {} : { vcsEngine }),
+      orchestrator,
+      plannerService,
+      monitorService,
+      stateManager,
     },
   });
 

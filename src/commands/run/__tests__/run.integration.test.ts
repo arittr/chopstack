@@ -2,22 +2,18 @@ import { readFile } from 'node:fs/promises';
 
 import { vi } from 'vitest';
 
+import type { CommandDependencies } from '@/commands/types';
+import type { AgentService } from '@/core/agents/interfaces';
 import type { ExecutionResult } from '@/core/execution/interfaces';
+import type { ExecutionEngine } from '@/services/execution';
 import type { RunCommandOptions } from '@/types/cli';
 import type { Plan } from '@/types/decomposer';
 
-import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, RunCommand } from '@/commands';
-import { ExecutionEngine } from '@/services/execution/engine/execution-engine';
 
 // Mock only external dependencies and complex systems
 vi.mock('node:fs/promises');
-vi.mock('@/adapters/agents');
-vi.mock('@/services/execution/engine/execution-engine');
-
 const mockReadFile = vi.mocked(readFile);
-const mockCreateDecomposerAgent = vi.mocked(createDecomposerAgent);
-const mockExecutionEngine = vi.mocked(ExecutionEngine);
 
 describe('runCommand integration tests', () => {
   const mockPlan: Plan = {
@@ -57,6 +53,8 @@ describe('runCommand integration tests', () => {
   };
 
   let mockExecute: ReturnType<typeof vi.fn>;
+  let agentService: AgentService;
+  let executionEngine: ExecutionEngine;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -64,19 +62,19 @@ describe('runCommand integration tests', () => {
     // Mock external dependencies
     mockReadFile.mockResolvedValue('# Build React Components\n\nCreate reusable components.');
     mockAgent.decompose = vi.fn().mockResolvedValue(mockPlan);
-    mockCreateDecomposerAgent.mockResolvedValue(mockAgent);
 
     // Mock ExecutionEngine with proper interface
     mockExecute = vi.fn().mockResolvedValue(mockExecutionResult);
-    const mockEngineInstance = {
+    executionEngine = {
       execute: mockExecute,
-      planner: {} as any,
-      stateManager: {} as any,
-      monitor: {} as any,
-      orchestrator: {} as any,
+    } as unknown as ExecutionEngine;
+
+    agentService = {
+      createAgent: vi.fn().mockResolvedValue(mockAgent),
+      getAgentWithFallback: vi.fn().mockResolvedValue(mockAgent),
+      getAvailableAgents: vi.fn().mockResolvedValue(['mock']),
+      validateAgent: vi.fn().mockResolvedValue(true),
     };
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    mockExecutionEngine.mockImplementation(() => mockEngineInstance as any);
 
     // Mock console and process
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -88,6 +86,12 @@ describe('runCommand integration tests', () => {
     vi.restoreAllMocks();
   });
 
+  const createDeps = (): CommandDependencies =>
+    createDefaultDependencies(undefined, {
+      agentService,
+      executionEngine,
+    });
+
   describe('spec mode with real plan generation', () => {
     it('should execute full spec-to-execution pipeline using real classes', async () => {
       const options: RunCommandOptions = {
@@ -98,7 +102,7 @@ describe('runCommand integration tests', () => {
         verbose: false,
       };
 
-      const deps = createDefaultDependencies();
+      const deps = createDeps();
       const command = new RunCommand(deps);
       const result = await command.execute(options);
 
@@ -108,7 +112,7 @@ describe('runCommand integration tests', () => {
       expect(mockReadFile).toHaveBeenCalled();
 
       // Verify real agent creation and decomposition
-      expect(mockCreateDecomposerAgent).toHaveBeenCalledWith('claude');
+      expect(agentService.createAgent).toHaveBeenCalledWith('claude');
       expect(mockAgent.decompose).toHaveBeenCalledWith(
         '# Build React Components\n\nCreate reusable components.',
         '/test/project',
@@ -163,7 +167,7 @@ describe('runCommand integration tests', () => {
         verbose: true,
       };
 
-      const deps = createDefaultDependencies();
+      const deps = createDeps();
       const command = new RunCommand(deps);
       const result = await command.execute(options);
 
@@ -197,7 +201,7 @@ tasks:
         verbose: false,
       };
 
-      const deps = createDefaultDependencies();
+      const deps = createDeps();
       const command = new RunCommand(deps);
       const result = await command.execute(options);
 
@@ -229,7 +233,7 @@ tasks:
         strategy: 'serial',
       };
 
-      const deps = createDefaultDependencies();
+      const deps = createDeps();
       const command = new RunCommand(deps);
       const result = await command.execute(options);
 
@@ -247,7 +251,7 @@ tasks:
         strategy: 'parallel',
       };
 
-      const deps = createDefaultDependencies();
+      const deps = createDeps();
       const command = new RunCommand(deps);
       const result = await command.execute(options);
 
@@ -255,7 +259,7 @@ tasks:
     });
 
     it('should handle agent creation failures', async () => {
-      mockCreateDecomposerAgent.mockRejectedValue(new Error('Invalid agent type'));
+      agentService.createAgent = vi.fn().mockRejectedValue(new Error('Invalid agent type'));
 
       const options: RunCommandOptions = {
         spec: 'test-spec.md',
@@ -264,7 +268,7 @@ tasks:
         strategy: 'parallel',
       };
 
-      const deps = createDefaultDependencies();
+      const deps = createDeps();
       const command = new RunCommand(deps);
       const result = await command.execute(options);
 
@@ -286,16 +290,7 @@ tasks:
         commits: [],
       };
 
-      const mockExecuteFailure = vi.fn().mockResolvedValue(failureResult);
-      const mockEngineInstance = {
-        execute: mockExecuteFailure,
-        planner: {} as any,
-        stateManager: {} as any,
-        monitor: {} as any,
-        orchestrator: {} as any,
-      };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-      mockExecutionEngine.mockImplementation(() => mockEngineInstance as any);
+      mockExecute.mockResolvedValue(failureResult);
 
       const options: RunCommandOptions = {
         spec: 'test-spec.md',
@@ -303,12 +298,12 @@ tasks:
         strategy: 'parallel',
       };
 
-      const deps = createDefaultDependencies();
+      const deps = createDeps();
       const command = new RunCommand(deps);
       const result = await command.execute(options);
 
       expect(result).toBe(1);
-      expect(mockExecuteFailure).toHaveBeenCalled();
+      expect(mockExecute).toHaveBeenCalled();
     });
   });
 
@@ -326,14 +321,13 @@ tasks:
         verbose: true,
       };
 
-      const deps = createDefaultDependencies();
+      const deps = createDeps();
       const command = new RunCommand(deps);
       const result = await command.execute(options);
 
       expect(result).toBe(0);
 
-      const executionEngineInstance = mockExecutionEngine.mock.results[0]?.value;
-      expect(executionEngineInstance.execute).toHaveBeenCalledWith(mockPlan, {
+      expect(mockExecute).toHaveBeenCalledWith(mockPlan, {
         mode: 'plan',
         strategy: 'serial',
         verbose: true,
