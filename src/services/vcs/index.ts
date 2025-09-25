@@ -16,6 +16,7 @@ export { VcsAnalysisServiceImpl } from './vcs-analysis-service';
 
 // Main orchestration service
 export { VcsEngineServiceImpl } from './vcs-engine-service';
+export type { VcsEngineDependencies } from './vcs-engine-service';
 
 export type { VcsEngineConfig, WorktreeExecutionContext } from './vcs-engine-service';
 
