@@ -10,14 +10,14 @@ import type {
   ExecutionProgressUpdate,
   ExecutionTask,
   TaskState,
-} from '../types/execution';
+} from '@/types/execution';
 
 import {
   createProgressLine,
   ProgressFormatter,
   TaskProgressManager,
-} from '../planning/progress-formatter';
-import { logger } from '../utils/logger';
+} from '@/planning/progress-formatter';
+import { logger } from '@/utils/logger';
 
 import { StateManager } from './state-manager';
 
@@ -155,7 +155,7 @@ export class ExecutionMonitor extends EventEmitter {
     if (typeof error === 'object') {
       return JSON.stringify(error, null, 2);
     }
-    return String(error);
+    return JSON.stringify(error);
   }
 
   updateProgress(plan: ExecutionPlan): void {

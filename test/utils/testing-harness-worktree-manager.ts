@@ -1,9 +1,9 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { GitWrapper } from '@/vcs/git-wrapper';
+import { TEST_PATHS } from '@test/constants/test-paths';
 
-import { TEST_PATHS } from '../constants/test-paths';
+import { GitWrapper } from '@/vcs/git-wrapper';
 
 export type TestWorktreeOptions = {
   baseRef?: string;

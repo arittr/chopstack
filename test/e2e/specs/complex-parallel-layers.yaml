@@ -26,7 +26,7 @@ tasks:
     produces: [src/components/Config.ts]
     requires: [setup-types, setup-utils]
     estimatedLines: 25
-    agentPrompt: Create src/components/Config.ts that imports TestConfig from ../types/test and formatTestName from ../utils/test, then exports a class Config that uses these types
+    agentPrompt: Create src/components/Config.ts that imports TestConfig from @/types/test and formatTestName from @/utils/test, then exports a class Config that uses these types
 
   - id: create-logger-component
     title: Create logger component
@@ -35,7 +35,7 @@ tasks:
     produces: [src/components/Logger.ts]
     requires: [setup-utils]
     estimatedLines: 20
-    agentPrompt: Create src/components/Logger.ts that imports isTestMode from ../utils/test and exports a class Logger with a log method that prefixes messages in test mode
+    agentPrompt: Create src/components/Logger.ts that imports isTestMode from @/utils/test and exports a class Logger with a log method that prefixes messages in test mode
 
   - id: create-validator-component
     title: Create validator component
@@ -44,7 +44,7 @@ tasks:
     produces: [src/components/Validator.ts]
     requires: [setup-types]
     estimatedLines: 15
-    agentPrompt: Create src/components/Validator.ts that imports TestConfig and TestMode from ../types/test and exports validation functions
+    agentPrompt: Create src/components/Validator.ts that imports TestConfig and TestMode from @/types/test and exports validation functions
 
   # Layer 3: Integration that uses everything (1 task)
   - id: create-main-integration

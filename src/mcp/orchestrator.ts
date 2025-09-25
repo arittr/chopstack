@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
-import type { ExecutionMode } from '../types/execution';
+import type { ExecutionMode } from '@/types/execution';
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
 

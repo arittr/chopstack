@@ -1,9 +1,9 @@
 import { EventEmitter } from 'node:events';
 
-import type { VcsEngineOptions } from '../engine/vcs-engine';
-import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
+import type { VcsEngineOptions } from '@/engine/vcs-engine';
+import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
 
-import { logger } from '../utils/logger';
+import { logger } from '@/utils/logger';
 
 import type { ConflictResolver } from './conflict-resolver';
 

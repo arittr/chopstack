@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events';
 import { readFile, writeFile } from 'node:fs/promises';
 
-import type { VcsEngineOptions } from '../engine/vcs-engine';
-import type { ExecutionTask } from '../types/execution';
+import type { VcsEngineOptions } from '@/engine/vcs-engine';
+import type { ExecutionTask } from '@/types/execution';
 
 import { GitWrapper } from './git-wrapper';
 

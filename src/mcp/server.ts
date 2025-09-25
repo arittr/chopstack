@@ -5,7 +5,7 @@ import { execa } from 'execa';
 import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 
-import { type StreamingUpdate, TaskOrchestrator } from './orchestrator.js';
+import { type StreamingUpdate, TaskOrchestrator } from './orchestrator';
 
 // Schema definitions
 const ExecuteTaskSchema = z.object({
