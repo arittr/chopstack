@@ -1,7 +1,7 @@
 import type { ExecutionContext, ExecutionResult, TaskResult } from '@/core/execution/interfaces';
+import type { ExecutionPlan, ExecutionTask } from '@/core/execution/types';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
-import type { TaskOrchestrator } from '@/services/mcp/orchestrator';
-import type { ExecutionPlan, ExecutionTask } from '@/types/execution';
+import type { TaskOrchestrator } from '@/services/orchestration/task-orchestrator';
 
 import { isNonNullish } from '@/validation/guards';
 

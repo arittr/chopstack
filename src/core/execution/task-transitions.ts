@@ -1,5 +1,5 @@
+import type { TaskState, TaskStateTransition } from '@/core/execution/types';
 import type { Task } from '@/types/decomposer';
-import type { TaskState, TaskStateTransition } from '@/types/execution';
 
 import {
   createStateTransition,
