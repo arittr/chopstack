@@ -7,10 +7,10 @@ import { execa } from 'execa';
 import type { ExecutionTask } from '@/types/execution';
 import type { VcsEngine } from '@/vcs/engine/vcs-engine';
 
+import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { isNonNullish } from '@/validation/guards';
 import { ConflictResolver } from '@/vcs/conflict-resolver';
 import { createTestVcsEngine } from '@/vcs/engine/vcs-engine-factory';
-import { GitWrapper } from '@/vcs/git-wrapper';
 
 const testRepo = join(TEST_PATHS.TEST_TMP, 'conflict-resolution-integration');
 

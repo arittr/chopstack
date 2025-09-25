@@ -2,7 +2,10 @@ import { vi } from 'vitest';
 
 import type { DecomposerAgent, Plan } from '@/types/decomposer';
 
-import { generatePlanWithRetry, type PlanGenerationOptions } from '@/planning/plan-generator';
+import {
+  generatePlanWithRetry,
+  type PlanGenerationOptions,
+} from '@/services/planning/plan-generator';
 import { DagValidator } from '@/validation/dag-validator';
 
 // Mock external dependencies

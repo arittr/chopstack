@@ -6,7 +6,7 @@ import type { RunCommandOptions } from '@/types/cli';
 import type { Plan } from '@/types/decomposer';
 import type { ExecutionResult } from '@/types/execution';
 
-import { createDecomposerAgent } from '@/agents';
+import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, RunCommand } from '@/commands';
 import { ExecutionEngine } from '@/engine/execution-engine';
 
