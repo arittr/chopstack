@@ -9,11 +9,11 @@ import chalk from 'chalk';
 
 import type { DecomposeOptions } from '@/types/decomposer';
 
-import { createDecomposerAgent } from '@/agents';
+import { createDecomposerAgent } from '@/adapters/agents';
 import { RegisterCommand } from '@/commands/command-factory';
 import { BaseCommand, type CommandDependencies } from '@/commands/types';
-import { generatePlanWithRetry } from '@/planning/plan-generator';
-import { PlanOutputter } from '@/planning/plan-outputter';
+import { generatePlanWithRetry } from '@/services/planning/plan-generator';
+import { PlanOutputter } from '@/services/planning/plan-outputter';
 import { DagValidator } from '@/validation/dag-validator';
 import { isValidArray } from '@/validation/guards';
 
