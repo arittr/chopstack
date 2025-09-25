@@ -3,11 +3,10 @@ import { EventEmitter } from 'node:events';
 import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
 import type { VcsEngineOptions } from '@/vcs/engine/vcs-engine';
 
+import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
 import { logger } from '@/utils/logger';
 
 import type { ConflictResolver } from './conflict-resolver';
-
-import { GitSpiceBackend } from './git-spice';
 
 export type StackBuildOptions = {
   conflictResolver: ConflictResolver;

@@ -5,7 +5,7 @@ import type { ExecutionMode } from '@/types/execution';
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
 
-export type TaskResult = {
+export type OrchestratorTaskResult = {
   duration?: number;
   endTime?: Date;
   error?: string;
@@ -68,8 +68,8 @@ export class TaskOrchestrator extends EventEmitter {
     mode: ExecutionMode,
     output: string,
     success: boolean,
-  ): Partial<TaskResult> {
-    const results: Partial<TaskResult> = {};
+  ): Partial<OrchestratorTaskResult> {
+    const results: Partial<OrchestratorTaskResult> = {};
 
     switch (mode) {
       case 'plan': {
@@ -145,7 +145,7 @@ export class TaskOrchestrator extends EventEmitter {
     files: string[],
     workdir?: string,
     mode: ExecutionMode = 'execute',
-  ): Promise<TaskResult> {
+  ): Promise<OrchestratorTaskResult> {
     // Mark task as running
     this.taskStatuses.set(taskId, 'running');
     this.taskStartTimes.set(taskId, new Date());
@@ -218,7 +218,7 @@ export class TaskOrchestrator extends EventEmitter {
         // Process mode-specific results
         const modeSpecificResults = this._processModeSpecificResults(mode, output, code === 0);
 
-        const result: TaskResult = {
+        const result: OrchestratorTaskResult = {
           taskId,
           mode,
           status: code === 0 ? 'completed' : 'failed',
@@ -259,7 +259,7 @@ export class TaskOrchestrator extends EventEmitter {
 
         const errorMessage = error instanceof Error ? error.message : String(error);
 
-        const result: TaskResult = {
+        const result: OrchestratorTaskResult = {
           taskId,
           mode,
           status: 'failed',
