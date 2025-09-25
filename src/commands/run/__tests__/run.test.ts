@@ -3,24 +3,24 @@ import * as path from 'node:path';
 
 import { vi } from 'vitest';
 
-import type { ExecutionEngine } from '@/engine';
+import type { ExecutionEngine } from '@/services/execution';
 import type { RunCommandOptions } from '@/types/cli';
 import type { DecomposerAgent, Plan } from '@/types/decomposer';
 import type { ExecutionResult } from '@/types/execution';
 
 import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, RunCommand } from '@/commands';
-import { createExecutionEngine } from '@/engine';
 import { YamlPlanParser } from '@/io/yaml-parser';
+import { createExecutionEngine } from '@/services/execution';
 import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { DagValidator } from '@/validation/dag-validator';
 
 // Mock external dependencies
 vi.mock('node:fs/promises');
-vi.mock('@/agents');
-vi.mock('@/engine');
+vi.mock('@/adapters/agents');
+vi.mock('@/services/execution');
 vi.mock('@/validation/dag-validator');
-vi.mock('@/planning/plan-generator');
+vi.mock('@/services/planning/plan-generator');
 vi.mock('@/io/yaml-parser');
 
 const mockReadFile = vi.mocked(readFile);
