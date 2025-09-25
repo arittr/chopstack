@@ -1,6 +1,6 @@
 import type { ExecutionContext, ExecutionResult, TaskResult } from '@/core/execution/interfaces';
+import type { ExecutionPlan, ExecutionTask } from '@/core/execution/types';
 import type { WorktreeContext } from '@/core/vcs/domain-services';
-import type { ExecutionPlan, ExecutionTask } from '@/types/execution';
 
 import { logger } from '@/utils/logger';
 import { isNonNullish } from '@/validation/guards';
