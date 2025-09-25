@@ -32,6 +32,7 @@ export type RunCommandOptions = z.infer<typeof RunCommandOptionsSchema>;
 export const StackCommandOptionsSchema = z.object({
   autoAdd: z.boolean().default(false),
   createStack: z.boolean().default(false),
+  dryRun: z.boolean().default(false),
   message: z.string().optional(),
   verbose: z.boolean().default(false),
 });
