@@ -1,4 +1,5 @@
-import type { DecomposerAgent, Plan } from '@/types/decomposer';
+import type { AgentCapabilities, AgentType, DecomposerAgent } from '@/core/agents/interfaces';
+import type { Plan } from '@/types/decomposer';
 
 export class MockDecomposer implements DecomposerAgent {
   // eslint-disable-next-line @typescript-eslint/require-await
@@ -53,5 +54,23 @@ export class MockDecomposer implements DecomposerAgent {
     };
 
     return plan;
+  }
+
+  getCapabilities(): AgentCapabilities {
+    return {
+      maxContextLength: 4000,
+      supportsDecomposition: true,
+      supportsStreaming: false,
+      version: 'mock',
+    };
+  }
+
+  isAvailable(): boolean {
+    // Mock agent is always available for testing
+    return true;
+  }
+
+  getType(): AgentType {
+    return 'mock';
   }
 }
