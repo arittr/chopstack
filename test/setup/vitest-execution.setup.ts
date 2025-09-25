@@ -1,4 +1,7 @@
-import { vi } from 'vitest';
+import { afterAll, beforeAll, vi } from 'vitest';
+
+// Import worktree cleanup to ensure it runs after all tests
+import './worktree-cleanup';
 
 // Execution test setup - for testing Claude's execution planning
 // Allow real API calls but provide utilities for test management
@@ -24,6 +27,24 @@ vi.mock('simple-git', () => ({
     diff: vi.fn(),
   })),
 }));
+
+// Global cleanup for execution tests
+beforeAll(() => {
+  console.log('🧹 Cleaning up before execution tests...');
+});
+
+afterAll(async () => {
+  try {
+    const { execSync } = await import('node:child_process');
+    execSync('pnpm test:clean', { stdio: 'pipe' });
+    console.log('✅ Execution test cleanup complete');
+  } catch (error) {
+    console.warn(
+      '⚠️ Execution test cleanup failed:',
+      error instanceof Error ? error.message : error,
+    );
+  }
+});
 
 // Per-project timeout is configured in vitest.config.ts (projects.execution.testTimeout)
 
