@@ -2,7 +2,7 @@
  * Git-spice worktree synchronization utilities
  */
 
-import type { ExecutionTask } from '@/types/execution';
+import type { ExecutionTask } from '@/core/execution/types';
 
 import { GitWrapper, type WorktreeInfo } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/logger';
