@@ -1,4 +1,4 @@
-import { TaskOrchestrator } from '@/services/mcp/orchestrator';
+import { TaskOrchestrator } from '@/services/orchestration/task-orchestrator';
 import { type VcsEngineConfig, VcsEngineServiceImpl } from '@/services/vcs';
 
 import type { ExecutionEngine, ExecutionEngineDependencies } from './execution-engine';
