@@ -1,4 +1,4 @@
-import type { ExecutionTask } from '@/types/execution';
+import type { ExecutionTask } from '@/core/execution/types';
 
 /**
  * Core domain types for VCS operations
