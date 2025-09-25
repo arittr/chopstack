@@ -4,9 +4,9 @@
 
 import type { ExecutionTask } from '@/types/execution';
 
+import { GitWrapper, type WorktreeInfo } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/logger';
 import { isNonEmptyString } from '@/validation/guards';
-import { GitWrapper, type WorktreeInfo } from '@/vcs/git-wrapper';
 
 /**
  * Fetch all commits from worktrees to make them accessible in the main repository

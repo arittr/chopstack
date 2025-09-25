@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 
 import { match } from 'ts-pattern';
 
-import type { TaskOrchestrator } from '@/mcp/orchestrator';
+import type { TaskOrchestrator } from '@/services/mcp/orchestrator';
 import type { Plan } from '@/types/decomposer';
 import type {
   ExecutionOptions,
