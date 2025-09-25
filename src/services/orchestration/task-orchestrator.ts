@@ -11,8 +11,10 @@ import type {
 
 import { isNonNullish } from '@/validation/guards';
 
+import { OrchestrationError, TaskExecutionError } from './errors';
+
 /**
- * Orchestrates task execution delegating to an injected adapter
+ * Orchestrates task execution with improved error handling and consistent event emission
  */
 export class TaskOrchestrator extends EventEmitter {
   private readonly taskStatuses = new Map<string, TaskStatus>();
@@ -24,6 +26,11 @@ export class TaskOrchestrator extends EventEmitter {
     super();
   }
 
+  /**
+   * Execute a task with proper error handling
+   * @throws {TaskExecutionError} When task execution fails
+   * @throws {OrchestrationError} For other orchestration errors
+   */
   async executeTask(
     taskId: string,
     title: string,
@@ -43,48 +50,43 @@ export class TaskOrchestrator extends EventEmitter {
       ...(isNonNullish(agent) ? { agent } : {}),
     };
 
-    this.taskStatuses.set(taskId, 'running');
-    this.taskOutputs.set(taskId, []);
-    this.taskStartTimes.set(taskId, new Date());
-    this.activeTasks.add(taskId);
-
-    this._handleStreamingUpdate({
-      taskId,
-      type: 'status',
-      data: 'running',
-      timestamp: new Date(),
-    });
+    // Initialize task state
+    this._initializeTask(taskId);
 
     try {
+      // Execute task through adapter
       const result = await this._adapter.executeTask(request, (update) => {
         this._handleStreamingUpdate(update);
       });
 
+      // Finalize successful task
       this._finalizeTask(taskId, result);
       return result;
     } catch (error) {
-      const failedResult = this._normalizeFailureResult(request, error);
+      // Handle and wrap errors appropriately
+      const wrappedError = this._wrapError(error, request);
+      const failedResult = this._createFailedResult(request, wrappedError);
+
+      // Finalize failed task
       this._finalizeTask(taskId, failedResult);
-      throw failedResult;
+
+      // Always throw Error instances, not plain objects
+      throw wrappedError;
     } finally {
+      // Clean up task state
       this.activeTasks.delete(taskId);
       this.taskStartTimes.delete(taskId);
     }
   }
 
+  /**
+   * Stop a running task
+   */
   stopTask(taskId: string): boolean {
     const stopped = this._adapter.stopTask?.(taskId) ?? false;
 
     if (stopped) {
-      this.taskStatuses.set(taskId, 'stopped');
-
-      this._handleStreamingUpdate({
-        taskId,
-        type: 'status',
-        data: 'stopped',
-        timestamp: new Date(),
-      });
-
+      this._updateTaskStatus(taskId, 'stopped');
       this.activeTasks.delete(taskId);
       this.taskStartTimes.delete(taskId);
     }
@@ -92,36 +94,62 @@ export class TaskOrchestrator extends EventEmitter {
     return stopped;
   }
 
+  /**
+   * Get the status of a specific task
+   */
   getTaskStatus(taskId: string): TaskStatus | undefined {
     return this.taskStatuses.get(taskId);
   }
 
+  /**
+   * Get all task statuses
+   */
   getAllTaskStatuses(): Map<string, TaskStatus> {
     return new Map(this.taskStatuses);
   }
 
+  /**
+   * Get IDs of currently running tasks
+   */
   getRunningTasks(): string[] {
     return [...this.activeTasks.values()];
   }
 
+  /**
+   * Get output for a specific task
+   */
   getTaskOutput(taskId: string): string | undefined {
     const outputs = this.taskOutputs.get(taskId);
     return outputs !== undefined ? outputs.join('\n') : undefined;
   }
 
-  private _handleStreamingUpdate(update: StreamingUpdate): void {
-    const outputs = this.taskOutputs.get(update.taskId);
+  private _initializeTask(taskId: string): void {
+    this.taskStatuses.set(taskId, 'running');
+    this.taskOutputs.set(taskId, []);
+    this.taskStartTimes.set(taskId, new Date());
+    this.activeTasks.add(taskId);
 
+    // Emit initial status
+    this._emitUpdate({
+      taskId,
+      type: 'status',
+      data: 'running',
+      timestamp: new Date(),
+    });
+  }
+
+  private _handleStreamingUpdate(update: StreamingUpdate): void {
+    // Record output
+    const outputs = this.taskOutputs.get(update.taskId);
     if (outputs !== undefined) {
       if (update.type === 'stdout') {
         outputs.push(update.data);
-      }
-
-      if (update.type === 'stderr') {
+      } else if (update.type === 'stderr') {
         outputs.push(`[stderr] ${update.data}`);
       }
     }
 
+    // Update status
     if (update.type === 'status') {
       const status = this._coerceStatus(update.data);
       if (status !== undefined) {
@@ -129,12 +157,27 @@ export class TaskOrchestrator extends EventEmitter {
       }
     }
 
-    this.emit('taskUpdate', update);
+    // Always emit the update
+    this._emitUpdate(update);
   }
 
   private _finalizeTask(taskId: string, result: OrchestratorTaskResult): void {
     this.taskStatuses.set(taskId, result.status);
     this._ensureOutputRecorded(taskId, result.output);
+  }
+
+  private _updateTaskStatus(taskId: string, status: TaskStatus): void {
+    this.taskStatuses.set(taskId, status);
+    this._emitUpdate({
+      taskId,
+      type: 'status',
+      data: status,
+      timestamp: new Date(),
+    });
+  }
+
+  private _emitUpdate(update: StreamingUpdate): void {
+    this.emit('taskUpdate', update);
   }
 
   private _ensureOutputRecorded(taskId: string, output?: string): void {
@@ -148,48 +191,53 @@ export class TaskOrchestrator extends EventEmitter {
     }
   }
 
-  private _normalizeFailureResult(
-    request: TaskExecutionRequest,
-    error: unknown,
-  ): OrchestratorTaskResult {
-    if (this._isOrchestratorTaskResult(error)) {
+  private _wrapError(error: unknown, request: TaskExecutionRequest): Error {
+    // If it's already an OrchestrationError, return as-is
+    if (error instanceof OrchestrationError) {
       return error;
     }
 
-    const message = error instanceof Error ? error.message : String(error);
+    // If it's a regular Error, wrap it
+    if (error instanceof Error) {
+      return new TaskExecutionError(error.message, request.taskId, undefined, undefined, {
+        originalError: error.name,
+        stack: error.stack,
+      });
+    }
 
+    // For unknown errors, create a new TaskExecutionError
+    return new TaskExecutionError(
+      `Task execution failed: ${String(error)}`,
+      request.taskId,
+      undefined,
+      undefined,
+      { originalError: String(error) },
+    );
+  }
+
+  private _createFailedResult(request: TaskExecutionRequest, error: Error): OrchestratorTaskResult {
     const startTime = this.taskStartTimes.get(request.taskId);
+    const endTime = new Date();
+    const duration = isNonNullish(startTime) ? endTime.getTime() - startTime.getTime() : undefined;
+
+    // Extract details from TaskExecutionError if available
+    const executionError = error instanceof TaskExecutionError ? error : undefined;
 
     return {
       taskId: request.taskId,
       mode: request.mode,
       status: 'failed',
-      error: message,
-      output: message,
-      endTime: new Date(),
-      ...(isNonNullish(startTime) ? { startTime } : {}),
+      error: error.message,
+      output: this.getTaskOutput(request.taskId) ?? error.message,
+      ...(isNonNullish(startTime) && { startTime }),
+      endTime,
+      ...(isNonNullish(duration) && { duration }),
+      ...(isNonNullish(executionError?.exitCode) && { exitCode: executionError.exitCode }),
     };
   }
 
   private _coerceStatus(value: string): TaskStatus | undefined {
-    if (value === 'pending' || value === 'running' || value === 'completed') {
-      return value;
-    }
-
-    if (value === 'failed' || value === 'stopped') {
-      return value;
-    }
-
-    return undefined;
-  }
-
-  private _isOrchestratorTaskResult(value: unknown): value is OrchestratorTaskResult {
-    return (
-      typeof value === 'object' &&
-      value !== null &&
-      'taskId' in value &&
-      'mode' in value &&
-      'status' in value
-    );
+    const validStatuses: TaskStatus[] = ['pending', 'running', 'completed', 'failed', 'stopped'];
+    return validStatuses.includes(value as TaskStatus) ? (value as TaskStatus) : undefined;
   }
 }
