@@ -503,6 +503,7 @@ const config: Record<string, unknown>[] = [
       },
     },
     rules: {
+      '@typescript-eslint/naming-convention': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-restricted-imports': 'off',
