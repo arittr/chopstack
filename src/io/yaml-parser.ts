@@ -35,6 +35,16 @@ export class YamlPlanParser {
   }
 
   /**
+   * Parse YAML/JSON content directly to a Plan
+   */
+  static parse(content: string): Plan {
+    // Determine format based on content
+    const trimmed = content.trim();
+    const source = trimmed.startsWith('{') || trimmed.startsWith('[') ? 'json' : 'yaml';
+    return this.parseAndValidatePlan({ content, source });
+  }
+
+  /**
    * Parse and validate a plan from parsed content
    */
   static parseAndValidatePlan(parsedContent: ParsedContent): Plan {
