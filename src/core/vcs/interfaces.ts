@@ -1,5 +1,30 @@
 import type { CommitOptions, WorktreeContext } from '@/core/vcs/domain-services';
-import type { ExecutionTask } from '@/types/execution';
+import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
+
+/**
+ * VCS Backend interface for specific VCS implementations (e.g., git-spice)
+ */
+export type VcsBackend = {
+  /**
+   * Get stack information
+   */
+  getStackInfo(workdir: string): Promise<GitSpiceStackInfo | null>;
+
+  /**
+   * Initialize the backend in the repository
+   */
+  initialize(workdir: string, trunk?: string): Promise<void>;
+
+  /**
+   * Check if the backend is available
+   */
+  isAvailable(): Promise<boolean>;
+
+  /**
+   * Submit a stack for review
+   */
+  submitStack(workdir: string): Promise<string[]>;
+};
 
 /**
  * Core VCS provider interface
