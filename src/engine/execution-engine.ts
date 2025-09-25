@@ -2,6 +2,8 @@ import { EventEmitter } from 'node:events';
 
 import { match } from 'ts-pattern';
 
+import type { WorktreeContext } from '@/core/vcs/domain-services';
+import type { VcsEngineService } from '@/core/vcs/interfaces';
 import type { TaskOrchestrator } from '@/services/mcp/orchestrator';
 import type { Plan } from '@/types/decomposer';
 import type {
@@ -12,7 +14,6 @@ import type {
   TaskExecutionRequest,
   TaskExecutionResult,
 } from '@/types/execution';
-import type { VcsEngine, WorktreeExecutionContext } from '@/vcs/engine/vcs-engine';
 
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
 import { toErrorMessage } from '@/utils/errors';
@@ -29,7 +30,7 @@ export type ExecutionEngineDependencies = {
   orchestrator: TaskOrchestrator;
   planner: ExecutionPlanner;
   stateManager: StateManager;
-  vcsEngine: VcsEngine;
+  vcsEngine: VcsEngineService;
 };
 
 export class ExecutionEngine extends EventEmitter {
@@ -39,8 +40,8 @@ export class ExecutionEngine extends EventEmitter {
   private readonly monitor: ExecutionMonitor;
   private readonly orchestrator: TaskOrchestrator;
   private readonly activePlans: Map<string, ExecutionPlan>;
-  private readonly vcsEngine: VcsEngine;
-  private readonly worktreeContexts: Map<string, WorktreeExecutionContext>;
+  private readonly vcsEngine: VcsEngineService;
+  private readonly worktreeContexts: Map<string, WorktreeContext>;
 
   constructor(dependencies: ExecutionEngineDependencies) {
     super();
@@ -65,13 +66,17 @@ export class ExecutionEngine extends EventEmitter {
       this.emit('task_update', update);
     });
 
-    this.vcsEngine.on('worktree_created', (event) => {
-      this.emit('worktree_created', event);
-    });
+    // Forward VCS events if the implementation supports EventEmitter
+    if ('on' in this.vcsEngine && typeof this.vcsEngine.on === 'function') {
+      const vcsEmitter = this.vcsEngine as unknown as EventEmitter;
+      vcsEmitter.on('worktree_created', (event: unknown) => {
+        this.emit('worktree_created', event);
+      });
 
-    this.vcsEngine.on('stack_built', (event) => {
-      this.emit('stack_built', event);
-    });
+      vcsEmitter.on('stack_built', (event: unknown) => {
+        this.emit('stack_built', event);
+      });
+    }
   }
 
   async execute(plan: Plan, options: ExecutionOptions): Promise<ExecutionResult> {
@@ -213,7 +218,7 @@ export class ExecutionEngine extends EventEmitter {
 
     // Analyze worktree needs for the execution plan
     const worktreeNeeds = await this.vcsEngine.analyzeWorktreeNeeds(
-      { tasks: [...plan.tasks.values()] },
+      [...plan.tasks.values()],
       workdir,
     );
 
@@ -224,7 +229,7 @@ export class ExecutionEngine extends EventEmitter {
     for (const layer of plan.executionLayers) {
       // Create worktrees for parallel tasks if needed
       if (worktreeNeeds.requiresWorktrees && layer.length > 1) {
-        const contexts = await this.vcsEngine.createWorktreesForLayer(layer, baseRef, workdir);
+        const contexts = await this.vcsEngine.createWorktreesForTasks(layer, baseRef, workdir);
         for (const context of contexts) {
           this.worktreeContexts.set(context.taskId, context);
         }
@@ -502,7 +507,7 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     try {
-      const stackInfo = await this.vcsEngine.buildStackIncremental(
+      const stackInfo = await this.vcsEngine.buildStackFromTasks(
         completedTasks,
         options.workdir ?? process.cwd(),
         {
@@ -514,7 +519,7 @@ export class ExecutionEngine extends EventEmitter {
 
       logger.info('[chopstack] Stack created with branches:');
       for (const branch of stackInfo.branches) {
-        logger.info(`[chopstack]   └─ ${branch.name} (task: ${branch.taskId})`);
+        logger.info(`[chopstack]   └─ ${branch.branchName} (task: ${branch.taskId})`);
       }
 
       if (stackInfo.prUrls !== undefined && stackInfo.prUrls.length > 0) {

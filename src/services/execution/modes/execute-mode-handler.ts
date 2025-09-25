@@ -4,16 +4,16 @@ import type {
   ExecutionResult,
   TaskResult,
 } from '@/core/execution/interfaces';
+import type { VcsEngineService } from '@/core/vcs/interfaces';
 import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/mcp/orchestrator';
 import type { Task } from '@/types/decomposer';
-import type { VcsEngine } from '@/vcs/engine/vcs-engine';
 
 import { logger } from '@/utils/logger';
 
 export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
   constructor(
     private readonly _orchestrator: TaskOrchestrator,
-    private readonly _vcsEngine: VcsEngine,
+    private readonly _vcsEngine: VcsEngineService,
   ) {}
 
   async handle(tasks: Task[], context: ExecutionContext): Promise<ExecutionResult> {
