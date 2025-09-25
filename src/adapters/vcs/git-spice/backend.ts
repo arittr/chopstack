@@ -106,6 +106,7 @@ export class GitSpiceBackend implements VcsBackend {
 
       // Create branch and commit in one step using git-spice
       await execa('gs', ['branch', 'create', finalBranchName, '-m', commitMessage], {
+        all: true,
         cwd: workdir,
         timeout: 10_000,
       });
@@ -113,8 +114,9 @@ export class GitSpiceBackend implements VcsBackend {
       logger.info(`🌿 Created git-spice branch: ${finalBranchName}`);
       return finalBranchName;
     } catch (error) {
-      const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
-      throw new GitSpiceError(`Failed to create git-spice branch`, 'gs branch create', stderr);
+      // Extract detailed error information from execa error
+      const gitSpiceError = this._extractDetailedError(error, 'gs branch create');
+      throw gitSpiceError;
     }
   }
 
@@ -190,6 +192,7 @@ export class GitSpiceBackend implements VcsBackend {
       const { stdout } = await execa('gs', ['stack', 'submit', '--draft'], {
         cwd: workdir,
         timeout: 60_000, // Allow more time for GitHub API calls
+        all: true,
       });
 
       // Parse PR URLs from output
@@ -204,8 +207,9 @@ export class GitSpiceBackend implements VcsBackend {
 
       return prUrls;
     } catch (error) {
-      const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
-      throw new GitSpiceError('Failed to submit stack to GitHub', 'gs stack submit', stderr);
+      // Extract detailed error information from execa error
+      const gitSpiceError = this._extractDetailedError(error, 'gs stack submit');
+      throw gitSpiceError;
     }
   }
 
@@ -404,6 +408,68 @@ export class GitSpiceBackend implements VcsBackend {
 
     // Fallback to base ref if no dependencies have branches
     return baseRef;
+  }
+
+  /**
+   * Extract detailed error information from execa errors
+   */
+  private _extractDetailedError(error: unknown, command: string): GitSpiceError {
+    if (!(error instanceof Error)) {
+      return new GitSpiceError(`Unknown error during ${command}`, command, String(error));
+    }
+
+    // Handle execa errors with detailed information
+    const execaError = error as Error & {
+      all?: string;
+      command?: string;
+      escapedCommand?: string;
+      exitCode?: number;
+      shortMessage?: string;
+      stderr?: string;
+      stdout?: string;
+    };
+
+    // Extract all available error information
+    const errorDetails: string[] = [];
+
+    if (execaError.shortMessage != null && execaError.shortMessage.length > 0) {
+      errorDetails.push(`Command: ${execaError.shortMessage}`);
+    }
+
+    if (execaError.exitCode !== undefined) {
+      errorDetails.push(`Exit code: ${execaError.exitCode}`);
+    }
+
+    // Capture stderr (where most git/pre-commit hook errors appear)
+    let errorOutput = '';
+    if (execaError.stderr != null && hasContent(execaError.stderr)) {
+      errorOutput = execaError.stderr;
+      errorDetails.push(`STDERR:\n${execaError.stderr}`);
+    }
+
+    // Capture combined output if stderr is empty
+    if (!hasContent(errorOutput) && execaError.all != null && hasContent(execaError.all)) {
+      errorOutput = execaError.all;
+      errorDetails.push(`OUTPUT:\n${execaError.all}`);
+    }
+
+    // Capture stdout as fallback
+    if (!hasContent(errorOutput) && execaError.stdout != null && hasContent(execaError.stdout)) {
+      errorOutput = execaError.stdout;
+      errorDetails.push(`STDOUT:\n${execaError.stdout}`);
+    }
+
+    // Create detailed error message
+    const detailedMessage =
+      errorDetails.length > 0
+        ? `${command} failed:\n${errorDetails.join('\n')}`
+        : `${command} failed: ${error.message}`;
+
+    return new GitSpiceError(
+      detailedMessage,
+      command,
+      errorOutput.length > 0 ? errorOutput : error.message,
+    );
   }
 
   /**
