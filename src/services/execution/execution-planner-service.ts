@@ -1,19 +1,18 @@
 import { cpus } from 'node:os';
 
 import { execaSync } from 'execa';
-import { match, P } from 'ts-pattern';
 
-import type { Plan } from '@/types/decomposer';
 import type {
   ExecutionOptions,
   ExecutionPlan,
   ExecutionStrategy,
   ExecutionTask,
-} from '@/types/execution';
+} from '@/core/execution/types';
+import type { Plan } from '@/types/decomposer';
 
 import { logger } from '@/utils/logger';
 import { DagValidator } from '@/validation/dag-validator';
-import { isNonEmptyArray, isNonNullish } from '@/validation/guards';
+import { isNonNullish } from '@/validation/guards';
 
 /**
  * Configuration for the execution planner
@@ -121,74 +120,10 @@ export class ExecutionPlannerServiceImpl implements ExecutionPlannerService {
     return executionPlan;
   }
 
-  determineStrategy(plan: Plan, options: ExecutionOptions): ExecutionStrategy {
-    if (options.strategy !== undefined) {
-      logger.info(`🎯 Using explicit strategy: ${options.strategy}`);
-      return options.strategy;
-    }
-
-    const metrics = DagValidator.calculateMetrics(plan);
-    const validation = DagValidator.validatePlan(plan);
-
-    const strategy = match({ metrics, validation, options })
-      .with({ validation: { valid: false } }, () => {
-        logger.warn('⚠️ Plan validation failed, using serial strategy');
-        return 'serial' as ExecutionStrategy;
-      })
-      .with({ metrics: { taskCount: 1 } }, () => {
-        logger.info('📝 Single task detected, using serial strategy');
-        return 'serial' as ExecutionStrategy;
-      })
-      .with({ options: { parallel: false } }, () => {
-        logger.info('🔄 Parallel disabled, using serial strategy');
-        return 'serial' as ExecutionStrategy;
-      })
-      .with({ metrics: { maxParallelization: 1 } }, () => {
-        logger.info('📊 No parallelization opportunity, using serial strategy');
-        return 'serial' as ExecutionStrategy;
-      })
-      .with(
-        { metrics: { estimatedSpeedup: P.number.lte(this.config.minSpeedupThreshold ?? 1.5) } },
-        () => {
-          logger.info(
-            `⏱️ Low speedup potential (${metrics.estimatedSpeedup.toFixed(1)}x), using serial strategy`,
-          );
-          return 'serial' as ExecutionStrategy;
-        },
-      )
-      .with(
-        {
-          metrics: {
-            maxParallelization: P.number.gte(3),
-            estimatedSpeedup: P.number.gte(2),
-          },
-        },
-        () => {
-          logger.info(
-            `🚀 High parallelization potential (${metrics.maxParallelization} max, ${metrics.estimatedSpeedup.toFixed(1)}x speedup), using parallel strategy`,
-          );
-          return 'parallel' as ExecutionStrategy;
-        },
-      )
-      .with(
-        {
-          validation: {
-            conflicts: P.when((c): c is string[] => isNonEmptyArray(c)),
-          },
-        },
-        () => {
-          logger.warn(
-            `⚠️ File conflicts detected, using parallel strategy with worktree isolation`,
-          );
-          return 'parallel' as ExecutionStrategy;
-        },
-      )
-      .otherwise(() => {
-        logger.info('📊 Using hybrid strategy for mixed workload');
-        return 'hybrid' as ExecutionStrategy;
-      });
-
-    return strategy;
+  determineStrategy(_plan: Plan, options: ExecutionOptions): ExecutionStrategy {
+    // Strategy is now required in ExecutionOptions
+    logger.info(`🎯 Using strategy: ${options.strategy}`);
+    return options.strategy;
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await

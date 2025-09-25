@@ -1,11 +1,12 @@
 import { z } from 'zod';
 
+import { ExecutionOptionsSchema } from '@/core/execution/types';
+
 import { AgentTypeSchema, type DecomposeOptions, DecomposeOptionsSchema } from './decomposer';
-import { ExecutionOptionsSchema } from './execution';
 
 // Re-export types for convenience
 export type { DecomposeOptions } from './decomposer';
-export type { ExecutionMode, ExecutionOptions, ExecutionStrategy } from './execution';
+export type { ExecutionMode, ExecutionOptions, ExecutionStrategy } from '@/core/execution/types';
 
 // Decompose command options schema
 export const DecomposeCommandOptionsSchema = z.object({
