@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 
+import type { ExecutionTask } from '@/core/execution/types';
 import type {
   CommitOptions,
   ConflictResolutionService,
@@ -8,7 +9,6 @@ import type {
   WorktreeService,
 } from '@/core/vcs/domain-services';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
-import type { ExecutionTask } from '@/types/execution';
 
 import { logger } from '@/utils/logger';
 

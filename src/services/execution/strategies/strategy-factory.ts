@@ -1,5 +1,5 @@
 import type { ExecutionContext } from '@/core/execution/interfaces';
-import type { ExecutionPlan } from '@/types/execution';
+import type { ExecutionPlan } from '@/core/execution/types';
 
 import { logger } from '@/utils/logger';
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
