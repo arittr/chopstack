@@ -2,8 +2,8 @@ import { EventEmitter } from 'node:events';
 
 import { match } from 'ts-pattern';
 
-import type { TaskOrchestrator } from '../mcp/orchestrator';
-import type { Plan } from '../types/decomposer';
+import type { TaskOrchestrator } from '@/mcp/orchestrator';
+import type { Plan } from '@/types/decomposer';
 import type {
   ExecutionOptions,
   ExecutionPlan,
@@ -11,12 +11,12 @@ import type {
   ExecutionTask,
   TaskExecutionRequest,
   TaskExecutionResult,
-} from '../types/execution';
+} from '@/types/execution';
 
-import { toErrorMessage } from '../utils/errors';
-import { logger } from '../utils/logger';
-import { hasContent } from '../validation/guards';
-import { createVcsBackend, detectAvailableVcsBackend } from '../vcs';
+import { toErrorMessage } from '@/utils/errors';
+import { logger } from '@/utils/logger';
+import { hasContent } from '@/validation/guards';
+import { createVcsBackend, detectAvailableVcsBackend } from '@/vcs';
 
 import type { ExecutionMonitor } from './execution-monitor';
 import type { ExecutionPlanner } from './execution-planner';

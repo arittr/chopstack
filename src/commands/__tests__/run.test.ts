@@ -16,11 +16,11 @@ import { DagValidator } from '@/validation/dag-validator';
 
 // Mock external dependencies
 vi.mock('node:fs/promises');
-vi.mock('../../agents');
-vi.mock('../../engine/execution-engine');
-vi.mock('../../validation/dag-validator');
-vi.mock('../../planning/plan-generator');
-vi.mock('../../io/yaml-parser');
+vi.mock('../@/agents');
+vi.mock('../@/engine/execution-engine');
+vi.mock('../@/validation/dag-validator');
+vi.mock('../@/planning/plan-generator');
+vi.mock('../@/io/yaml-parser');
 
 const mockReadFile = vi.mocked(readFile);
 const mockResolve = vi.mocked(path.resolve);
