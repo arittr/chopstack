@@ -7,14 +7,16 @@ import { resolve } from 'node:path';
 
 import chalk from 'chalk';
 
+import type { AgentService } from '@/core/agents/interfaces';
+import type { ExecutionEngine } from '@/services/execution';
 import type { RunCommandOptions } from '@/types/cli';
 import type { Plan } from '@/types/decomposer';
 
-import { createDecomposerAgent } from '@/adapters/agents';
 import { RegisterCommand } from '@/commands/command-factory';
 import { BaseCommand, type CommandDependencies } from '@/commands/types';
+import { ServiceIdentifiers } from '@/core/di';
 import { YamlPlanParser } from '@/io/yaml-parser';
-import { createExecutionEngine } from '@/services/execution/engine';
+import { bootstrapApplication, getContainer } from '@/providers';
 import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { DagValidator } from '@/validation/dag-validator';
 import { isNonEmptyString } from '@/validation/guards';
@@ -31,20 +33,47 @@ export class RunCommand extends BaseCommand {
   async execute(options: RunCommandOptions): Promise<number> {
     try {
       const cwd = options.workdir ?? this.context.cwd;
+      const serviceOverrides = this.dependencies.services ?? {};
+      type AppContainer = ReturnType<typeof getContainer>;
+
+      let containerCache: AppContainer | null = null;
+
+      const resolveContainer = async (): Promise<AppContainer> => {
+        if (containerCache === null) {
+          await bootstrapApplication();
+          containerCache = getContainer();
+        }
+        return containerCache;
+      };
+
+      const resolveAgentService = async (): Promise<AgentService> => {
+        if (serviceOverrides.agentService !== undefined) {
+          return serviceOverrides.agentService;
+        }
+        const container = await resolveContainer();
+        return container.get<AgentService>(ServiceIdentifiers.AgentService);
+      };
+
+      const resolveExecutionEngine = async (): Promise<ExecutionEngine> => {
+        if (serviceOverrides.executionEngine !== undefined) {
+          return serviceOverrides.executionEngine;
+        }
+        const container = await resolveContainer();
+        return container.get<ExecutionEngine>(ServiceIdentifiers.ExecutionEngine);
+      };
+
       let plan: Plan;
 
-      // Determine if we need to decompose a spec or load an existing plan
       if (isNonEmptyString(options.spec)) {
         this.logger.info(chalk.blue(`📄 Reading spec from: ${resolve(options.spec)}`));
 
-        // Read and decompose the specification
         const specContent = await readFile(resolve(options.spec), 'utf8');
         this.logger.info(chalk.dim(`📄 Spec content length: ${specContent.length} characters`));
 
-        const agent = await createDecomposerAgent(options.agent ?? 'claude');
+        const agentService = await resolveAgentService();
+        const agent = await agentService.createAgent(options.agent ?? 'claude');
         this.logger.info(chalk.cyan(`🤖 Using agent: ${options.agent ?? 'claude'}`));
 
-        // Generate plan with retry logic
         const result = await generatePlanWithRetry(agent, specContent, cwd, {
           maxRetries: 3,
           verbose: options.verbose ?? false,
@@ -59,10 +88,7 @@ export class RunCommand extends BaseCommand {
       } else if (isNonEmptyString(options.plan)) {
         this.logger.info(chalk.blue(`📋 Loading plan from: ${resolve(options.plan)}`));
 
-        // Load existing plan file
         const planContent = await readFile(resolve(options.plan), 'utf8');
-
-        // Determine format and parse
         const isYaml = options.plan.endsWith('.yaml') || options.plan.endsWith('.yml');
 
         plan = isYaml ? YamlPlanParser.parse(planContent) : (JSON.parse(planContent) as Plan);
@@ -71,7 +97,6 @@ export class RunCommand extends BaseCommand {
         return 1;
       }
 
-      // Validate the plan
       const validation = DagValidator.validatePlan(plan);
       if (!validation.valid) {
         this.logger.error(chalk.red('❌ Plan validation failed:'));
@@ -84,10 +109,8 @@ export class RunCommand extends BaseCommand {
       this.logger.info(chalk.green('✅ Plan validated successfully'));
       this.logger.info(chalk.dim(`📊 Tasks: ${plan.tasks.length}`));
 
-      // Create execution engine
-      const engine = await createExecutionEngine();
+      const engine = await resolveExecutionEngine();
 
-      // Execute the plan
       this.logger.info(chalk.blue('🚀 Starting plan execution...'));
       const result = await engine.execute(plan, {
         mode: options.mode,
@@ -98,7 +121,7 @@ export class RunCommand extends BaseCommand {
         continueOnError: options.continueOnError,
       });
 
-      const failureCount = result.tasks.filter((t) => t.status === 'failure').length;
+      const failureCount = result.tasks.filter((task) => task.status === 'failure').length;
 
       if (failureCount === 0) {
         this.logger.info(chalk.green('✅ Plan executed successfully!'));
