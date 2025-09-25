@@ -190,31 +190,8 @@ describe('stackCommand', () => {
       });
 
       it.skip('should create git-spice branch when gs is available', async () => {
-        // GitSpiceBackend mock is already configured to return available = true
-        // and createBranchWithCommit returns 'stack-feature-123'
-
-        // Mock git status with changes
-        execaSyncMock.mockReturnValueOnce({
-          stdout: 'M file1.txt',
-          stderr: '',
-          exitCode: 0,
-        });
-
-        const deps = createDefaultDependencies();
-        const command = new StackCommand(deps);
-        const result = await command.execute({ createStack: true, autoAdd: false });
-
-        expect(result).toBe(0);
-        expect(gitSpiceBackendMock.isAvailable).toHaveBeenCalled();
-        expect(gitSpiceBackendMock.initialize).toHaveBeenCalledWith(process.cwd());
-        expect(gitSpiceBackendMock.createBranchWithCommit).toHaveBeenCalledWith(
-          process.cwd(),
-          '',
-          'feat: Update implementation',
-        );
-        expect(consoleLogSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Created git-spice branch:'),
-        );
+        // NOTE: This is better tested as an integration test with a real test worktree
+        // Unit tests with heavily mocked backends don't catch real issues like gs repo init
       });
 
       it.skip('should handle git-spice branch creation failure', async () => {
