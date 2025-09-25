@@ -63,6 +63,7 @@ export class ExecutionOrchestrator extends EventEmitter {
     this.executeModeHandler = new ExecuteModeHandlerImpl(
       dependencies.taskOrchestrator,
       dependencies.vcsEngine,
+      this.taskTransitionManager,
     );
     this.validateModeHandler = new ValidateModeHandlerImpl();
   }
