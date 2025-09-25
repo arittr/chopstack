@@ -4,7 +4,8 @@ import { clearTimeout, setTimeout } from 'node:timers';
 import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
 
-import type { DecomposerAgent, Plan } from '@/types/decomposer';
+import type { AgentCapabilities, AgentType, DecomposerAgent } from '@/core/agents/interfaces';
+import type { Plan } from '@/types/decomposer';
 
 import { type ParsedContent, YamlPlanParser } from '@/io/yaml-parser';
 import { PromptBuilder } from '@/services/planning/prompts';
@@ -207,6 +208,44 @@ export class CodexDecomposer implements DecomposerAgent {
 
   private _validateAndReturnPlan(parsedContent: ParsedContent): Plan {
     return YamlPlanParser.parseAndValidatePlan(parsedContent);
+  }
+
+  getCapabilities(): AgentCapabilities {
+    return {
+      maxContextLength: 100_000,
+      supportsDecomposition: true,
+      supportsStreaming: true,
+      version: '1.0',
+    };
+  }
+
+  async isAvailable(): Promise<boolean> {
+    try {
+      // Try to execute codex --version to check availability
+      return await new Promise<boolean>((resolve) => {
+        const { command } = resolveCodexInvocation();
+        const process = spawn(command, ['--version'], { stdio: 'ignore' });
+
+        process.on('error', () => {
+          resolve(false);
+        });
+        process.on('exit', (code) => {
+          resolve(code === 0);
+        });
+
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          process.kill();
+          resolve(false);
+        }, 5000);
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  getType(): AgentType {
+    return 'codex';
   }
 }
 

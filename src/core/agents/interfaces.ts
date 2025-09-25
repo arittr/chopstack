@@ -1,7 +1,7 @@
 import type { Plan } from '@/types/decomposer';
 
 /**
- * Core agent provider interface
+ * Core agent interface for task decomposition
  */
 export type AgentProvider = {
   /**
@@ -10,24 +10,56 @@ export type AgentProvider = {
   decompose(spec: string, context: DecompositionContext): Promise<DecompositionResult>;
 
   /**
-   * Generate a commit message
-   */
-  generateCommitMessage(files: string[], context: CommitContext): Promise<string>;
-
-  /**
    * Get agent capabilities
    */
-  getCapabilities(): AgentCapabilities;
+  getCapabilities(): AgentCapabilities | Promise<AgentCapabilities>;
 
   /**
-   * Initialize the agent
+   * Get agent type identifier
    */
-  initialize(config: AgentConfig): Promise<void>;
+  getType(): AgentType;
 
   /**
    * Check if the agent is available
    */
-  isAvailable(): Promise<boolean>;
+  isAvailable(): boolean | Promise<boolean>;
+};
+
+/**
+ * Legacy decomposer agent interface (for backward compatibility)
+ */
+export type DecomposerAgent = {
+  decompose(specContent: string, cwd: string, options?: { verbose?: boolean }): Promise<Plan>;
+};
+
+/**
+ * Agent type enumeration
+ */
+export type AgentType = 'claude' | 'codex' | 'mock';
+
+/**
+ * Agent service for orchestrating multiple agents
+ */
+export type AgentService = {
+  /**
+   * Create an agent instance
+   */
+  createAgent(type: AgentType): Promise<DecomposerAgent>;
+
+  /**
+   * Get agent with fallback support
+   */
+  getAgentWithFallback(preferredType: AgentType, fallbacks?: AgentType[]): Promise<DecomposerAgent>;
+
+  /**
+   * Get available agents
+   */
+  getAvailableAgents(): Promise<AgentType[]>;
+
+  /**
+   * Validate agent capabilities
+   */
+  validateAgent(type: AgentType): Promise<boolean>;
 };
 
 /**
@@ -48,8 +80,8 @@ export type AgentConfig = {
 export type DecompositionContext = {
   cwd: string;
   existingPlan?: Plan;
-  maxRetries: number;
-  verbose: boolean;
+  maxRetries?: number;
+  verbose?: boolean;
 };
 
 /**
@@ -62,21 +94,12 @@ export type DecompositionResult = {
 };
 
 /**
- * Context for commit message generation
- */
-export type CommitContext = {
-  branch?: string;
-  cwd: string;
-  verbose: boolean;
-};
-
-/**
  * Agent capabilities
  */
 export type AgentCapabilities = {
   maxContextLength: number;
-  models: string[];
-  supportsCommitMessages: boolean;
+  models?: string[];
   supportsDecomposition: boolean;
-  supportsStreaming: boolean;
+  supportsStreaming?: boolean;
+  version?: string;
 };
