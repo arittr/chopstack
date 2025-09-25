@@ -4,10 +4,7 @@ import type {
   PlanModeResult,
   TaskResult,
 } from '@/core/execution/interfaces';
-import type {
-  OrchestratorTaskResult,
-  TaskOrchestrator,
-} from '@/services/orchestration/task-orchestrator';
+import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/orchestration';
 import type { Task } from '@/types/decomposer';
 
 import { logger } from '@/utils/logger';
@@ -29,7 +26,7 @@ export class PlanModeHandlerImpl implements PlanModeHandler {
       const taskStart = Date.now();
 
       try {
-        const result: OrchestratorTaskResult = await this._orchestrator.executeClaudeTask(
+        const result: OrchestratorTaskResult = await this._orchestrator.executeTask(
           task.id,
           task.title,
           task.agentPrompt,

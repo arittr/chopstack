@@ -1,7 +1,7 @@
 import type { ExecutionContext, ExecutionResult, TaskResult } from '@/core/execution/interfaces';
 import type { ExecutionPlan, ExecutionTask } from '@/core/execution/types';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
-import type { TaskOrchestrator } from '@/services/orchestration/task-orchestrator';
+import type { TaskOrchestrator } from '@/services/orchestration';
 
 import { isNonNullish } from '@/validation/guards';
 
@@ -95,7 +95,7 @@ export abstract class BaseExecutionStrategy implements ExecutionStrategy {
     try {
       callbacks.onStart?.(task.id);
 
-      const result = await orchestrator.executeClaudeTask(
+      const result = await orchestrator.executeTask(
         task.id,
         task.title,
         task.agentPrompt,
