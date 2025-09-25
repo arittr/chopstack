@@ -35,6 +35,14 @@ export class GitSpiceBackend implements VcsBackend {
 
   /**
    * Initialize git-spice in the repository if not already initialized
+   *
+   * NOTE: This method is primarily for test environments where we need to
+   * set up git-spice in temporary worktrees. In production usage, users
+   * should manually run `gs repo init` in their repository before using
+   * git-spice features.
+   *
+   * The stack command intentionally does NOT call this method to avoid
+   * accidentally initializing git-spice in user repositories.
    */
   async initialize(workdir: string, trunk?: string): Promise<void> {
     const git = new GitWrapper(workdir);
