@@ -135,7 +135,7 @@ describe('decomposeCommand integration tests', () => {
     expect(mockAgent.decompose).toHaveBeenCalled();
   });
 
-  it('should use real PlanOutputter for metrics and output', () => {
+  it('should use real PlanOutputter for metrics and output', async () => {
     const options: DecomposeOptions = {
       spec: 'test-spec.md',
       agent: 'claude',
@@ -144,7 +144,7 @@ describe('decomposeCommand integration tests', () => {
 
     const deps = createDefaultDependencies();
     const command = new DecomposeCommand(deps);
-    const result = command.execute(options);
+    const result = await command.execute(options);
 
     expect(result).toBe(0);
 
