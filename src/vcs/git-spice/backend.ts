@@ -1,24 +1,19 @@
+/**
+ * Git-spice VCS backend implementation
+ */
+
 import { execa } from 'execa';
 
 import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
+import type { VcsBackend } from '@/vcs';
 
 import { logger } from '@/utils/logger';
 import { hasContent, isNonEmptyString } from '@/validation/guards';
+import { GitWrapper } from '@/vcs/git-wrapper';
 
-import { GitWrapper, type WorktreeInfo } from './git-wrapper';
-
-import type { VcsBackend } from '.';
-
-export class GitSpiceError extends Error {
-  constructor(
-    message: string,
-    public readonly command?: string,
-    public readonly stderr?: string,
-  ) {
-    super(message);
-    this.name = 'GitSpiceError';
-  }
-}
+import { GitSpiceError } from './errors';
+import { extractPrUrls, generateBranchNameFromMessage } from './helpers';
+import { fetchWorktreeCommits } from './worktree-sync';
 
 /**
  * Git-spice VCS backend implementation
@@ -41,7 +36,7 @@ export class GitSpiceBackend implements VcsBackend {
   /**
    * Initialize git-spice in the repository if not already initialized
    */
-  async initialize(workdir: string): Promise<void> {
+  async initialize(workdir: string, trunk?: string): Promise<void> {
     const git = new GitWrapper(workdir);
 
     try {
@@ -56,12 +51,17 @@ export class GitSpiceBackend implements VcsBackend {
       // Not initialized, proceed with initialization
     }
 
-    // Detect the current branch to use as trunk
-    const currentBranch = await git.git.raw(['rev-parse', '--abbrev-ref', 'HEAD']);
-    const trunkBranch = currentBranch.trim() === 'HEAD' ? 'main' : currentBranch.trim();
+    // Use provided trunk or detect the current branch to use as trunk
+    let trunkBranch: string;
+    if (hasContent(trunk)) {
+      trunkBranch = trunk;
+    } else {
+      const currentBranch = await git.git.raw(['rev-parse', '--abbrev-ref', 'HEAD']);
+      trunkBranch = currentBranch.trim() === 'HEAD' ? 'main' : currentBranch.trim();
+    }
 
     try {
-      // Initialize git-spice with detected trunk branch (no remote needed for local testing)
+      // Initialize git-spice with trunk branch (no remote needed for local testing)
       await execa('gs', ['repo', 'init', `--trunk=${trunkBranch}`], {
         cwd: workdir,
         timeout: 10_000,
@@ -79,6 +79,61 @@ export class GitSpiceBackend implements VcsBackend {
       }
 
       throw new GitSpiceError('Failed to initialize git-spice', command, stderr);
+    }
+  }
+
+  /**
+   * Create a git-spice branch with commit message
+   */
+  async createBranchWithCommit(
+    workdir: string,
+    branchName: string,
+    commitMessage: string,
+  ): Promise<string> {
+    try {
+      // Generate branch name if not provided
+      const finalBranchName = hasContent(branchName)
+        ? branchName
+        : generateBranchNameFromMessage(commitMessage);
+
+      // Create branch and commit in one step using git-spice
+      await execa('gs', ['branch', 'create', finalBranchName, '-m', commitMessage], {
+        cwd: workdir,
+        timeout: 10_000,
+      });
+
+      logger.info(`🌿 Created git-spice branch: ${finalBranchName}`);
+      return finalBranchName;
+    } catch (error) {
+      const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
+      throw new GitSpiceError(`Failed to create git-spice branch`, 'gs branch create', stderr);
+    }
+  }
+
+  /**
+   * Submit the stack to GitHub as pull requests
+   */
+  async submitStack(workdir: string): Promise<string[]> {
+    try {
+      const { stdout } = await execa('gs', ['stack', 'submit', '--draft'], {
+        cwd: workdir,
+        timeout: 60_000, // Allow more time for GitHub API calls
+      });
+
+      // Parse PR URLs from output
+      const prUrls = extractPrUrls(stdout);
+
+      if (prUrls.length > 0) {
+        logger.info('🚀 Pull requests created:');
+        for (const url of prUrls) {
+          logger.info(`  └─ ${url}`);
+        }
+      }
+
+      return prUrls;
+    } catch (error) {
+      const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
+      throw new GitSpiceError('Failed to submit stack to GitHub', 'gs stack submit', stderr);
     }
   }
 
@@ -101,7 +156,7 @@ export class GitSpiceBackend implements VcsBackend {
     const stackRoot = baseRef;
 
     // First, ensure all worktree commits are accessible in the main repo
-    await this._fetchWorktreeCommits(tasks, workdir);
+    await fetchWorktreeCommits(tasks, workdir);
 
     // Create branches for each task in dependency order
     // Note: Using sequential processing (for...of) because git operations must be ordered
@@ -240,33 +295,6 @@ export class GitSpiceBackend implements VcsBackend {
   }
 
   /**
-   * Submit the stack to GitHub as pull requests
-   */
-  async submitStack(workdir: string): Promise<string[]> {
-    try {
-      const { stdout } = await execa('gs', ['stack', 'submit', '--draft'], {
-        cwd: workdir,
-        timeout: 60_000, // Allow more time for GitHub API calls
-      });
-
-      // Parse PR URLs from output
-      const prUrls = this._extractPrUrls(stdout);
-
-      if (prUrls.length > 0) {
-        logger.info('🚀 Pull requests created:');
-        for (const url of prUrls) {
-          logger.info(`  └─ ${url}`);
-        }
-      }
-
-      return prUrls;
-    } catch (error) {
-      const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
-      throw new GitSpiceError('Failed to submit stack to GitHub', 'gs stack submit', stderr);
-    }
-  }
-
-  /**
    * Generate a consistent branch name from a task
    */
   private _generateBranchName(task: ExecutionTask): string {
@@ -298,135 +326,5 @@ export class GitSpiceBackend implements VcsBackend {
 
     // Fallback to base ref if no dependencies have branches
     return baseRef;
-  }
-
-  /**
-   * Fetch all commits from worktrees to make them accessible in the main repository
-   */
-  private async _fetchWorktreeCommits(tasks: ExecutionTask[], workdir: string): Promise<void> {
-    logger.info('🔄 Fetching commits from worktrees...');
-
-    const git = new GitWrapper(workdir);
-
-    try {
-      // Get list of worktrees
-      const worktrees = await git.listWorktrees();
-
-      // For each task with a commit, ensure the commit is accessible
-      for (const task of tasks) {
-        if (!isNonEmptyString(task.commitHash)) {
-          continue;
-        }
-
-        // Find the worktree for this task - match by path containing task ID
-        const taskWorktree = this._findWorktreeForTask(task, worktrees);
-
-        if (taskWorktree !== undefined) {
-          try {
-            // First, try to see if the commit is already accessible
-            try {
-              await git.git.raw(['cat-file', '-e', task.commitHash]);
-              logger.debug(
-                `✅ Commit ${task.commitHash.slice(0, 7)} already accessible for task ${task.id}`,
-              );
-              continue;
-            } catch {
-              // Commit not accessible, need to fetch
-            }
-
-            // Use git fetch with the worktree's git directory directly
-            const worktreeGitDir = `${taskWorktree.path}/.git`;
-
-            // Fetch all refs from the worktree's git directory
-            await git.git.raw([
-              'fetch',
-              worktreeGitDir,
-              `+refs/heads/*:refs/remotes/worktree-${task.id}/*`,
-            ]);
-
-            logger.info(`✅ Fetched commits from worktree for task ${task.id}`);
-          } catch (error) {
-            // Try alternative approach: fetch the specific commit directly if we know its branch
-            if (taskWorktree.branch !== undefined) {
-              try {
-                await git.git.raw([
-                  'fetch',
-                  taskWorktree.path,
-                  `+refs/heads/${taskWorktree.branch}:refs/remotes/worktree-${task.id}/${taskWorktree.branch}`,
-                ]);
-                logger.info(
-                  `✅ Fetched branch ${taskWorktree.branch} from worktree for task ${task.id}`,
-                );
-              } catch (fetchError) {
-                logger.warn(
-                  `⚠️ Could not fetch from worktree for task ${task.id}: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`,
-                );
-              }
-            } else {
-              logger.warn(
-                `⚠️ Could not fetch from worktree for task ${task.id}: ${error instanceof Error ? error.message : String(error)}`,
-              );
-            }
-          }
-        } else {
-          logger.warn(`⚠️ Could not find worktree for task ${task.id}`);
-        }
-      }
-    } catch (error) {
-      logger.warn(
-        `⚠️ Could not list worktrees: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-
-  /**
-   * Find the worktree associated with a specific task
-   */
-  private _findWorktreeForTask(
-    task: ExecutionTask,
-    worktrees: WorktreeInfo[],
-  ): WorktreeInfo | undefined {
-    // Try multiple strategies to find the right worktree
-
-    // Strategy 1: Path contains task ID
-    let matchingWorktree = worktrees.find((wt) => wt.path.includes(task.id));
-    if (matchingWorktree !== undefined) {
-      return matchingWorktree;
-    }
-
-    // Strategy 2: Branch name contains task ID (if branch exists)
-    matchingWorktree = worktrees.find((wt) => Boolean(wt.branch?.includes(task.id)));
-    if (matchingWorktree !== undefined) {
-      return matchingWorktree;
-    }
-
-    // Strategy 3: Look for chopstack shadow directory pattern
-    matchingWorktree = worktrees.find(
-      (wt) => wt.path.includes('.chopstack/shadows') && wt.path.includes(task.id),
-    );
-    if (matchingWorktree !== undefined) {
-      return matchingWorktree;
-    }
-
-    // Strategy 4: Branch name matches chopstack pattern
-    matchingWorktree = worktrees.find(
-      (wt) =>
-        wt.branch !== undefined &&
-        wt.branch.startsWith('chopstack/') &&
-        wt.branch.includes(task.id),
-    );
-    if (matchingWorktree !== undefined) {
-      return matchingWorktree;
-    }
-
-    return undefined;
-  }
-
-  /**
-   * Extract PR URLs from git-spice output
-   */
-  private _extractPrUrls(output: string): string[] {
-    const prUrlRegex = /https:\/\/github\.com\/\S+\/pull\/\d+/g;
-    return output.match(prUrlRegex) ?? [];
   }
 }
