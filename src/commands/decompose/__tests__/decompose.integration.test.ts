@@ -12,7 +12,7 @@ vi.mock('node:fs/promises', () => ({
   readFile: vi.fn(),
   writeFile: vi.fn(),
 }));
-vi.mock('@/agents');
+vi.mock('@/adapters/agents');
 
 const mockReadFile = vi.mocked(readFile);
 const mockCreateDecomposerAgent = vi.mocked(createDecomposerAgent);
