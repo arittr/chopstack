@@ -187,9 +187,30 @@ export class GitSpiceBackend implements VcsBackend {
   /**
    * Submit the stack to GitHub as pull requests
    */
-  async submitStack(workdir: string): Promise<string[]> {
+  async submitStack(
+    workdir: string,
+    options: {
+      autoMerge?: boolean;
+      draft?: boolean;
+      extraArgs?: string[];
+    } = {},
+  ): Promise<string[]> {
     try {
-      const { stdout } = await execa('gs', ['stack', 'submit', '--draft'], {
+      const args = ['stack', 'submit'];
+
+      if (options.draft !== false) {
+        args.push('--draft');
+      }
+
+      if (options.autoMerge === true) {
+        args.push('--auto-merge');
+      }
+
+      if (Array.isArray(options.extraArgs)) {
+        args.push(...options.extraArgs);
+      }
+
+      const { stdout } = await execa('gs', args, {
         cwd: workdir,
         timeout: 60_000, // Allow more time for GitHub API calls
         all: true,

@@ -7,7 +7,6 @@ import type {
   CommitService,
   ConflictResolutionService,
   RepositoryService,
-  StackBuildService,
   VcsAnalysisService,
   WorktreeService,
 } from '@/core/vcs/domain-services';
@@ -103,11 +102,22 @@ export class CoreServicesProvider extends BaseServiceProvider {
     });
 
     container.registerSingleton(ServiceIdentifiers.StackBuildService, () => {
-      return new StackBuildServiceImpl({
-        branchPrefix: defaultVcsConfig.branchPrefix,
-        parentRef: 'main',
-        stackSubmissionEnabled: defaultVcsConfig.stackSubmission.enabled,
-      });
+      const conflictResolutionService = container.get<ConflictResolutionService>(
+        ServiceIdentifiers.ConflictResolutionService,
+      );
+
+      return new StackBuildServiceImpl(
+        {
+          branchPrefix: defaultVcsConfig.branchPrefix,
+          parentRef: 'main',
+          stackSubmissionEnabled: defaultVcsConfig.stackSubmission.enabled,
+          stackSubmission: defaultVcsConfig.stackSubmission,
+          conflictStrategy: defaultVcsConfig.conflictStrategy,
+        },
+        {
+          conflictResolutionService,
+        },
+      );
     });
 
     container.registerSingleton(ServiceIdentifiers.VcsAnalysisService, () => {
@@ -123,7 +133,7 @@ export class CoreServicesProvider extends BaseServiceProvider {
       const conflictResolutionService = container.get<ConflictResolutionService>(
         ServiceIdentifiers.ConflictResolutionService,
       );
-      const stackBuildService = container.get<StackBuildService>(
+      const stackBuildService = container.get<StackBuildServiceImpl>(
         ServiceIdentifiers.StackBuildService,
       );
       const analysisService = container.get<VcsAnalysisService>(

@@ -46,6 +46,7 @@ export type StackBranch = {
 
 export type StackInfo = {
   branches: StackBranch[];
+  failedTasks?: Array<{ reason: string; taskId: string }>;
   parentRef: string;
   prUrls?: string[] | undefined;
   strategy: StackBuildStrategy;
