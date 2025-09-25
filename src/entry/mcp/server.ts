@@ -5,7 +5,11 @@ import { execa } from 'execa';
 import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 
-import { type StreamingUpdate, TaskOrchestrator } from '@/services/orchestration/task-orchestrator';
+import {
+  ClaudeCliTaskExecutionAdapter,
+  type StreamingUpdate,
+  TaskOrchestrator,
+} from '@/services/orchestration';
 
 // Schema definitions
 const ExecuteTaskSchema = z.object({
@@ -209,7 +213,7 @@ const mcp = new FastMCP({
   name: 'chopstack-orchestrator',
   version: '1.0.0',
 });
-const orchestrator = new TaskOrchestrator();
+const orchestrator = new TaskOrchestrator(new ClaudeCliTaskExecutionAdapter());
 const gitWorkflow = new GitWorkflowManager();
 
 // Store streaming updates for retrieval
@@ -236,13 +240,7 @@ mcp.addTool({
         // For parallel, ensure we have a worktree
         // TODO: Update to use VcsEngine instead of removed orchestrator methods
         const actualWorkdir = workdir ?? process.cwd();
-        const result = await orchestrator.executeClaudeTask(
-          taskId,
-          title,
-          prompt,
-          files,
-          actualWorkdir,
-        );
+        const result = await orchestrator.executeTask(taskId, title, prompt, files, actualWorkdir);
 
         // TODO: Implement commit changes using VcsEngine
         // if (result.status === 'completed') {
@@ -252,7 +250,7 @@ mcp.addTool({
         return JSON.stringify(result);
       }
       // Serial execution in current directory
-      const result = await orchestrator.executeClaudeTask(taskId, title, prompt, files);
+      const result = await orchestrator.executeTask(taskId, title, prompt, files);
 
       // Commit changes for serial execution
       if (result.status === 'completed') {

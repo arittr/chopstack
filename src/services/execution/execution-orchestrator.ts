@@ -13,7 +13,7 @@ import type {
 } from '@/core/execution/interfaces';
 import type { ExecutionMode, ExecutionOptions } from '@/core/execution/types';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
-import type { TaskOrchestrator } from '@/services/orchestration/task-orchestrator';
+import type { TaskOrchestrator } from '@/services/orchestration';
 import type { Plan, ValidationResult } from '@/types/decomposer';
 
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
