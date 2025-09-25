@@ -131,7 +131,7 @@ const response = match(error)
 - Use `const assertions` and `as const` for immutable data
 - Import file extensions are omitted (handled by build system)
 - Strict naming: camelCase for functions, PascalCase for types, kebab-case for files
-- **ALWAYS use `utils/guards.ts`** for type guards instead of inline checks:
+- **ALWAYS use `utils/guards.ts`** for type guards instead of inline checks (e.g. `=== undefined`):
   - `isNonEmptyString()` for non-empty string checks
   - `isNonNullish()` for null/undefined checks
   - `hasContent()` for strings with actual content

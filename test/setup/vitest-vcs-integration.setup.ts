@@ -1,5 +1,8 @@
 import { TEST_CONFIG } from '@test/constants/test-paths';
-import { vi } from 'vitest';
+import { afterAll, beforeAll, vi } from 'vitest';
+
+// Import worktree cleanup to ensure it runs after all tests
+import './worktree-cleanup';
 
 // VCS Integration test setup - for testing real git and filesystem operations
 // These tests need actual filesystem and subprocess access
@@ -22,6 +25,25 @@ vi.spyOn(process, 'exit').mockImplementation(() => {
 // Suppress console output by default (tests can override if needed)
 vi.spyOn(console, 'log').mockImplementation(() => {});
 vi.spyOn(console, 'error').mockImplementation(() => {});
+
+// Global cleanup for VCS integration tests
+beforeAll(() => {
+  console.log('🧹 Cleaning up before VCS integration tests...');
+});
+
+afterAll(async () => {
+  try {
+    const { execSync } = await import('node:child_process');
+    execSync('git worktree prune', { stdio: 'pipe' });
+    execSync('pnpm test:clean', { stdio: 'pipe' });
+    console.log('✅ VCS integration test cleanup complete');
+  } catch (error) {
+    console.warn(
+      '⚠️ VCS integration test cleanup failed:',
+      error instanceof Error ? error.message : error,
+    );
+  }
+});
 
 // Integration test configuration for VCS tests
 vi.setConfig({
