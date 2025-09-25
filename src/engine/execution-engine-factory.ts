@@ -1,9 +1,5 @@
-import type { VcsEngineDependencies, VcsEngineOptions } from '@/vcs/engine/vcs-engine';
-
 import { TaskOrchestrator } from '@/services/mcp/orchestrator';
-import { isNonNullish } from '@/validation/guards';
-import { VcsEngine } from '@/vcs/engine/vcs-engine';
-import { createDefaultVcsEngineDependencies } from '@/vcs/engine/vcs-engine-factory';
+import { type VcsEngineConfig, VcsEngineServiceImpl } from '@/services/vcs';
 
 import type { ExecutionEngine, ExecutionEngineDependencies } from './execution-engine';
 
@@ -18,19 +14,16 @@ export type ExecutionEngineFactoryConfig = {
   /** Custom dependencies to override defaults */
   customDependencies?: Partial<ExecutionEngineDependencies>;
   /** VCS engine configuration */
-  vcsConfig?: {
-    dependencies?: Partial<VcsEngineDependencies>;
-    options?: Partial<VcsEngineOptions>;
-  };
+  vcsConfig?: Partial<VcsEngineConfig>;
 };
 
 /**
  * Creates default ExecutionEngine dependencies
  */
 export function createDefaultExecutionEngineDependencies(
-  vcsConfig?: ExecutionEngineFactoryConfig['vcsConfig'],
+  vcsConfig?: Partial<VcsEngineConfig>,
 ): ExecutionEngineDependencies {
-  const vcsOptions: VcsEngineOptions = {
+  const defaultVcsConfig: VcsEngineConfig = {
     shadowPath: '.chopstack/shadows',
     branchPrefix: 'chopstack/',
     cleanupOnSuccess: true,
@@ -41,12 +34,7 @@ export function createDefaultExecutionEngineDependencies(
       draft: true,
       autoMerge: false,
     },
-    ...vcsConfig?.options,
-  };
-
-  const vcsDependencies = {
-    ...createDefaultVcsEngineDependencies(vcsOptions),
-    ...vcsConfig?.dependencies,
+    ...vcsConfig,
   };
 
   return {
@@ -54,7 +42,7 @@ export function createDefaultExecutionEngineDependencies(
     stateManager: new StateManager(),
     monitor: new ExecutionMonitor(),
     orchestrator: new TaskOrchestrator(),
-    vcsEngine: new VcsEngine(vcsDependencies, vcsOptions),
+    vcsEngine: new VcsEngineServiceImpl(defaultVcsConfig),
   };
 }
 
@@ -80,17 +68,14 @@ export async function createExecutionEngine(
  */
 export async function createTestExecutionEngine(
   mockDependencies: Partial<ExecutionEngineDependencies> = {},
-  vcsConfig?: ExecutionEngineFactoryConfig['vcsConfig'],
+  vcsConfig?: Partial<VcsEngineConfig>,
 ): Promise<ExecutionEngine> {
-  const testVcsConfig: ExecutionEngineFactoryConfig['vcsConfig'] = {
-    options: {
-      shadowPath: '.test/shadows',
-      branchPrefix: 'test/',
-      cleanupOnSuccess: false,
-      cleanupOnFailure: false,
-      ...vcsConfig?.options,
-    },
-    ...(isNonNullish(vcsConfig?.dependencies) && { dependencies: vcsConfig.dependencies }),
+  const testVcsConfig: Partial<VcsEngineConfig> = {
+    shadowPath: '.test/shadows',
+    branchPrefix: 'test/',
+    cleanupOnSuccess: false,
+    cleanupOnFailure: false,
+    ...vcsConfig,
   };
 
   const defaultDeps = createDefaultExecutionEngineDependencies(testVcsConfig);
