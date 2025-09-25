@@ -45,6 +45,12 @@ export class StackCommand extends BaseCommand {
       }
 
       // Show intent based on mode
+      if (args.dryRun) {
+        this.logger.info(
+          chalk.blue('🎨 DRY RUN: Showing what would be done without making changes'),
+        );
+      }
+
       if (args.createStack) {
         this.logger.info(chalk.blue('🚀 Creating git stack with automatic commit message...'));
       }
@@ -61,7 +67,11 @@ export class StackCommand extends BaseCommand {
       // Add all changes if auto-add is enabled
       if (args.autoAdd) {
         this.logger.info(chalk.blue('📥 Adding all changes...'));
-        addAllChanges();
+        if (!args.dryRun) {
+          addAllChanges();
+        } else {
+          this.logger.info(chalk.gray('   (DRY RUN: would run `git add -A`)'));
+        }
       }
 
       // Handle stack creation
@@ -69,12 +79,13 @@ export class StackCommand extends BaseCommand {
         const spiceOptions: GitSpiceOptions = {
           autoAdd: args.autoAdd,
           createStack: args.createStack,
+          dryRun: args.dryRun,
           ...(hasContent(args.message) && { message: args.message }),
         };
         return await this._handleStackCreation(spiceOptions, commitMessage);
       }
       // Just create a regular commit
-      return this._handleRegularCommit(commitMessage);
+      return this._handleRegularCommit(commitMessage, args.dryRun);
     } catch (error) {
       this.logger.error(
         chalk.red(
@@ -124,68 +135,97 @@ export class StackCommand extends BaseCommand {
 
       // Create git-spice branch
       const workdir = process.cwd();
-      const branchName = await this.gitSpiceBackend.createBranchWithCommit(
-        workdir,
-        args.branchName ?? '',
-        commitMessage,
-      );
-
-      this.logger.info(chalk.green(`✅ Created git-spice branch: ${branchName}`));
+      if (args.dryRun === true) {
+        const proposedBranchName = args.branchName ?? 'auto-generated-branch-name';
+        this.logger.info(
+          chalk.gray(`   (DRY RUN: would create git-spice branch: ${proposedBranchName})`),
+        );
+        this.logger.info(
+          chalk.gray(
+            `   (DRY RUN: would run: gs branch create ${proposedBranchName} -m "${commitMessage.split('\n')[0]}")`,
+          ),
+        );
+      } else {
+        const branchName = await this.gitSpiceBackend.createBranchWithCommit(
+          workdir,
+          args.branchName ?? '',
+          commitMessage,
+        );
+        this.logger.info(chalk.green(`✅ Created git-spice branch: ${branchName}`));
+      }
 
       // Submit stack if requested
-      if (args.submit ?? false) {
-        return await this._handleStackSubmission();
+      if (args.submit === true) {
+        return await this._handleStackSubmission(args.dryRun);
+      }
+
+      if (args.dryRun === true) {
+        this.logger.info(chalk.blue('\n🚀 DRY RUN COMPLETE - No actual changes were made'));
+        this.logger.info(
+          chalk.gray('   To execute these actions, run the same command without --dry-run'),
+        );
       }
 
       return 0;
     } catch (error) {
-      this.logger.error(
-        chalk.red(
-          `❌ Failed to create stack: ${error instanceof Error ? error.message : String(error)}`,
-        ),
-      );
+      // Display detailed error information for debugging
+      this._displayDetailedError('Failed to create stack', error);
       return 1;
     }
   }
 
-  private _handleRegularCommit(commitMessage: string): number {
+  private _handleRegularCommit(commitMessage: string, dryRun = false): number {
     try {
-      createCommit(commitMessage);
-      this.logger.info(chalk.green('✅ Created commit with message:'));
+      if (dryRun) {
+        this.logger.info(
+          chalk.gray(`   (DRY RUN: would run: git commit -m "${commitMessage.split('\n')[0]}")`),
+        );
+        this.logger.info(chalk.green('✅ Would create commit with message:'));
+      } else {
+        createCommit(commitMessage);
+        this.logger.info(chalk.green('✅ Created commit with message:'));
+      }
       this.logger.info(chalk.white(`   ${commitMessage.split('\n')[0]}`));
+
+      if (dryRun) {
+        this.logger.info(chalk.blue('\n🚀 DRY RUN COMPLETE - No actual changes were made'));
+        this.logger.info(
+          chalk.gray('   To execute these actions, run the same command without --dry-run'),
+        );
+      }
+
       return 0;
     } catch (error) {
-      this.logger.error(
-        chalk.red(
-          `❌ Failed to create commit: ${error instanceof Error ? error.message : String(error)}`,
-        ),
-      );
+      // Display detailed error information for debugging
+      this._displayDetailedError('Failed to create commit', error);
       return 1;
     }
   }
 
-  private async _handleStackSubmission(): Promise<number> {
+  private async _handleStackSubmission(dryRun = false): Promise<number> {
     this.logger.info(chalk.blue('🚀 Submitting stack to GitHub...'));
 
     try {
       const workdir = process.cwd();
-      const prUrls = await this.gitSpiceBackend.submitStack(workdir);
+      if (dryRun) {
+        this.logger.info(chalk.gray(`   (DRY RUN: would run: gs stack submit --draft)`));
+        this.logger.info(chalk.green('✅ Would submit stack as draft PRs'));
+      } else {
+        const prUrls = await this.gitSpiceBackend.submitStack(workdir);
 
-      if (isValidArray(prUrls)) {
-        this.logger.info(chalk.green('✅ Stack submitted successfully!'));
-        this.logger.info(chalk.cyan('📎 Pull Request URLs:'));
-        for (const url of prUrls) {
-          this.logger.info(chalk.white(`   ${url}`));
+        if (isValidArray(prUrls)) {
+          this.logger.info(chalk.green('✅ Stack submitted successfully!'));
+          this.logger.info(chalk.cyan('📎 Pull Request URLs:'));
+          for (const url of prUrls) {
+            this.logger.info(chalk.white(`   ${url}`));
+          }
         }
       }
 
       return 0;
     } catch (error) {
-      this.logger.error(
-        chalk.red(
-          `❌ Failed to submit stack: ${error instanceof Error ? error.message : String(error)}`,
-        ),
-      );
+      // Display detailed error information for debugging
+      this._displayDetailedError('Failed to submit stack', error);
       return 1;
     }
   }
@@ -203,31 +243,58 @@ export class StackCommand extends BaseCommand {
         workdir: process.cwd(),
         files: task.produces,
       });
-    } catch {
-      // Fallback to simple message if AI generation fails
-      this.logger.warn(chalk.yellow('⚠️ AI commit message generation failed, using fallback'));
-      return this._generateFallbackMessage(statusLines);
+    } catch (error) {
+      // Don't use fallback - encourage user to provide manual message
+      this.logger.error(chalk.red('❌ AI commit message generation failed'));
+      this.logger.info(
+        chalk.blue('💡 Tip: Provide a manual commit message using --message "your message"'),
+      );
+      throw new Error(
+        `AI commit message generation failed: ${error instanceof Error ? error.message : String(error)}. Use --message to provide a manual commit message.`,
+      );
     }
   }
 
-  private _generateFallbackMessage(statusLines: string[]): string {
-    const files = statusLines.map((line) => line.slice(3));
-    const addedCount = statusLines.filter((l) => l.startsWith('A')).length;
-    const modifiedCount = statusLines.filter((l) => l.startsWith('M')).length;
-    const deletedCount = statusLines.filter((l) => l.startsWith('D')).length;
+  /**
+   * Display detailed error information with proper formatting
+   */
+  private _displayDetailedError(context: string, error: unknown): void {
+    this.logger.error(chalk.red(`❌ ${context}`));
 
-    const parts = [];
-    if (addedCount > 0) {
-      parts.push(`add ${addedCount} files`);
-    }
-    if (modifiedCount > 0) {
-      parts.push(`update ${modifiedCount} files`);
-    }
-    if (deletedCount > 0) {
-      parts.push(`remove ${deletedCount} files`);
-    }
+    if (error instanceof Error) {
+      // Check if it's a GitSpiceError with additional details
+      const gitSpiceError = error as Error & {
+        command?: string;
+        stderr?: string;
+      };
 
-    const summary = `${parts.join(', ')}, files changed: ${files.join(', ')}`;
-    return `chore: ${summary}`;
+      this.logger.error(chalk.red(`   Error: ${error.message}`));
+
+      // Display command that failed if available
+      if (hasContent(gitSpiceError.command)) {
+        this.logger.error(chalk.yellow(`   Command: ${gitSpiceError.command}`));
+      }
+
+      // Display stderr output if available (this is where pre-commit hook errors appear)
+      if (hasContent(gitSpiceError.stderr)) {
+        this.logger.error(chalk.cyan('   Detailed output:'));
+        // Split stderr by lines and indent each line for better readability
+        const stderrLines = gitSpiceError.stderr.split('\n').filter((line) => line.trim() !== '');
+        for (const line of stderrLines) {
+          this.logger.error(chalk.gray(`   │ ${line}`));
+        }
+      }
+
+      // Add helpful hints for common errors
+      if (error.message.includes('pre-commit') || error.message.includes('lint')) {
+        this.logger.info(
+          chalk.blue('\n💡 Tip: Fix linting issues with `pnpm lint:fix` and try again'),
+        );
+      } else if (error.message.includes('not initialized')) {
+        this.logger.info(chalk.blue('\n💡 Tip: Initialize git-spice with `gs repo init` first'));
+      }
+    } else {
+      this.logger.error(chalk.red(`   Error: ${String(error)}`));
+    }
   }
 }
