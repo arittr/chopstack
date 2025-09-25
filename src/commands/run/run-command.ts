@@ -98,7 +98,9 @@ export class RunCommand extends BaseCommand {
         continueOnError: options.continueOnError,
       });
 
-      if (result.success) {
+      const failureCount = result.tasks.filter((t) => t.status === 'failure').length;
+
+      if (failureCount === 0) {
         this.logger.info(chalk.green('✅ Plan executed successfully!'));
         return 0;
       }
