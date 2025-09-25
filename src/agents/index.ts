@@ -1,8 +1,8 @@
 import { match } from 'ts-pattern';
 
-import type { AgentType, DecomposerAgent } from '../types/decomposer';
+import type { AgentType, DecomposerAgent } from '@/types/decomposer';
 
-import { AgentValidator } from '../validation/agent-validator';
+import { AgentValidator } from '@/validation/agent-validator';
 
 import { ClaudeCodeDecomposer } from './claude';
 import { CodexDecomposer } from './codex';

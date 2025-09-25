@@ -247,7 +247,7 @@ export const isValidId = (id: string): boolean => {
 };
 `;
           } else if (filePath.includes('users.ts')) {
-            content = `import { isEmail, isValidId } from '../utils/validators';
+            content = `import { isEmail, isValidId } from '@/utils/validators';
 import type { User, CreateUserRequest } from './types';
 
 export const getUsers = async (): Promise<User[]> => {
@@ -284,7 +284,7 @@ export interface CreateUserRequest {
 `;
           } else if (filePath.includes('UserCard.tsx')) {
             content = `import React from 'react';
-import { formatDate } from '../utils/formatters';
+import { formatDate } from '@/utils/formatters';
 import type { User } from '../api/types';
 
 interface UserCardProps {

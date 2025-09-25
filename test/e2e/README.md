@@ -47,7 +47,7 @@ All commands create temporary worktrees beneath `test/tmp/` and clean them up au
 ### Utilities
 - `run-tests.sh` – shell harness for exercising execution modes.
 - `TEST-SUITE.md` – documentation for the YAML-based scenarios.
-- `../utils/testing-harness-worktree-manager.ts` – shared helper that provisions/cleans git worktrees for tests.
+- `@/utils/testing-harness-worktree-manager.ts` – shared helper that provisions/cleans git worktrees for tests.
 
 ## Behaviour Notes
 

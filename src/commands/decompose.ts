@@ -1,14 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import type { DecomposeOptions } from '../types/decomposer';
+import type { DecomposeOptions } from '@/types/decomposer';
 
-import { createDecomposerAgent } from '../agents';
-import { generatePlanWithRetry } from '../planning/plan-generator';
-import { PlanOutputter } from '../planning/plan-outputter';
-import { logger } from '../utils/logger';
-import { DagValidator } from '../validation/dag-validator';
-import { isValidArray } from '../validation/guards';
+import { createDecomposerAgent } from '@/agents';
+import { generatePlanWithRetry } from '@/planning/plan-generator';
+import { PlanOutputter } from '@/planning/plan-outputter';
+import { logger } from '@/utils/logger';
+import { DagValidator } from '@/validation/dag-validator';
+import { isValidArray } from '@/validation/guards';
 
 export async function decomposeCommand(options: DecomposeOptions): Promise<number> {
   try {
