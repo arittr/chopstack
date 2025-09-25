@@ -9,17 +9,11 @@ import { BaseCommand, type CommandDependencies } from '@/commands/types';
 import { validateStackArgs } from '@/types/cli';
 import { hasContent, isValidArray } from '@/validation/guards';
 import { CommitMessageGenerator } from '@/vcs/commit-message-generator';
+import { GitSpiceBackend } from '@/vcs/git-spice';
 
 import type { GitSpiceOptions } from './types';
 
-import {
-  addAllChanges,
-  createCommit,
-  getGitStatus,
-  getStatusColor,
-  isGitSpiceAvailable,
-} from './utils/git-operations';
-import { createGitSpiceBranch, submitGitSpiceStack } from './utils/git-spice-operations';
+import { addAllChanges, createCommit, getGitStatus, getStatusColor } from './utils/git-operations';
 
 /**
  * Stack command for creating git stacks with automatic commit message generation
@@ -27,6 +21,7 @@ import { createGitSpiceBranch, submitGitSpiceStack } from './utils/git-spice-ope
 @RegisterCommand('stack')
 export class StackCommand extends BaseCommand {
   private readonly commitMessageGenerator: CommitMessageGenerator;
+  private readonly gitSpiceBackend: GitSpiceBackend;
 
   constructor(dependencies: CommandDependencies) {
     super('stack', 'Create git stack with automatic commit message generation', dependencies);
@@ -34,6 +29,7 @@ export class StackCommand extends BaseCommand {
       logger: this.logger,
       enableAI: true,
     });
+    this.gitSpiceBackend = new GitSpiceBackend();
   }
 
   async execute(rawArgs: unknown): Promise<number> {
@@ -75,7 +71,7 @@ export class StackCommand extends BaseCommand {
           createStack: args.createStack,
           ...(hasContent(args.message) && { message: args.message }),
         };
-        return this._handleStackCreation(spiceOptions, commitMessage);
+        return await this._handleStackCreation(spiceOptions, commitMessage);
       }
       // Just create a regular commit
       return this._handleRegularCommit(commitMessage);
@@ -109,12 +105,15 @@ export class StackCommand extends BaseCommand {
     this.logger.info('');
   }
 
-  private _handleStackCreation(args: GitSpiceOptions, commitMessage: string): number {
+  private async _handleStackCreation(
+    args: GitSpiceOptions,
+    commitMessage: string,
+  ): Promise<number> {
     this.logger.info(chalk.blue('📚 Creating git-spice branch...'));
 
     try {
       // Check if git-spice is available
-      if (!isGitSpiceAvailable()) {
+      if (!(await this.gitSpiceBackend.isAvailable())) {
         this.logger.warn(chalk.yellow('⚠️ git-spice (gs) is not installed or not in PATH.'));
         this.logger.info(chalk.cyan('Install it from: https://github.com/abhinav/git-spice'));
 
@@ -123,19 +122,22 @@ export class StackCommand extends BaseCommand {
         return this._handleRegularCommit(commitMessage);
       }
 
+      // Initialize git-spice if needed
+      const workdir = process.cwd();
+      await this.gitSpiceBackend.initialize(workdir);
+
       // Create git-spice branch
-      const result = createGitSpiceBranch(args.branchName ?? '', commitMessage);
+      const branchName = await this.gitSpiceBackend.createBranchWithCommit(
+        workdir,
+        args.branchName ?? '',
+        commitMessage,
+      );
 
-      if (!result.success) {
-        this.logger.error(chalk.red(`❌ Failed to create git-spice branch: ${result.error}`));
-        return 1;
-      }
-
-      this.logger.info(chalk.green(`✅ Created git-spice branch: ${result.branchName}`));
+      this.logger.info(chalk.green(`✅ Created git-spice branch: ${branchName}`));
 
       // Submit stack if requested
       if (args.submit ?? false) {
-        return this._handleStackSubmission();
+        return await this._handleStackSubmission();
       }
 
       return 0;
@@ -165,25 +167,30 @@ export class StackCommand extends BaseCommand {
     }
   }
 
-  private _handleStackSubmission(): number {
+  private async _handleStackSubmission(): Promise<number> {
     this.logger.info(chalk.blue('🚀 Submitting stack to GitHub...'));
 
-    const submitResult = submitGitSpiceStack();
+    try {
+      const workdir = process.cwd();
+      const prUrls = await this.gitSpiceBackend.submitStack(workdir);
 
-    if (!submitResult.success) {
-      this.logger.error(chalk.red(`❌ Failed to submit stack: ${submitResult.error}`));
+      if (isValidArray(prUrls)) {
+        this.logger.info(chalk.green('✅ Stack submitted successfully!'));
+        this.logger.info(chalk.cyan('📎 Pull Request URLs:'));
+        for (const url of prUrls) {
+          this.logger.info(chalk.white(`   ${url}`));
+        }
+      }
+
+      return 0;
+    } catch (error) {
+      this.logger.error(
+        chalk.red(
+          `❌ Failed to submit stack: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
       return 1;
     }
-
-    if (isValidArray(submitResult.prUrls)) {
-      this.logger.info(chalk.green('✅ Stack submitted successfully!'));
-      this.logger.info(chalk.cyan('📎 Pull Request URLs:'));
-      for (const url of submitResult.prUrls) {
-        this.logger.info(chalk.white(`   ${url}`));
-      }
-    }
-
-    return 0;
   }
 
   private async _generateCommitMessage(statusLines: string[]): Promise<string> {
