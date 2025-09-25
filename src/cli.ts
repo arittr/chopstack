@@ -1,9 +1,7 @@
 import { Command } from 'commander';
 import { ZodError } from 'zod';
 
-import { decomposeCommand } from './commands/decompose';
-import { runCommand } from './commands/run';
-import { stackCommand } from './commands/stack';
+import { createDefaultDependencies, DecomposeCommand, RunCommand, StackCommand } from './commands';
 import { validateDecomposeArgs, validateRunArgs, validateStackArgs } from './types/cli';
 import { logger } from './utils/logger';
 
@@ -32,7 +30,9 @@ program
         verbose: validatedOptions.verbose ?? false,
         silent: cliOptions.silent ?? false,
       });
-      const exitCode = await decomposeCommand(validatedOptions);
+      const deps = createDefaultDependencies({ logger });
+      const command = new DecomposeCommand(deps);
+      const exitCode = await command.execute(validatedOptions);
       if (exitCode !== 0) {
         throw new Error(`Decompose command failed with exit code ${exitCode}`);
       }
@@ -83,7 +83,9 @@ program
         verbose: validatedOptions.verbose ?? false,
         silent: cliOptions.silent ?? false,
       });
-      const exitCode = await runCommand(validatedOptions);
+      const deps = createDefaultDependencies({ logger });
+      const command = new RunCommand(deps);
+      const exitCode = await command.execute(validatedOptions);
       if (exitCode !== 0) {
         throw new Error(`Run command failed with exit code ${exitCode}`);
       }
@@ -107,7 +109,7 @@ program
   .option('--message <msg>', 'Custom commit message (optional)')
   .option('--verbose, -v', 'Verbose output', false)
   .option('--silent, -s', 'Silent mode - suppress all output', false)
-  .action((options: unknown) => {
+  .action(async (options: unknown) => {
     try {
       const validatedOptions = validateStackArgs(options);
       // Configure logger based on CLI options
@@ -116,7 +118,9 @@ program
         verbose: validatedOptions.verbose,
         silent: cliOptions.silent ?? false,
       });
-      const exitCode = stackCommand(validatedOptions);
+      const deps = createDefaultDependencies({ logger });
+      const command = new StackCommand(deps);
+      const exitCode = await command.execute(validatedOptions);
       if (exitCode !== 0) {
         throw new Error(`Stack command failed with exit code ${exitCode}`);
       }
