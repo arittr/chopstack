@@ -3,7 +3,7 @@
  * This enables dependency injection from configuration files
  */
 
-import type { CommitMessageGeneratorConfig } from '@/vcs/commit-message-generator';
+import type { CommitMessageGeneratorConfig } from '@/adapters/vcs/commit-message-generator';
 import type { VcsEngine, VcsEngineOptions } from '@/vcs/engine/vcs-engine';
 import type { VcsEngineFactoryConfig } from '@/vcs/engine/vcs-engine-factory';
 
@@ -46,7 +46,9 @@ export async function createEnginesFromConfig(config: EngineConfiguration): Prom
   // Create VCS engine first
   const vcsEngine = await createVcsEngine({
     ...(isNonNullish(config.vcs?.options) && { options: config.vcs.options }),
-    ...(isNonNullish(config.commitMessage) && { commitMessageConfig: config.commitMessage }),
+    ...(isNonNullish(config.commitMessage) && {
+      commitMessageConfig: config.commitMessage,
+    }),
     ...(isNonNullish(config.vcs?.customDependencies) && {
       customDependencies: config.vcs.customDependencies,
     }),

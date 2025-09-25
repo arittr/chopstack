@@ -9,7 +9,7 @@ export default defineConfig([
       },
     },
     entry: {
-      'bin/chopstack': 'src/bin/chopstack.ts',
+      'bin/chopstack': 'src/entry/cli/chopstack.ts',
       index: 'src/index.ts',
     },
     format: ['esm'],

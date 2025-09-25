@@ -4,7 +4,7 @@ import { vi } from 'vitest';
 
 import type { DecomposeOptions } from '@/types/decomposer';
 
-import { createDecomposerAgent } from '@/agents';
+import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, DecomposeCommand } from '@/commands';
 
 // Mock only external dependencies, not our own classes
