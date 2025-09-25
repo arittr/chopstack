@@ -3,7 +3,7 @@ import * as path from 'node:path';
 
 import { TEST_PATHS } from '@test/constants/test-paths';
 
-import { GitWrapper } from '@/vcs/git-wrapper';
+import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 
 export type TestWorktreeOptions = {
   baseRef?: string;
@@ -191,7 +191,7 @@ export class TestingHarnessWorktreeManager {
       // const git = new GitWrapper(worktreePath);
 
       // Check if git-spice is available
-      const { GitSpiceBackend } = await import('../../src/vcs/git-spice');
+      const { GitSpiceBackend } = await import('@/adapters/vcs/git-spice/backend');
       const gitSpice = new GitSpiceBackend();
 
       if (await gitSpice.isAvailable()) {

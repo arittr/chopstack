@@ -1,6 +1,6 @@
 import type { VcsEngineDependencies, VcsEngineOptions } from '@/vcs/engine/vcs-engine';
 
-import { TaskOrchestrator } from '@/mcp/orchestrator';
+import { TaskOrchestrator } from '@/services/mcp/orchestrator';
 import { isNonNullish } from '@/validation/guards';
 import { VcsEngine } from '@/vcs/engine/vcs-engine';
 import { createDefaultVcsEngineDependencies } from '@/vcs/engine/vcs-engine-factory';

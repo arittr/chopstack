@@ -1,8 +1,8 @@
-import { logger } from '@/utils/logger';
 import {
   CommitMessageGenerator,
   type CommitMessageGeneratorConfig,
-} from '@/vcs/commit-message-generator';
+} from '@/adapters/vcs/commit-message-generator';
+import { logger } from '@/utils/logger';
 import { ConflictResolver } from '@/vcs/conflict-resolver';
 import { StackBuilder } from '@/vcs/stack-builder';
 import { WorktreeManager } from '@/vcs/worktree-manager';
