@@ -1,6 +1,5 @@
-/**
- * Common types and interfaces for all commands
- */
+import type { AgentService } from '@/core/agents/interfaces';
+import type { ExecutionEngine } from '@/services/execution';
 
 /**
  * Base command interface that all commands must implement
@@ -50,11 +49,19 @@ export type CommandContext = {
 };
 
 /**
+ * Optional service overrides for commands (primarily for testing)
+ */
+export type CommandServiceOverrides = {
+  agentService?: AgentService;
+  executionEngine?: ExecutionEngine;
+};
+
+/**
  * Command dependencies for dependency injection
  */
 export type CommandDependencies = {
   context: CommandContext;
-  // Add more shared dependencies as needed
+  services?: CommandServiceOverrides;
 };
 
 /**
