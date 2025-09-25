@@ -1,10 +1,10 @@
 import { EventEmitter } from 'node:events';
 
 import type { ExecutionResult } from '@/core/execution/interfaces';
+import type { ExecutionOptions } from '@/core/execution/types';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
-import type { TaskOrchestrator } from '@/services/mcp/orchestrator';
+import type { TaskOrchestrator } from '@/services/orchestration/task-orchestrator';
 import type { Plan } from '@/types/decomposer';
-import type { ExecutionOptions } from '@/types/execution';
 
 import { ExecutionMonitorServiceImpl } from '@/services/execution/execution-monitor-service';
 import { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';

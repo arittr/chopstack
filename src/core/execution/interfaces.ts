@@ -1,5 +1,5 @@
+import type { ExecutionStrategy } from '@/core/execution/types';
 import type { Plan, Task, ValidationResult } from '@/types/decomposer';
-import type { ExecutionStrategy } from '@/types/execution';
 
 /**
  * Core interface for task execution
