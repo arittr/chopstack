@@ -11,14 +11,14 @@ import type { DecomposerAgent, Plan } from '@/types/decomposer';
 import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, RunCommand } from '@/commands';
 import { YamlPlanParser } from '@/io/yaml-parser';
-import { createExecutionEngine } from '@/services/execution';
+import { createExecutionEngine } from '@/services/execution/engine';
 import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { DagValidator } from '@/validation/dag-validator';
 
 // Mock external dependencies
 vi.mock('node:fs/promises');
 vi.mock('@/adapters/agents');
-vi.mock('@/services/execution');
+vi.mock('@/services/execution/engine');
 vi.mock('@/validation/dag-validator');
 vi.mock('@/services/planning/plan-generator');
 vi.mock('@/io/yaml-parser');
@@ -336,7 +336,14 @@ describe('runCommand', () => {
     it('should handle execution failure', async () => {
       const failureResult: ExecutionResult = {
         totalDuration: 1000,
-        tasks: [],
+        tasks: [
+          {
+            taskId: 'task-1',
+            status: 'failure',
+            duration: 500,
+            error: 'Task failed',
+          },
+        ],
         branches: [],
         commits: [],
       };
