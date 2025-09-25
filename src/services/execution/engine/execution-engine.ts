@@ -2,21 +2,20 @@ import { EventEmitter } from 'node:events';
 
 import type { ExecutionResult } from '@/core/execution/interfaces';
 import type { ExecutionOptions } from '@/core/execution/types';
-import type { VcsEngineService } from '@/core/vcs/interfaces';
-import type { TaskOrchestrator } from '@/services/orchestration/task-orchestrator';
+import type { ExecutionMonitorService } from '@/services/execution/execution-monitor-service';
+import type { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
+import type { ExecutionPlannerService } from '@/services/execution/execution-planner-service';
 import type { Plan } from '@/types/decomposer';
 
-import { ExecutionMonitorServiceImpl } from '@/services/execution/execution-monitor-service';
-import { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
-import { ExecutionPlannerServiceImpl } from '@/services/execution/execution-planner-service';
 import { logger } from '@/utils/logger';
 
 import type { StateManager } from './state-manager';
 
 export type ExecutionEngineDependencies = {
-  orchestrator: TaskOrchestrator;
+  monitorService: ExecutionMonitorService;
+  orchestrator: ExecutionOrchestrator;
+  plannerService: ExecutionPlannerService;
   stateManager: StateManager;
-  vcsEngine: VcsEngineService;
 };
 
 /**
@@ -24,25 +23,18 @@ export type ExecutionEngineDependencies = {
  */
 export class ExecutionEngine extends EventEmitter {
   private readonly executionOrchestrator: ExecutionOrchestrator;
-  private readonly plannerService: ExecutionPlannerServiceImpl;
-  private readonly monitorService: ExecutionMonitorServiceImpl;
+  private readonly plannerService: ExecutionPlannerService;
+  private readonly monitorService: ExecutionMonitorService;
+  private readonly stateManager: StateManager;
   private readonly activePlans: Map<string, ExecutionResult>;
 
   constructor(dependencies: ExecutionEngineDependencies) {
     super();
 
-    // Initialize modular services
-    this.plannerService = new ExecutionPlannerServiceImpl();
-    this.monitorService = new ExecutionMonitorServiceImpl({
-      enableProgressBar: true,
-      enableRealTimeStats: true,
-      logLevel: 'info',
-    });
-
-    this.executionOrchestrator = new ExecutionOrchestrator({
-      taskOrchestrator: dependencies.orchestrator,
-      vcsEngine: dependencies.vcsEngine,
-    });
+    this.plannerService = dependencies.plannerService;
+    this.monitorService = dependencies.monitorService;
+    this.executionOrchestrator = dependencies.orchestrator;
+    this.stateManager = dependencies.stateManager;
 
     this.activePlans = new Map();
     this._setupEventForwarding();
@@ -50,27 +42,27 @@ export class ExecutionEngine extends EventEmitter {
 
   private _setupEventForwarding(): void {
     // Forward events from the orchestrator
-    this.executionOrchestrator.on('execution_start', (event: unknown) => {
+    this.executionOrchestrator.on('executionStart', (event: unknown) => {
       this.emit('execution_event', event);
     });
 
-    this.executionOrchestrator.on('execution_complete', (result: ExecutionResult) => {
+    this.executionOrchestrator.on('executionComplete', (result: ExecutionResult) => {
       this.emit('execution_event', { type: 'execution_complete', result });
     });
 
-    this.executionOrchestrator.on('execution_error', (error: unknown) => {
+    this.executionOrchestrator.on('executionError', (error: unknown) => {
       this.emit('execution_event', { type: 'execution_error', error });
     });
 
-    this.executionOrchestrator.on('task_start', (event) => {
+    this.executionOrchestrator.on('taskStart', (event) => {
       this.emit('task_update', event);
     });
 
-    this.executionOrchestrator.on('task_complete', (result) => {
+    this.executionOrchestrator.on('taskComplete', (result) => {
       this.emit('task_update', result);
     });
 
-    this.executionOrchestrator.on('task_error', (event) => {
+    this.executionOrchestrator.on('taskError', (event) => {
       this.emit('task_update', event);
     });
 

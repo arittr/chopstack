@@ -1,19 +1,25 @@
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import type { ExecutionMode } from '@/core/execution/types';
 
-import { TaskOrchestrator } from '@/services/orchestration/task-orchestrator';
+import {
+  ClaudeCliTaskExecutionAdapter,
+  type StreamingUpdate,
+  type TaskExecutionAdapter,
+  type TaskExecutionRequest,
+  TaskOrchestrator,
+} from '@/services/orchestration';
 
-describe('TaskOrchestrator Mode Support', () => {
-  let orchestrator: TaskOrchestrator;
+describe('ClaudeCliTaskExecutionAdapter', () => {
+  let adapter: ClaudeCliTaskExecutionAdapter;
 
   beforeEach(() => {
-    orchestrator = new TaskOrchestrator();
+    adapter = new ClaudeCliTaskExecutionAdapter();
   });
 
-  describe('buildClaudeArgs', () => {
+  describe('_buildClaudeArgs', () => {
     test('builds plan mode arguments correctly', () => {
-      const args = (orchestrator as any)._buildClaudeArgs('plan', 'Test prompt');
+      const args = (adapter as any)._buildClaudeArgs('plan', 'Test prompt');
       expect(args).toEqual([
         '-p',
         '--permission-mode',
@@ -25,8 +31,7 @@ describe('TaskOrchestrator Mode Support', () => {
     });
 
     test('builds dry-run mode arguments correctly', () => {
-      const args = (orchestrator as any)._buildClaudeArgs('dry-run', 'Test prompt');
-      // Dry-run uses plan mode since Claude CLI doesn't have a dedicated dry-run mode
+      const args = (adapter as any)._buildClaudeArgs('dry-run', 'Test prompt');
       expect(args).toEqual([
         '-p',
         '--permission-mode',
@@ -38,13 +43,12 @@ describe('TaskOrchestrator Mode Support', () => {
     });
 
     test('builds execute mode arguments correctly', () => {
-      const args = (orchestrator as any)._buildClaudeArgs('execute', 'Test prompt');
+      const args = (adapter as any)._buildClaudeArgs('execute', 'Test prompt');
       expect(args).toEqual(['-p', 'Test prompt']);
     });
 
     test('builds validate mode arguments correctly', () => {
-      const args = (orchestrator as any)._buildClaudeArgs('validate', 'Test prompt');
-      // Validate uses plan mode since Claude CLI doesn't have a dedicated validate mode
+      const args = (adapter as any)._buildClaudeArgs('validate', 'Test prompt');
       expect(args).toEqual([
         '-p',
         '--permission-mode',
@@ -57,22 +61,22 @@ describe('TaskOrchestrator Mode Support', () => {
 
     test('throws error for unsupported mode', () => {
       expect(() => {
-        (orchestrator as any)._buildClaudeArgs('invalid-mode' as ExecutionMode, 'Test prompt');
+        (adapter as any)._buildClaudeArgs('invalid-mode' as ExecutionMode, 'Test prompt');
       }).toThrow('Unsupported execution mode: invalid-mode');
     });
   });
 
-  describe('processModeSpecificResults', () => {
+  describe('_processModeSpecificResults', () => {
     test('processes plan mode results with JSON output', () => {
       const output = '{"files_changed": ["src/test.ts", "src/utils.ts"]}';
-      const results = (orchestrator as any)._processModeSpecificResults('plan', output, true);
+      const results = (adapter as any)._processModeSpecificResults('plan', output, true);
 
       expect(results.filesChanged).toEqual(['src/test.ts', 'src/utils.ts']);
     });
 
     test('handles plan mode with invalid JSON gracefully', () => {
       const output = 'invalid json output';
-      const results = (orchestrator as any)._processModeSpecificResults('plan', output, true);
+      const results = (adapter as any)._processModeSpecificResults('plan', output, true);
 
       expect(results.filesChanged).toBeUndefined();
     });
@@ -83,7 +87,7 @@ describe('TaskOrchestrator Mode Support', () => {
         would modify: src/app/page.tsx
         would update: package.json
       `;
-      const results = (orchestrator as any)._processModeSpecificResults('dry-run', output, true);
+      const results = (adapter as any)._processModeSpecificResults('dry-run', output, true);
 
       expect(results.filesChanged).toEqual([
         'src/components/Button.tsx',
@@ -98,7 +102,7 @@ describe('TaskOrchestrator Mode Support', () => {
         warning: TypeScript version mismatch
         error: Invalid configuration
       `;
-      const results = (orchestrator as any)._processModeSpecificResults('validate', output, false);
+      const results = (adapter as any)._processModeSpecificResults('validate', output, false);
 
       expect(results.validationResults).toEqual({
         canProceed: false,
@@ -109,7 +113,7 @@ describe('TaskOrchestrator Mode Support', () => {
 
     test('processes validate mode with success', () => {
       const output = 'All validations passed successfully';
-      const results = (orchestrator as any)._processModeSpecificResults('validate', output, true);
+      const results = (adapter as any)._processModeSpecificResults('validate', output, true);
 
       expect(results.validationResults).toEqual({
         canProceed: true,
@@ -124,7 +128,7 @@ describe('TaskOrchestrator Mode Support', () => {
         modified: src/app/page.tsx
         updated: package.json
       `;
-      const results = (orchestrator as any)._processModeSpecificResults('execute', output, true);
+      const results = (adapter as any)._processModeSpecificResults('execute', output, true);
 
       expect(results.filesChanged).toEqual([
         'src/components/Button.tsx',
@@ -133,20 +137,41 @@ describe('TaskOrchestrator Mode Support', () => {
       ]);
     });
   });
+});
 
-  describe('mode parameter propagation', () => {
-    test('executeParallelTasks defaults to execute mode', () => {
-      // Mock executeClaudeTask to verify mode parameter
-      const executeTaskSpy = vi.spyOn(orchestrator, 'executeClaudeTask').mockResolvedValue({
-        taskId: 'test-1',
-        mode: 'execute',
-        status: 'completed',
-        output: 'Success',
-      });
+describe('TaskOrchestrator', () => {
+  test('executeTask defaults to execute mode', async () => {
+    const executeSpy = vi.fn(
+      async (request: TaskExecutionRequest, emitUpdate: (update: StreamingUpdate) => void) => {
+        emitUpdate({
+          taskId: request.taskId,
+          type: 'status',
+          data: 'completed',
+          timestamp: new Date(),
+        });
 
-      // Note: This test would need actual implementation to run,
-      // but demonstrates the expected behavior
-      expect(executeTaskSpy).not.toHaveBeenCalled();
-    });
+        await Promise.resolve();
+
+        return {
+          taskId: request.taskId,
+          mode: request.mode,
+          status: 'completed' as const,
+        };
+      },
+    );
+
+    const adapter: TaskExecutionAdapter = {
+      executeTask: executeSpy,
+      stopTask: vi.fn().mockReturnValue(true),
+    };
+
+    const orchestrator = new TaskOrchestrator(adapter);
+
+    await orchestrator.executeTask('task-1', 'Task 1', 'Prompt', []);
+
+    expect(executeSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'execute' }),
+      expect.any(Function),
+    );
   });
 });

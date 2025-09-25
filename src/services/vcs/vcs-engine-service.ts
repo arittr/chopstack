@@ -3,8 +3,12 @@ import { EventEmitter } from 'node:events';
 import type { ExecutionTask } from '@/core/execution/types';
 import type {
   CommitOptions,
+  CommitService,
   ConflictResolutionService,
+  RepositoryService,
+  StackBuildService,
   StackBuildStrategy,
+  VcsAnalysisService,
   WorktreeContext,
   WorktreeService,
 } from '@/core/vcs/domain-services';
@@ -34,47 +38,63 @@ export type VcsEngineConfig = {
 
 export type WorktreeExecutionContext = WorktreeContext;
 
+export type VcsEngineDependencies = {
+  analysisService: VcsAnalysisService;
+  commitService: CommitService;
+  conflictResolutionService: ConflictResolutionService;
+  repositoryService: RepositoryService;
+  stackBuildService: StackBuildService;
+  worktreeService: WorktreeService;
+};
+
 /**
  * Main VCS Engine service that coordinates all VCS domain services
  * Implements the VcsEngineService interface for clean architecture integration
  */
 export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineService {
   private readonly worktreeService: WorktreeService;
-  private readonly commitService: CommitServiceImpl;
-  private readonly repositoryService: RepositoryServiceImpl;
-  private readonly analysisService: VcsAnalysisServiceImpl;
+  private readonly commitService: CommitService;
+  private readonly repositoryService: RepositoryService;
+  private readonly analysisService: VcsAnalysisService;
   private readonly conflictResolutionService: ConflictResolutionService;
-  private readonly stackBuildService: StackBuildServiceImpl;
+  private readonly stackBuildService: StackBuildService;
   private readonly config: VcsEngineConfig;
 
-  constructor(config: VcsEngineConfig) {
+  constructor(config: VcsEngineConfig, dependencies: Partial<VcsEngineDependencies> = {}) {
     super();
     this.config = config;
 
-    // Initialize domain services
-    this.worktreeService = new WorktreeServiceImpl({
-      branchPrefix: config.branchPrefix,
-      cleanupOnSuccess: config.cleanupOnSuccess,
-      cleanupOnFailure: config.cleanupOnFailure,
-      shadowPath: config.shadowPath,
-    });
+    // Initialize domain services with DI overrides
+    this.worktreeService =
+      dependencies.worktreeService ??
+      new WorktreeServiceImpl({
+        branchPrefix: config.branchPrefix,
+        cleanupOnSuccess: config.cleanupOnSuccess,
+        cleanupOnFailure: config.cleanupOnFailure,
+        shadowPath: config.shadowPath,
+      });
 
-    this.commitService = new CommitServiceImpl({
-      defaultGenerateMessage: true,
-      enforceConventionalCommits: false,
-    });
+    this.commitService =
+      dependencies.commitService ??
+      new CommitServiceImpl({
+        defaultGenerateMessage: true,
+        enforceConventionalCommits: false,
+      });
 
-    this.repositoryService = new RepositoryServiceImpl();
+    this.repositoryService = dependencies.repositoryService ?? new RepositoryServiceImpl();
 
-    this.analysisService = new VcsAnalysisServiceImpl();
+    this.analysisService = dependencies.analysisService ?? new VcsAnalysisServiceImpl();
 
-    this.conflictResolutionService = new ConflictResolutionServiceImpl();
+    this.conflictResolutionService =
+      dependencies.conflictResolutionService ?? new ConflictResolutionServiceImpl();
 
-    this.stackBuildService = new StackBuildServiceImpl({
-      branchPrefix: config.branchPrefix,
-      parentRef: 'main',
-      stackSubmissionEnabled: config.stackSubmission.enabled,
-    });
+    this.stackBuildService =
+      dependencies.stackBuildService ??
+      new StackBuildServiceImpl({
+        branchPrefix: config.branchPrefix,
+        parentRef: 'main',
+        stackSubmissionEnabled: config.stackSubmission.enabled,
+      });
 
     this._setupEventForwarding();
   }
