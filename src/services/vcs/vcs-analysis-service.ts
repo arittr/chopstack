@@ -1,7 +1,7 @@
 import { execa } from 'execa';
 
+import type { ExecutionTask } from '@/core/execution/types';
 import type { VcsAnalysisService } from '@/core/vcs/domain-services';
-import type { ExecutionTask } from '@/types/execution';
 
 /**
  * Implementation of VcsAnalysisService domain interface

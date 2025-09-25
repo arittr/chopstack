@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ExecutionStrategySchema } from './execution';
+import { ExecutionStrategySchema } from '@/core/execution/types';
 
 // MCP-specific strategy (subset of full ExecutionStrategy)
 export const TaskExecutionStrategySchema = ExecutionStrategySchema.exclude(['hybrid']);

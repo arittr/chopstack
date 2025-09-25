@@ -4,7 +4,12 @@ import { clearInterval, setInterval } from 'node:timers';
 import chalk from 'chalk';
 import { match } from 'ts-pattern';
 
-import type { ExecutionEvent, ExecutionMetrics, ExecutionPlan, TaskState } from '@/types/execution';
+import type {
+  ExecutionEvent,
+  ExecutionMetrics,
+  ExecutionPlan,
+  TaskState,
+} from '@/core/execution/types';
 
 import {
   createProgressLine,

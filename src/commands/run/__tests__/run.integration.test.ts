@@ -2,9 +2,9 @@ import { readFile } from 'node:fs/promises';
 
 import { vi } from 'vitest';
 
+import type { ExecutionResult } from '@/core/execution/interfaces';
 import type { RunCommandOptions } from '@/types/cli';
 import type { Plan } from '@/types/decomposer';
-import type { ExecutionResult } from '@/types/execution';
 
 import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, RunCommand } from '@/commands';
@@ -50,18 +50,10 @@ describe('runCommand integration tests', () => {
   };
 
   const mockExecutionResult: ExecutionResult = {
-    success: true,
-    planId: 'test-plan-123',
-    mode: 'execute',
-    strategy: 'parallel',
-    startTime: new Date('2024-01-01T10:00:00Z'),
-    endTime: new Date('2024-01-01T10:05:00Z'),
-    duration: 300_000,
+    totalDuration: 300_000,
     tasks: [],
-    tasksCompleted: 2,
-    tasksTotal: 2,
-    tasksFailed: 0,
-    tasksSkipped: 0,
+    branches: [],
+    commits: [],
   };
 
   let mockExecute: ReturnType<typeof vi.fn>;
@@ -281,19 +273,10 @@ tasks:
 
     it('should handle execution failures properly', async () => {
       const failureResult: ExecutionResult = {
-        success: false,
-        planId: 'failed-plan',
-        mode: 'execute',
-        strategy: 'parallel',
-        startTime: new Date(),
-        endTime: new Date(),
-        duration: 1000,
+        totalDuration: 1000,
         tasks: [],
-        tasksCompleted: 0,
-        tasksTotal: 2,
-        tasksFailed: 2,
-        tasksSkipped: 0,
-        error: 'Task execution timeout',
+        branches: [],
+        commits: [],
       };
 
       const mockExecuteFailure = vi.fn().mockResolvedValue(failureResult);
