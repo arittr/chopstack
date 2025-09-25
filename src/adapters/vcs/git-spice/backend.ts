@@ -4,8 +4,8 @@
 
 import { execa } from 'execa';
 
+import type { ExecutionTask, GitSpiceStackInfo } from '@/core/execution/types';
 import type { VcsBackend } from '@/core/vcs/interfaces';
-import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
 
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/logger';
@@ -355,6 +355,7 @@ export class GitSpiceBackend implements VcsBackend {
     return {
       branches,
       stackRoot,
+      prUrls: [],
     };
   }
 
@@ -380,9 +381,14 @@ export class GitSpiceBackend implements VcsBackend {
       return baseRef;
     }
 
+    // If no existing branches, use base ref
+    if (existingBranches === undefined || existingBranches.length === 0) {
+      return baseRef;
+    }
+
     // Find the most recent dependency that has a branch
     for (const depId of task.requires.reverse()) {
-      const depBranch = existingBranches.find((b) => b.taskId === depId);
+      const depBranch = existingBranches.find((b: { taskId: string }) => b.taskId === depId);
       if (depBranch !== undefined) {
         return depBranch.name;
       }
