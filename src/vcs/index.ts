@@ -54,7 +54,7 @@ export async function createVcsBackend(
 ): Promise<VcsBackend> {
   return match(type)
     .with('git-spice', async () => {
-      const { GitSpiceBackend } = await import('./git-spice');
+      const { GitSpiceBackend } = await import('@/adapters/vcs/git-spice/backend');
       return new GitSpiceBackend(config?.options);
     })
     .with('jj', () => {
@@ -89,14 +89,6 @@ export async function detectAvailableVcsBackend(): Promise<VcsBackendType | null
   return null;
 }
 
-// Commit message generation
-export {
-  CommitMessageGenerator,
-  type CommitTask,
-  type CommitMessageGeneratorConfig,
-  type CommitMessageOptions,
-} from './commit-message-generator';
-
 // VCS Engine and factories
 export {
   VcsEngine,
@@ -111,7 +103,15 @@ export {
   createDefaultVcsEngineDependencies,
   type VcsEngineFactoryConfig,
 } from './engine/vcs-engine-factory';
+
+// Commit message generation
+export {
+  CommitMessageGenerator,
+  type CommitTask,
+  type CommitMessageGeneratorConfig,
+  type CommitMessageOptions,
+} from '@/adapters/vcs/commit-message-generator';
 // Git utilities
-export { GitWrapper, type GitStatus, type WorktreeInfo } from './git-wrapper';
+export { GitWrapper, type GitStatus, type WorktreeInfo } from '@/adapters/vcs/git-wrapper';
 
 export type { GitSpiceStackInfo };

@@ -7,8 +7,8 @@ import { execa } from 'execa';
 import type { ExecutionTask } from '@/types/execution';
 import type { VcsEngine } from '@/vcs/engine/vcs-engine';
 
+import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { createTestVcsEngine } from '@/vcs/engine/vcs-engine-factory';
-import { GitWrapper } from '@/vcs/git-wrapper';
 
 const testRepo = join(TEST_PATHS.TEST_TMP, 'cherry-pick-workflow-integration');
 
@@ -207,7 +207,7 @@ describe.skip('Cherry-pick Workflow Integration', () => {
       // TODO: Fix this to use proper mocking or real GitSpiceBackend
       /*
       const mockGitSpice = vi.fn().mockResolvedValue(true);
-      vi.doMock('@/vcs/git-spice', () => ({
+      vi.doMock('@/adapters/vcs/git-spice/backend', () => ({
         gitSpiceBackend: class {
           async isAvailable(): Promise<boolean> {
             const result = await mockGitSpice();

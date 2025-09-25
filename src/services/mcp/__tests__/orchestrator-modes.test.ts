@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 
 import type { ExecutionMode } from '@/types/execution';
 
-import { TaskOrchestrator } from '@/mcp/orchestrator';
+import { TaskOrchestrator } from '@/services/mcp/orchestrator';
 
 describe('TaskOrchestrator Mode Support', () => {
   let orchestrator: TaskOrchestrator;
