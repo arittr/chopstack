@@ -6,21 +6,36 @@ import { container, ProviderManager } from '@/core/di';
 
 import { CoreServicesProvider } from './core-services.provider';
 
+let bootstrapPromise: Promise<void> | null = null;
+
 /**
  * Bootstrap the application DI container
  */
 export async function bootstrapApplication(): Promise<void> {
-  const manager = new ProviderManager(container);
+  if (bootstrapPromise !== null) {
+    return bootstrapPromise;
+  }
 
-  // Register all providers
-  manager.add(new CoreServicesProvider());
-  // Future: Add more providers here
-  // manager.add(new AgentProvidersProvider());
-  // manager.add(new VcsProvidersProvider());
-  // manager.add(new ConfigurationProvider());
+  bootstrapPromise = (async () => {
+    const manager = new ProviderManager(container);
 
-  // Initialize all providers
-  await manager.initialize();
+    // Register all providers
+    manager.add(new CoreServicesProvider());
+    // Future: Add more providers here
+    // manager.add(new AgentProvidersProvider());
+    // manager.add(new VcsProvidersProvider());
+    // manager.add(new ConfigurationProvider());
+
+    // Initialize all providers
+    await manager.initialize();
+  })();
+
+  try {
+    await bootstrapPromise;
+  } catch (error) {
+    bootstrapPromise = null;
+    throw error;
+  }
 }
 
 /**
