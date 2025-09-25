@@ -3,12 +3,10 @@
  * This enables dependency injection from configuration files
  */
 
-import type { CommitMessageGeneratorConfig } from '@/adapters/vcs/commit-message-generator';
-import type { VcsEngine, VcsEngineOptions } from '@/vcs/engine/vcs-engine';
-import type { VcsEngineFactoryConfig } from '@/vcs/engine/vcs-engine-factory';
+import type { VcsEngineService } from '@/core/vcs/interfaces';
 
+import { type VcsEngineConfig, VcsEngineServiceImpl } from '@/services/vcs';
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
-import { createVcsEngine } from '@/vcs/engine/vcs-engine-factory';
 
 import type { ExecutionEngine } from './execution-engine';
 import type { ExecutionEngineFactoryConfig } from './execution-engine-factory';
@@ -19,8 +17,6 @@ import { createExecutionEngine } from './execution-engine-factory';
  * Complete engine configuration for both execution and VCS engines
  */
 export type EngineConfiguration = {
-  /** Commit message generation configuration */
-  commitMessage?: CommitMessageGeneratorConfig;
   /** Execution engine specific configuration */
   execution?: {
     /** Custom dependencies to inject */
@@ -28,10 +24,8 @@ export type EngineConfiguration = {
   };
   /** VCS engine configuration */
   vcs?: {
-    /** Custom dependencies to inject */
-    customDependencies?: VcsEngineFactoryConfig['customDependencies'];
-    /** VCS engine options */
-    options?: Partial<VcsEngineOptions>;
+    /** VCS engine config options */
+    config?: Partial<VcsEngineConfig>;
   };
 };
 
@@ -41,18 +35,24 @@ export type EngineConfiguration = {
  */
 export async function createEnginesFromConfig(config: EngineConfiguration): Promise<{
   executionEngine: ExecutionEngine;
-  vcsEngine: VcsEngine;
+  vcsEngine: VcsEngineService;
 }> {
-  // Create VCS engine first
-  const vcsEngine = await createVcsEngine({
-    ...(isNonNullish(config.vcs?.options) && { options: config.vcs.options }),
-    ...(isNonNullish(config.commitMessage) && {
-      commitMessageConfig: config.commitMessage,
-    }),
-    ...(isNonNullish(config.vcs?.customDependencies) && {
-      customDependencies: config.vcs.customDependencies,
-    }),
-  });
+  // Create VCS engine service
+  const defaultVcsConfig: VcsEngineConfig = {
+    shadowPath: '.chopstack/shadows',
+    branchPrefix: 'chopstack/',
+    cleanupOnSuccess: true,
+    cleanupOnFailure: false,
+    conflictStrategy: 'auto',
+    stackSubmission: {
+      enabled: false,
+      draft: true,
+      autoMerge: false,
+    },
+    ...config.vcs?.config,
+  };
+
+  const vcsEngine = new VcsEngineServiceImpl(defaultVcsConfig);
 
   // Create execution engine with optional custom dependencies
   const executionEngine = await createExecutionEngine({
@@ -79,7 +79,7 @@ export function loadEngineConfigFromEnv(): EngineConfiguration {
     isNonEmptyString(process.env.CHOPSTACK_BRANCH_PREFIX)
   ) {
     config.vcs = {
-      options: {
+      config: {
         ...(isNonEmptyString(process.env.CHOPSTACK_SHADOW_PATH) && {
           shadowPath: process.env.CHOPSTACK_SHADOW_PATH,
         }),
@@ -99,27 +99,6 @@ export function loadEngineConfigFromEnv(): EngineConfiguration {
     };
   }
 
-  // Commit message configuration from environment
-  if (
-    isNonEmptyString(process.env.CHOPSTACK_AI_COMMAND) ||
-    isNonEmptyString(process.env.CHOPSTACK_ENABLE_AI)
-  ) {
-    config.commitMessage = {
-      ...(isNonEmptyString(process.env.CHOPSTACK_AI_COMMAND) && {
-        aiCommand: process.env.CHOPSTACK_AI_COMMAND,
-      }),
-      ...(isNonEmptyString(process.env.CHOPSTACK_ENABLE_AI) && {
-        enableAI: process.env.CHOPSTACK_ENABLE_AI === 'true',
-      }),
-      ...(isNonEmptyString(process.env.CHOPSTACK_AI_TIMEOUT) && {
-        aiTimeout: Number.parseInt(process.env.CHOPSTACK_AI_TIMEOUT, 10),
-      }),
-      ...(isNonEmptyString(process.env.CHOPSTACK_COMMIT_SIGNATURE) && {
-        signature: process.env.CHOPSTACK_COMMIT_SIGNATURE,
-      }),
-    };
-  }
-
   return config;
 }
 
@@ -128,7 +107,7 @@ export function loadEngineConfigFromEnv(): EngineConfiguration {
  */
 export async function createEnginesFromEnv(): Promise<{
   executionEngine: ExecutionEngine;
-  vcsEngine: VcsEngine;
+  vcsEngine: VcsEngineService;
 }> {
   const config = loadEngineConfigFromEnv();
   return createEnginesFromConfig(config);
