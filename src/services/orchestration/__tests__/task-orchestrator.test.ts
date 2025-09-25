@@ -5,10 +5,10 @@ import { isNonNullish } from '@/validation/guards';
 import type { StreamingUpdate, TaskExecutionAdapter } from '../types';
 
 import { TaskExecutionError } from '../errors';
-import { TaskOrchestratorV2 } from '../task-orchestrator-v2';
+import { TaskOrchestrator } from '../task-orchestrator';
 
-describe('TaskOrchestratorV2', () => {
-  let orchestrator: TaskOrchestratorV2;
+describe('TaskOrchestrator', () => {
+  let orchestrator: TaskOrchestrator;
   let mockAdapter: TaskExecutionAdapter;
   let emittedUpdates: StreamingUpdate[];
 
@@ -19,7 +19,7 @@ describe('TaskOrchestratorV2', () => {
       stopTask: vi.fn(),
       getAllTaskStatuses: vi.fn(),
     };
-    orchestrator = new TaskOrchestratorV2(mockAdapter);
+    orchestrator = new TaskOrchestrator(mockAdapter);
     orchestrator.on('taskUpdate', (update: StreamingUpdate) => emittedUpdates.push(update));
   });
 
