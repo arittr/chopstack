@@ -182,27 +182,47 @@ Return ONLY the commit message content between these markers:
       .replace(/^the (?:changes|modifications).*$/im, '')
       .trim();
 
-    // Clean up any remaining preamble patterns and take the first action line
+    // Clean up any remaining preamble patterns but preserve bullet points
     const lines = message.split('\n').filter((l) => l.trim() !== '');
+    const cleanedLines: string[] = [];
+    let foundCommitStart = false;
+
     for (const line of lines) {
       const cleanLine = line.trim();
-      // Skip lines that look like preamble/analysis
+
+      // Skip obvious preamble/analysis lines
       if (
-        /^(looking|analyzing|based|from|i can see|this|the changes|the modifications)/i.test(
+        !foundCommitStart &&
+        (/^(looking|analyzing|based|from|i can see|this commit|the changes|the modifications)/i.test(
           cleanLine,
         ) ||
-        /^(here|now|let me|first|next|then)/i.test(cleanLine) ||
-        cleanLine.length < 5
+          /^(here|now|let me|first|next|then)/i.test(cleanLine) ||
+          cleanLine.length < 5)
       ) {
         continue;
       }
-      // Take the first line that looks like an actual commit message
-      message = cleanLine;
-      break;
+
+      // Once we find what looks like a commit message start, keep everything
+      if (
+        !foundCommitStart &&
+        (/^(feat|fix|docs|style|refactor|perf|test|chore|build|ci):/i.test(cleanLine) ||
+          /^(add|update|fix|remove|implement|enhance|improve|create)/i.test(cleanLine))
+      ) {
+        foundCommitStart = true;
+      }
+
+      if (foundCommitStart) {
+        cleanedLines.push(cleanLine);
+      }
     }
 
-    // If we didn't find a good line, take the first non-empty one
-    message = message === '' && lines.length > 0 ? (lines[0] ?? '') : message;
+    // Reconstruct the message preserving structure
+    message = cleanedLines.length > 0 ? cleanedLines.join('\n') : message;
+
+    // If we still have no good message, take the first non-empty line
+    if (message === '' && lines.length > 0) {
+      message = lines[0] ?? '';
+    }
 
     if (!this._isValidMessage(message)) {
       throw new Error('AI generated empty or too short commit message');
