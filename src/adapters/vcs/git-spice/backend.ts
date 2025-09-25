@@ -111,6 +111,70 @@ export class GitSpiceBackend implements VcsBackend {
   }
 
   /**
+   * Create a branch from a specific commit
+   */
+  async createBranchFromCommit(
+    branchName: string,
+    commitHash: string,
+    parentBranch: string,
+    workdir: string,
+  ): Promise<void> {
+    try {
+      // Switch to parent branch first
+      const git = new GitWrapper(workdir);
+      await git.checkout(parentBranch);
+
+      // Create branch from commit using git-spice
+      await execa('gs', ['branch', 'create', branchName, '--from', commitHash], {
+        cwd: workdir,
+        timeout: 10_000,
+      });
+
+      logger.info(
+        `🌿 Created git-spice branch ${branchName} from commit ${commitHash.slice(0, 7)}`,
+      );
+    } catch (error) {
+      const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
+      throw new GitSpiceError(
+        `Failed to create branch ${branchName} from commit`,
+        'gs branch create',
+        stderr,
+      );
+    }
+  }
+
+  /**
+   * Get current stack information
+   */
+  async getStackInfo(workdir: string): Promise<GitSpiceStackInfo | null> {
+    try {
+      const { stdout } = await execa('gs', ['stack', 'log'], {
+        cwd: workdir,
+        timeout: 10_000,
+      });
+
+      // Parse git-spice stack log output
+      const branches = this._parseStackLog(stdout);
+
+      return {
+        branches: branches.map((branch) => ({
+          name: branch.name,
+          taskId: branch.taskId,
+          commitHash: branch.commitHash,
+          parent: '', // Will be determined when building stack
+        })),
+        stackRoot: 'main', // Default stack root
+        prUrls: [], // Will be populated when stack is submitted
+      };
+    } catch (error) {
+      logger.warn(
+        `Could not get git-spice stack info: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
+  }
+
+  /**
    * Submit the stack to GitHub as pull requests
    */
   async submitStack(workdir: string): Promise<string[]> {
@@ -326,5 +390,41 @@ export class GitSpiceBackend implements VcsBackend {
 
     // Fallback to base ref if no dependencies have branches
     return baseRef;
+  }
+
+  /**
+   * Parse git-spice stack log output
+   */
+  private _parseStackLog(output: string): Array<{
+    commitHash: string;
+    name: string;
+    taskId: string;
+  }> {
+    const branches: Array<{ commitHash: string; name: string; taskId: string }> = [];
+
+    // Parse git-spice stack log output - this is a simplified parser
+    // Real implementation would need to handle the actual git-spice output format
+    const lines = output.split('\n').filter((line) => line.trim().length > 0);
+
+    for (const line of lines) {
+      // Look for branch names that match our pattern
+      const branchMatch = line.match(/chopstack\/([^\\s]+)/);
+      if (branchMatch?.[1] !== undefined) {
+        const taskId = branchMatch[1];
+        const branchName = branchMatch[0];
+
+        // Extract commit hash if present in the line
+        const commitMatch = line.match(/([\da-f]{7,40})/);
+        const commitHash = commitMatch?.[1] ?? '';
+
+        branches.push({
+          name: branchName,
+          taskId,
+          commitHash,
+        });
+      }
+    }
+
+    return branches;
   }
 }
