@@ -191,6 +191,12 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
       strategy,
     });
 
+    if (stackInfo.failedTasks !== undefined && stackInfo.failedTasks.length > 0) {
+      for (const failure of stackInfo.failedTasks) {
+        logger.warn(`⚠️ Stack branch skipped for task ${failure.taskId}: ${failure.reason}`);
+      }
+    }
+
     // Submit stack if requested and enabled
     if (options.submitStack === true && this.config.stackSubmission.enabled) {
       try {

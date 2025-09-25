@@ -9,6 +9,7 @@ import promisePlugin from 'eslint-plugin-promise';
 import unicorn from 'eslint-plugin-unicorn';
 
 import aliasPlugin from './tools/eslint/alias-plugin';
+import guardsPlugin from './tools/eslint/guards-plugin';
 
 const relativeImportPathRestrictions = [
   {
@@ -59,6 +60,7 @@ const config: Record<string, unknown>[] = [
     plugins: {
       '@typescript-eslint': tseslint,
       alias: aliasPlugin,
+      guards: guardsPlugin,
       'import-x': importXPlugin,
       perfectionist,
       promise: promisePlugin,
@@ -216,6 +218,7 @@ const config: Record<string, unknown>[] = [
       curly: ['error', 'all'],
       'dot-notation': 'error',
       eqeqeq: ['error', 'always', { null: 'ignore' }],
+      'guards/prefer-guards-defined': 'warn',
       'import-x/default': 'off', // TypeScript handles this
       'import-x/first': 'error',
       'import-x/named': 'off', // TypeScript handles this

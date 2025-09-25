@@ -23,7 +23,14 @@ export type VcsBackend = {
   /**
    * Submit a stack for review
    */
-  submitStack(workdir: string): Promise<string[]>;
+  submitStack(
+    workdir: string,
+    options?: {
+      autoMerge?: boolean;
+      draft?: boolean;
+      extraArgs?: string[];
+    },
+  ): Promise<string[]>;
 };
 
 /**
