@@ -5,13 +5,13 @@ import { match } from 'ts-pattern';
 
 import type { Plan } from '@/types/decomposer';
 import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
+import type { CommitMessageGenerator } from '@/vcs/commit-message-generator';
+import type { ConflictResolver } from '@/vcs/conflict-resolver';
+import type { StackBuilder } from '@/vcs/stack-builder';
+import type { WorktreeManager } from '@/vcs/worktree-manager';
 
 import { logger } from '@/utils/logger';
-import { CommitMessageGenerator } from '@/vcs/commit-message-generator';
-import { ConflictResolver } from '@/vcs/conflict-resolver';
 import { GitWrapper } from '@/vcs/git-wrapper';
-import { StackBuilder } from '@/vcs/stack-builder';
-import { WorktreeManager } from '@/vcs/worktree-manager';
 
 export type VcsEngineOptions = {
   branchPrefix: string; // Default: 'chopstack/'
@@ -42,6 +42,16 @@ export type WorktreeExecutionContext = {
 };
 
 /**
+ * Dependencies for VcsEngine (dependency injection)
+ */
+export type VcsEngineDependencies = {
+  commitMessageGenerator: CommitMessageGenerator;
+  conflictResolver: ConflictResolver;
+  stackBuilder: StackBuilder;
+  worktreeManager: WorktreeManager;
+};
+
+/**
  * VcsEngine manages the complete flow from parallel task execution
  * in isolated worktrees to incremental git-spice stack creation
  */
@@ -52,29 +62,14 @@ export class VcsEngine extends EventEmitter {
   private readonly commitMessageGenerator: CommitMessageGenerator;
   private readonly options: VcsEngineOptions;
 
-  constructor(options?: Partial<VcsEngineOptions>) {
+  constructor(dependencies: VcsEngineDependencies, options: VcsEngineOptions) {
     super();
 
-    this.options = {
-      shadowPath: '.chopstack/shadows',
-      branchPrefix: 'chopstack/',
-      cleanupOnSuccess: true,
-      cleanupOnFailure: false,
-      conflictStrategy: 'auto',
-      stackSubmission: {
-        enabled: false,
-        draft: true,
-        autoMerge: false,
-      },
-      ...options,
-    };
-
-    this.worktreeManager = new WorktreeManager(this.options);
-    this.stackBuilder = new StackBuilder(this.options);
-    this.conflictResolver = new ConflictResolver(this.options);
-    this.commitMessageGenerator = new CommitMessageGenerator({
-      logger: { warn: logger.warn.bind(logger) },
-    });
+    this.worktreeManager = dependencies.worktreeManager;
+    this.stackBuilder = dependencies.stackBuilder;
+    this.conflictResolver = dependencies.conflictResolver;
+    this.commitMessageGenerator = dependencies.commitMessageGenerator;
+    this.options = options;
 
     this._setupEventForwarding();
   }

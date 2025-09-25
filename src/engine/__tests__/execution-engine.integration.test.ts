@@ -69,7 +69,7 @@ describe('ExecutionEngine Integration', () => {
       };
 
       // Act
-      const engine = createExecutionEngine();
+      const engine = await createExecutionEngine();
       const result = await engine.execute(plan, options);
 
       // Assert
@@ -115,7 +115,7 @@ describe('ExecutionEngine Integration', () => {
       };
 
       // Act & Assert
-      const engine = createExecutionEngine();
+      const engine = await createExecutionEngine();
       await expect(engine.execute(plan, options)).rejects.toThrow('validation failed');
     });
 
@@ -144,7 +144,7 @@ describe('ExecutionEngine Integration', () => {
       };
 
       // Act
-      const engine = createExecutionEngine();
+      const engine = await createExecutionEngine();
       const result = await engine.execute(plan, options);
 
       // Assert - plan mode should return without executing
@@ -195,7 +195,7 @@ describe('ExecutionEngine Integration', () => {
       };
 
       // Act
-      const engine = createExecutionEngine();
+      const engine = await createExecutionEngine();
       const result = await engine.execute(plan, options);
 
       // Assert
