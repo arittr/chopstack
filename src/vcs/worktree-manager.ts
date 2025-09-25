@@ -4,9 +4,8 @@ import * as path from 'node:path';
 
 import type { VcsEngineOptions } from '@/vcs/engine/vcs-engine';
 
+import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/logger';
-
-import { GitWrapper } from './git-wrapper';
 
 export type WorktreeCreateOptions = {
   baseRef: string;

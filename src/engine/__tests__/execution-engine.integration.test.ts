@@ -7,7 +7,7 @@ import type { Plan } from '@/types/decomposer';
 import type { ExecutionOptions } from '@/types/execution';
 
 import { createExecutionEngine } from '@/engine';
-import { TaskOrchestrator } from '@/mcp/orchestrator';
+import { TaskOrchestrator } from '@/services/mcp/orchestrator';
 
 describe('ExecutionEngine Integration', () => {
   const testDir = join(process.cwd(), 'test', 'tmp', 'execution-engine-test');

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { execaSync } from 'execa';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { CommitMessageGenerator } from '@/vcs/commit-message-generator';
+import { CommitMessageGenerator } from '@/adapters/vcs/commit-message-generator';
 
 describe('CommitMessageGenerator Integration', () => {
   let testDir: string;

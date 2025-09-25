@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 
 import type { DecomposerAgent, Plan } from '@/types/decomposer';
 
-import { generatePlanWithRetry } from '@/planning/plan-generator';
+import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { DagValidator } from '@/validation/dag-validator';
 
 describe('plan-generator integration tests', () => {
