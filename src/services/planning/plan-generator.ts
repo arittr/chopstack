@@ -1,4 +1,5 @@
-import type { DecomposerAgent, Plan } from '@/types/decomposer';
+import type { DecomposerAgent } from '@/core/agents/interfaces';
+import type { Plan } from '@/types/decomposer';
 
 import { logger } from '@/utils/logger';
 import { DagValidator } from '@/validation/dag-validator';
