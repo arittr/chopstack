@@ -14,10 +14,12 @@ export const ServiceIdentifiers = {
   AgentService: Symbol.for('AgentService'),
   ExecutionEngine: Symbol.for('ExecutionEngine'),
   TaskOrchestrator: Symbol.for('TaskOrchestrator'),
+  TaskExecutionAdapter: Symbol.for('TaskExecutionAdapter'),
 
   // Domain services
   ExecutionPlanner: Symbol.for('ExecutionPlanner'),
   ExecutionMonitor: Symbol.for('ExecutionMonitor'),
+  ExecutionOrchestrator: Symbol.for('ExecutionOrchestrator'),
   StateManager: Symbol.for('StateManager'),
 
   // VCS services
