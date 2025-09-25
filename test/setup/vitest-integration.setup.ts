@@ -1,5 +1,8 @@
 import { MOCK_RESPONSES } from '@test/constants/test-paths';
-import { vi } from 'vitest';
+import { afterAll, beforeAll, vi } from 'vitest';
+
+// Import worktree cleanup to ensure it runs after all tests
+import './worktree-cleanup';
 
 // Import worktree cleanup to ensure it runs after all tests
 import './worktree-cleanup';
@@ -232,5 +235,23 @@ vi.spyOn(process, 'exit').mockImplementation(() => {
 // Suppress console output by default (tests can override if needed)
 vi.spyOn(console, 'log').mockImplementation(() => {});
 vi.spyOn(console, 'error').mockImplementation(() => {});
+
+// Global cleanup after all tests
+beforeAll(() => {
+  // Log that we're starting integration tests
+  console.log('🧹 Cleaning up before integration tests...');
+});
+
+afterAll(async () => {
+  // Run test:clean and git worktree prune to ensure everything is cleaned up
+  try {
+    const { execSync } = await import('node:child_process');
+    execSync('git worktree prune', { stdio: 'pipe' });
+    execSync('pnpm test:clean', { stdio: 'pipe' });
+    console.log('✅ Test cleanup complete');
+  } catch (error) {
+    console.warn('⚠️ Test cleanup failed:', error instanceof Error ? error.message : error);
+  }
+});
 
 // Per-project timeout is configured in vitest.config.ts (projects.integration.testTimeout)
