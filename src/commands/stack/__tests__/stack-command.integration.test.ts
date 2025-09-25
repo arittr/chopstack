@@ -7,15 +7,8 @@ import type { CommandDependencies } from '@/commands/types';
 import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
 import { StackCommand } from '@/commands/stack/stack-command';
 
-// Mock external dependencies that we don't want to test in integration
-vi.mock('@/adapters/vcs/commit-message-generator', () => ({
-  CommitMessageGenerator: class MockCommitMessageGenerator {
-    async generateCommitMessage(): Promise<string> {
-      await Promise.resolve();
-      return 'feat: integration test commit message\n\nDetailed description of changes made.';
-    }
-  },
-}));
+// NOTE: Integration tests use real CommitMessageGenerator to test actual Claude API calls
+// This provides authentic testing of the commit message generation workflow
 
 describe('StackCommand integration tests', () => {
   let stackCommand: StackCommand;
@@ -230,19 +223,45 @@ describe('StackCommand integration tests', () => {
 
         expect(result).toBe(0);
 
+        // Should have displayed loading indicator before generation
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          expect.stringContaining('🤖 Calling Claude to generate commit message...'),
+        );
+
         // Should have displayed generated commit message
         expect(mockLogger.info).toHaveBeenCalledWith(
           expect.stringContaining('💬 Generated commit message:'),
         );
-        expect(mockLogger.info).toHaveBeenCalledWith(
-          expect.stringContaining('feat: integration test commit message'),
-        );
 
-        // Verify the actual commit was created with the generated message
+        // Should have a commit message that follows conventional commit format
+        const commitMessageCalls = mockLogger.info.mock.calls.filter(
+          (call) =>
+            typeof call[0] === 'string' &&
+            /^\s*(feat|fix|docs|style|refactor|test|chore):/i.test(call[0].trim()),
+        );
+        expect(commitMessageCalls.length).toBeGreaterThanOrEqual(1);
+
+        // Should contain detailed information (bullet points or multiple lines)
+        const detailedContentCalls = mockLogger.info.mock.calls.filter(
+          (call) =>
+            typeof call[0] === 'string' &&
+            (call[0].includes('-') || // bullet points
+              call[0].includes('*') || // alternative bullet format
+              call[0].length > 80), // long detailed description
+        );
+        // Real Claude calls should generate detailed content
+        expect(detailedContentCalls.length).toBeGreaterThanOrEqual(1);
+
+        // Verify the actual commit was created with a proper commit message
         const { stdout: logOutput } = await execa('git', ['log', '--oneline', '-1'], {
           cwd: context.absolutePath,
         });
-        expect(logOutput).toContain('feat: integration test commit message');
+
+        // Should contain a conventional commit format (real Claude response)
+        expect(logOutput).toMatch(/\w+ (feat|fix|docs|style|refactor|test|chore):/i);
+
+        // Should be a substantial commit message (not just a generic title)
+        expect(logOutput.length).toBeGreaterThan(50);
       } finally {
         await context.cleanup();
       }
