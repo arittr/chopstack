@@ -10,6 +10,7 @@ export type GitSpiceOptions = {
   branchName?: string;
   createStack?: boolean;
   description?: string;
+  dryRun?: boolean;
   message?: string;
   submit?: boolean;
   title?: string;
@@ -33,6 +34,7 @@ export type CommitMessageOptions = {
   branchName?: string;
   createStack?: boolean;
   description?: string;
+  dryRun?: boolean;
   files?: string[];
   message?: string;
   title?: string;
