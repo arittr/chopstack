@@ -231,17 +231,17 @@ export class StackCommand extends BaseCommand {
   }
 
   private async _generateCommitMessage(statusLines: string[]): Promise<string> {
-    // Create a simple task object for the commit message generator
-    const task = {
-      title: 'Stack changes',
-      description: `${statusLines.length} files changed`,
-      produces: statusLines.map((line) => line.slice(3)),
-    };
+    // Analyze the changed files to create a more detailed task description
+    const files = statusLines.map((line) => line.slice(3));
+    const task = this._createTaskFromChangedFiles(statusLines, files);
+
+    // Show loading indicator as AI generation can take time
+    this.logger.info(chalk.blue('🤖 Calling Claude to generate commit message...'));
 
     try {
       return await this.commitMessageGenerator.generateCommitMessage(task, {
         workdir: process.cwd(),
-        files: task.produces,
+        files,
       });
     } catch (error) {
       // Don't use fallback - encourage user to provide manual message
@@ -296,5 +296,98 @@ export class StackCommand extends BaseCommand {
     } else {
       this.logger.error(chalk.red(`   Error: ${String(error)}`));
     }
+  }
+
+  /**
+   * Create a detailed task object from changed files for better commit message generation
+   */
+  private _createTaskFromChangedFiles(
+    statusLines: string[],
+    files: string[],
+  ): {
+    description: string;
+    produces: string[];
+    title: string;
+  } {
+    // Analyze file patterns and changes
+    const changes = {
+      added: statusLines.filter((line) => line.startsWith('A ')).length,
+      modified: statusLines.filter((line) => line.startsWith('M ')).length,
+      deleted: statusLines.filter((line) => line.startsWith('D ')).length,
+      renamed: statusLines.filter((line) => line.startsWith('R ')).length,
+    };
+
+    // Categorize files by type
+    const categories = {
+      tests: files.filter((f) => f.includes('test') || f.includes('spec')),
+      components: files.filter(
+        (f) => f.endsWith('.tsx') || f.endsWith('.jsx') || f.includes('component'),
+      ),
+      types: files.filter((f) => f.includes('types') || f.endsWith('.d.ts')),
+      configs: files.filter(
+        (f) =>
+          f.includes('config') || f.endsWith('.json') || f.endsWith('.yaml') || f.endsWith('.toml'),
+      ),
+      docs: files.filter((f) => f.endsWith('.md') || f.includes('README')),
+      apis: files.filter(
+        (f) => f.includes('api') || f.includes('service') || f.includes('adapter'),
+      ),
+      utils: files.filter((f) => f.includes('utils') || f.includes('helpers')),
+      commands: files.filter((f) => f.includes('command')),
+    };
+
+    // Generate intelligent title based on changes
+    let title = 'Update codebase';
+    if (categories.tests.length > 0 && categories.tests.length >= files.length / 2) {
+      title = 'Add comprehensive test coverage';
+    } else if (categories.components.length > 0) {
+      title = 'Enhance UI components and functionality';
+    } else if (categories.commands.length > 0) {
+      title = 'Improve CLI command functionality';
+    } else if (categories.apis.length > 0) {
+      title = 'Enhance API and service integration';
+    } else if (categories.types.length > 0) {
+      title = 'Update type definitions and interfaces';
+    } else if (categories.configs.length > 0) {
+      title = 'Update project configuration';
+    } else if (categories.docs.length > 0) {
+      title = 'Update documentation';
+    }
+
+    // Generate detailed description
+    const descriptions: string[] = [];
+
+    if (changes.added > 0) {
+      descriptions.push(`${changes.added} new file${changes.added > 1 ? 's' : ''} added`);
+    }
+    if (changes.modified > 0) {
+      descriptions.push(`${changes.modified} file${changes.modified > 1 ? 's' : ''} modified`);
+    }
+    if (changes.deleted > 0) {
+      descriptions.push(`${changes.deleted} file${changes.deleted > 1 ? 's' : ''} deleted`);
+    }
+    if (changes.renamed > 0) {
+      descriptions.push(`${changes.renamed} file${changes.renamed > 1 ? 's' : ''} renamed`);
+    }
+
+    // Add category-specific descriptions
+    for (const [category, categoryFiles] of Object.entries(categories)) {
+      if (categoryFiles.length > 0) {
+        descriptions.push(
+          `${categoryFiles.length} ${category} file${categoryFiles.length > 1 ? 's' : ''} affected`,
+        );
+      }
+    }
+
+    const description =
+      descriptions.length > 0
+        ? descriptions.join(', ')
+        : `${files.length} files changed across the codebase`;
+
+    return {
+      title,
+      description,
+      produces: files,
+    };
   }
 }
