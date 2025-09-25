@@ -122,11 +122,8 @@ export class StackCommand extends BaseCommand {
         return this._handleRegularCommit(commitMessage);
       }
 
-      // Initialize git-spice if needed
-      const workdir = process.cwd();
-      await this.gitSpiceBackend.initialize(workdir);
-
       // Create git-spice branch
+      const workdir = process.cwd();
       const branchName = await this.gitSpiceBackend.createBranchWithCommit(
         workdir,
         args.branchName ?? '',
