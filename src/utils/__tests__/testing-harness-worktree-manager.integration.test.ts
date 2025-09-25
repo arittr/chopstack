@@ -156,7 +156,7 @@ describe('TestWorktreeManager', () => {
 
         // Verify we can read actual source code
         const binContent = await fs.readFile(chopstackBin, 'utf8');
-        expect(binContent).toContain('cli.js');
+        expect(binContent).toContain('import { run } from');
       } finally {
         await context.cleanup();
       }
