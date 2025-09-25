@@ -8,7 +8,7 @@ import type { ExecutionResult } from '@/types/execution';
 
 import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, RunCommand } from '@/commands';
-import { ExecutionEngine } from '@/engine/execution-engine';
+import { ExecutionEngine } from '@/services/execution/engine/execution-engine';
 
 // Mock only external dependencies and complex systems
 vi.mock('node:fs/promises');
