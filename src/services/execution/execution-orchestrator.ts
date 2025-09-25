@@ -122,7 +122,7 @@ export class ExecutionOrchestrator extends EventEmitter {
    */
   private _createExecutionContext(options: ExecutionOptions): ExecutionContext {
     return {
-      agentType: 'claude',
+      agentType: options.agent ?? 'claude',
       continueOnError: options.continueOnError ?? false,
       cwd: options.workdir ?? process.cwd(),
       dryRun: options.dryRun ?? false,

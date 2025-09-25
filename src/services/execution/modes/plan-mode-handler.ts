@@ -33,6 +33,7 @@ export class PlanModeHandlerImpl implements PlanModeHandler {
           task.touches,
           context.cwd,
           'plan',
+          context.agentType,
         );
 
         const taskResult: TaskResult = {

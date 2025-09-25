@@ -133,6 +133,7 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
         ['file1.ts'],
         '/test',
         'execute',
+        'claude',
       );
 
       // Tasks 2 and 3 should be called after task 1
@@ -273,6 +274,7 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
         ['file1.ts'],
         '/test',
         'execute',
+        'claude',
       );
 
       // Task1 should be failed, task2 should be skipped
