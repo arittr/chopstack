@@ -5,7 +5,8 @@ import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
 import { match } from 'ts-pattern';
 
-import type { DecomposerAgent, Plan } from '@/types/decomposer';
+import type { AgentCapabilities, AgentType, DecomposerAgent } from '@/core/agents/interfaces';
+import type { Plan } from '@/types/decomposer';
 
 import { type ParsedContent, YamlPlanParser } from '@/io/yaml-parser';
 import { PromptBuilder } from '@/services/planning/prompts';
@@ -50,6 +51,46 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
       }
       throw new AgentNotFoundError('claude');
     }
+  }
+
+  getCapabilities(): AgentCapabilities {
+    return {
+      maxContextLength: 200_000,
+      models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
+      supportsDecomposition: true,
+      supportsStreaming: true,
+      version: '3.5',
+    };
+  }
+
+  async isAvailable(): Promise<boolean> {
+    try {
+      // Try to execute a simple claude command to check availability
+      const { spawn } = await import('node:child_process');
+
+      return await new Promise<boolean>((resolve) => {
+        const process = spawn('claude', ['--version'], { stdio: 'ignore' });
+
+        process.on('error', () => {
+          resolve(false);
+        });
+        process.on('exit', (code) => {
+          resolve(code === 0);
+        });
+
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          process.kill();
+          resolve(false);
+        }, 5000);
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  getType(): AgentType {
+    return 'claude';
   }
 
   private async _executeClaudeCommand(
