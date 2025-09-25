@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { TaskState } from '@/types/execution';
+import type { TaskState } from '@/core/execution/types';
 
 import {
   calculateProgress,

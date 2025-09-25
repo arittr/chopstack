@@ -83,7 +83,7 @@ export async function runCliInProcess(
     });
 
     // Run the CLI
-    const { run } = await import('@/cli');
+    const { run } = await import('@/entry/cli/chopstack');
     const cliPromise = run(args);
 
     const result = await Promise.race([cliPromise, timeoutPromise]);

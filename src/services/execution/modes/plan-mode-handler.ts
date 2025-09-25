@@ -4,7 +4,10 @@ import type {
   PlanModeResult,
   TaskResult,
 } from '@/core/execution/interfaces';
-import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/mcp/orchestrator';
+import type {
+  OrchestratorTaskResult,
+  TaskOrchestrator,
+} from '@/services/orchestration/task-orchestrator';
 import type { Task } from '@/types/decomposer';
 
 import { logger } from '@/utils/logger';

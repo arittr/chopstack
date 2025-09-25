@@ -5,7 +5,10 @@ import type {
   TaskResult,
 } from '@/core/execution/interfaces';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
-import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/mcp/orchestrator';
+import type {
+  OrchestratorTaskResult,
+  TaskOrchestrator,
+} from '@/services/orchestration/task-orchestrator';
 import type { Task } from '@/types/decomposer';
 
 import { logger } from '@/utils/logger';
