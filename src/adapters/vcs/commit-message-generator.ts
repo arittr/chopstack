@@ -91,39 +91,64 @@ export class CommitMessageGenerator {
     task: CommitTask,
     options: CommitMessageOptions,
   ): Promise<string> {
-    // Get git diff information using raw git commands to avoid dependencies
-    const gitDiff = await this._execGit(['diff', '--cached', '--stat'], options.workdir);
-    const gitDiffDetails = await this._execGit(
+    // Get comprehensive git diff information
+    const gitDiffStat = await this._execGit(['diff', '--cached', '--stat'], options.workdir);
+    const gitDiffNameStatus = await this._execGit(
       ['diff', '--cached', '--name-status'],
       options.workdir,
     );
 
-    const prompt = `Generate a professional commit message for this task:
+    // Get actual code changes (limited to avoid token limits)
+    const gitDiffContent = await this._execGit(
+      ['diff', '--cached', '--unified=3', '--ignore-space-change'],
+      options.workdir,
+    );
 
-Task: ${task.title}
-Description: ${task.description}
+    // Truncate diff if too long to avoid token limits
+    const maxDiffLength = 8000; // Reserve tokens for prompt and response
+    const truncatedDiff =
+      gitDiffContent.length > maxDiffLength
+        ? `${gitDiffContent.slice(0, maxDiffLength)}\n... (diff truncated)`
+        : gitDiffContent;
 
-Git Changes:
-${gitDiffDetails}
+    const prompt = `Generate a professional commit message based on the actual code changes:
 
-Git Diff Summary:
-${gitDiff}
+Task Context:
+- Title: ${task.title}
+- Description: ${task.description}
+- Files: ${options.files?.join(', ') ?? 'No files specified'}
 
-Task Output:
-${options.output ?? 'No output available'}
+File Changes Summary:
+${gitDiffNameStatus}
+
+Diff Statistics:
+${gitDiffStat}
+
+Actual Code Changes:
+\`\`\`diff
+${truncatedDiff}
+\`\`\`
+
+Task Execution Output:
+${options.output ?? 'No execution output provided'}
 
 Requirements:
-1. Clear, descriptive title (50 chars or less) following conventional commits
-2. Include detailed body with bullet points explaining specific changes
-3. Use imperative mood ("Add feature" not "Added feature")
-4. Format: Title + blank line + bullet point details
-5. Bullet points should describe:
-   - Key functionality added/changed
-   - Files or components affected
-   - Technical details or reasoning
-6. Focus on the business value and technical implementation
-7. DO NOT include preamble like "Looking at the changes" or "Based on the diff"
-8. Start directly with the action ("Add", "Fix", "Update", etc.)
+1. ANALYZE THE ACTUAL CODE CHANGES - don't guess based on file names
+2. Clear, descriptive title (50 chars or less) following conventional commits
+3. Include detailed body with bullet points explaining what actually changed
+4. Use imperative mood ("Add feature" not "Added feature")
+5. Format: Title + blank line + bullet point details
+6. Bullet points must describe ACTUAL changes from the diff:
+   - What specific functions/methods were added/modified/removed
+   - What logic or behavior changed
+   - Why the change was made (based on code context)
+   - Any new dependencies, imports, or architectural changes
+7. If tests were added/removed/modified, specify which test scenarios
+8. If mocking was added/removed, specify what is now mocked/unmocked
+9. Focus on technical accuracy over generic descriptions
+10. DO NOT include preamble like "Looking at the changes" or "Based on the diff"
+11. Start directly with the action ("Add", "Fix", "Update", etc.)
+12. Be specific about what changed, not what you think should have changed
 
 Example format:
 feat: add user authentication system
@@ -139,13 +164,20 @@ Return ONLY the commit message content between these markers:
 (commit message goes here)
 <<<COMMIT_MESSAGE_END>>>`;
 
+    // Analyze patterns in the actual changes
+    const changeAnalysis = this._analyzeCodeChanges(truncatedDiff, options.files ?? []);
+    const enhancedPrompt = `${prompt}
+
+Change Analysis:
+${changeAnalysis}`;
+
     try {
       // Pass prompt via stdin to handle long prompts properly
       const { stdout: aiResponse } = await execa(this.config.aiCommand, ['--print'], {
         cwd: options.workdir,
         timeout: this.config.aiTimeout,
         stdin: 'pipe',
-        input: prompt, // Pass the prompt via stdin
+        input: enhancedPrompt, // Pass the enhanced prompt via stdin
       });
 
       return this._parseAICommitMessage(aiResponse);
@@ -380,5 +412,88 @@ Return ONLY the commit message content between these markers:
         `Git command failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  /**
+   * Analyze code changes to provide more accurate context
+   */
+  private _analyzeCodeChanges(diffContent: string, files: string[]): string {
+    const analysis: string[] = [];
+
+    // Analyze diff patterns
+    const addedLines = diffContent
+      .split('\n')
+      .filter((line) => line.startsWith('+') && !line.startsWith('+++'));
+    const removedLines = diffContent
+      .split('\n')
+      .filter((line) => line.startsWith('-') && !line.startsWith('---'));
+
+    // Detect specific patterns
+    const patterns = {
+      newFunctions: addedLines.filter((line) =>
+        /\+.*(?:function|const\s+\w+\s*=|class\s+\w+)/.test(line),
+      ).length,
+      removedFunctions: removedLines.filter((line) =>
+        /-.*(?:function|const\s+\w+\s*=|class\s+\w+)/.test(line),
+      ).length,
+      newImports: addedLines.filter((line) => /\+.*import\s/.test(line)).length,
+      removedImports: removedLines.filter((line) => /-.*import\s/.test(line)).length,
+      newTests: addedLines.filter((line) => /\+.*(test|it|describe)\s*\(/.test(line)).length,
+      removedTests: removedLines.filter((line) => /-.*(test|it|describe)\s*\(/.test(line)).length,
+      mockChanges:
+        diffContent.includes('vi.mock') ||
+        diffContent.includes('jest.mock') ||
+        diffContent.includes('mock'),
+      typeChanges:
+        diffContent.includes('interface') ||
+        diffContent.includes('type ') ||
+        diffContent.includes('.d.ts'),
+    };
+
+    // Generate analysis
+    if (patterns.newFunctions > 0) {
+      analysis.push(`${patterns.newFunctions} new functions/methods added`);
+    }
+    if (patterns.removedFunctions > 0) {
+      analysis.push(`${patterns.removedFunctions} functions/methods removed`);
+    }
+    if (patterns.newImports > 0) {
+      analysis.push(`${patterns.newImports} new imports added`);
+    }
+    if (patterns.removedImports > 0) {
+      analysis.push(`${patterns.removedImports} imports removed`);
+    }
+    if (patterns.newTests > 0) {
+      analysis.push(`${patterns.newTests} new test cases added`);
+    }
+    if (patterns.removedTests > 0) {
+      analysis.push(`${patterns.removedTests} test cases removed`);
+    }
+    if (patterns.mockChanges) {
+      analysis.push('Mocking/stubbing patterns detected in changes');
+    }
+    if (patterns.typeChanges) {
+      analysis.push('TypeScript type definitions modified');
+    }
+
+    // Analyze by file type
+    const testFiles = files.filter((f) => f.includes('test') || f.includes('spec'));
+    const componentFiles = files.filter((f) => f.includes('component') || f.endsWith('.tsx'));
+    const utilFiles = files.filter((f) => f.includes('util') || f.includes('helper'));
+
+    if (testFiles.length > 0) {
+      analysis.push(`Test files modified: ${testFiles.join(', ')}`);
+    }
+    if (componentFiles.length > 0) {
+      analysis.push(`Component files modified: ${componentFiles.join(', ')}`);
+    }
+    if (utilFiles.length > 0) {
+      analysis.push(`Utility files modified: ${utilFiles.join(', ')}`);
+    }
+
+    // Overall change magnitude
+    analysis.push(`${addedLines.length} lines added, ${removedLines.length} lines removed`);
+
+    return analysis.length > 0 ? analysis.join('\n- ') : 'No specific patterns detected';
   }
 }
