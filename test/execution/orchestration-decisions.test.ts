@@ -2,17 +2,16 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { runCliInProcess } from '@test/utils/cli-runner';
+import {
+  type TestWorktreeContext,
+  testWorktreeManager,
+} from '@test/utils/testing-harness-worktree-manager';
 import { parse as parseYaml } from 'yaml';
 
 import type { Plan, Task } from '@/types/decomposer';
 
 import { DagValidator } from '@/validation/dag-validator';
-
-import { runCliInProcess } from '../utils/cli-runner';
-import {
-  type TestWorktreeContext,
-  testWorktreeManager,
-} from '../utils/testing-harness-worktree-manager';
 
 describe('Orchestration Decision Making', () => {
   const SPEC_PATH = path.resolve(__dirname, '../e2e/specs/add-stack-summary-command.md');

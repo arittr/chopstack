@@ -2,10 +2,10 @@ import { writeFile } from 'node:fs/promises';
 
 import { stringify as stringifyYaml } from 'yaml';
 
-import type { Plan, PlanMetrics } from '../types/decomposer';
+import type { Plan, PlanMetrics } from '@/types/decomposer';
 
-import { logger } from '../utils/logger';
-import { isNonEmptyString } from '../validation/guards';
+import { logger } from '@/utils/logger';
+import { isNonEmptyString } from '@/validation/guards';
 
 export class PlanOutputter {
   static async outputPlan(plan: Plan, metrics: PlanMetrics, outputPath?: string): Promise<void> {

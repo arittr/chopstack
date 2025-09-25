@@ -1,6 +1,6 @@
 import type { SDKResultMessage } from '@anthropic-ai/claude-code';
 
-import { isNonEmptyObject } from '../validation/guards';
+import { isNonEmptyObject } from '@/validation/guards';
 
 // Use official Claude Code SDK types
 export type ClaudeExecutionPlan = SDKResultMessage;

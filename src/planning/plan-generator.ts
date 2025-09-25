@@ -1,8 +1,8 @@
-import type { DecomposerAgent, Plan } from '../types/decomposer';
+import type { DecomposerAgent, Plan } from '@/types/decomposer';
 
-import { logger } from '../utils/logger';
-import { DagValidator } from '../validation/dag-validator';
-import { isValidArray } from '../validation/guards';
+import { logger } from '@/utils/logger';
+import { DagValidator } from '@/validation/dag-validator';
+import { isValidArray } from '@/validation/guards';
 
 export type PlanGenerationOptions = {
   maxRetries?: number;
