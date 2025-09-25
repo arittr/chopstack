@@ -9,59 +9,59 @@ export default defineConfig({
     },
   },
   test: {
-    globals: true,
     environment: 'node',
-    setupFiles: ['test/setup/worktree-cleanup.ts'],
+    exclude: ['node_modules/**', 'dist/**', 'test/tmp/**'],
+    globals: true,
     // Base patterns - will be overridden by projects
     include: [],
-    exclude: ['node_modules/**', 'dist/**', 'test/tmp/**'],
-
     // Projects for different test types
     projects: [
       {
         extends: true,
         test: {
-          name: 'unit',
-          setupFiles: ['test/setup/vitest-unit.setup.ts', 'test/setup/worktree-cleanup.ts'],
-          include: ['src/**/__tests__/*.test.ts'],
           exclude: [
             'src/**/__tests__/*.integration.test.ts',
             'test/e2e/**/*.test.ts',
             'test/execution/**/*.test.ts',
           ],
+          include: ['src/**/__tests__/*.test.ts'],
+          name: 'unit',
+          setupFiles: ['test/setup/vitest-unit.setup.ts', 'test/setup/worktree-cleanup.ts'],
           testTimeout: 5000,
         },
       },
       {
         extends: true,
         test: {
+          exclude: ['test/e2e/**/*.test.ts', 'test/execution/**/*.test.ts'],
+          include: ['src/**/__tests__/*.integration.test.ts'],
           name: 'integration',
           setupFiles: ['test/setup/vitest-integration.setup.ts', 'test/setup/worktree-cleanup.ts'],
-          include: ['src/**/__tests__/*.integration.test.ts'],
-          exclude: ['test/e2e/**/*.test.ts', 'test/execution/**/*.test.ts'],
           testTimeout: 15_000,
         },
       },
       {
         extends: true,
         test: {
+          exclude: ['test/execution/**/*.test.ts'],
+          include: ['test/e2e/**/*.test.ts'],
           name: 'e2e',
           setupFiles: ['test/setup/vitest-e2e.setup.ts'],
-          include: ['test/e2e/**/*.test.ts'],
-          exclude: ['test/execution/**/*.test.ts'],
           testTimeout: 30_000,
         },
       },
       {
         extends: true,
         test: {
+          exclude: ['test/e2e/**/*.test.ts'],
+          include: ['test/execution/**/*.test.ts'],
           name: 'execution',
           setupFiles: ['test/setup/vitest-execution.setup.ts'],
-          include: ['test/execution/**/*.test.ts'],
-          exclude: ['test/e2e/**/*.test.ts'],
           testTimeout: 60_000,
         },
       },
     ],
+
+    setupFiles: ['test/setup/worktree-cleanup.ts'],
   },
 });
