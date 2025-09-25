@@ -32,9 +32,9 @@ const mockGeneratePlanWithRetry = vi.mocked(generatePlanWithRetry);
 const mockYamlPlanParser = vi.mocked(YamlPlanParser);
 
 // Mock console methods (these are needed for proper test isolation)
-// eslint-disable-next-line @typescript-eslint/naming-convention
+
 const _mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
-// eslint-disable-next-line @typescript-eslint/naming-convention
+
 const _mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 describe('runCommand', () => {

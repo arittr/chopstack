@@ -1,9 +1,18 @@
 import simpleGit, { type SimpleGit } from 'simple-git';
 
+import { isNonNullish } from '@/validation/guards';
+
 export type GitStatus = {
   added: string[];
+  // Properties used by conflict resolution service
+  conflicted?: string[];
+  // Properties used by repository service
+  current?: string;
   deleted: string[];
+  isClean?: boolean;
   modified: string[];
+  notAdded?: string[];
+  staged?: string[];
   untracked: string[];
 };
 
@@ -85,6 +94,12 @@ export class GitWrapper {
       modified: status.modified,
       deleted: status.deleted,
       untracked: status.not_added,
+      // Additional properties for compatibility
+      conflicted: status.conflicted,
+      current: status.current ?? '',
+      isClean: status.isClean(),
+      staged: status.staged,
+      notAdded: status.not_added,
     };
   }
 
@@ -149,6 +164,55 @@ export class GitWrapper {
   async listWorktrees(): Promise<WorktreeInfo[]> {
     const output = await this.gitClient.raw(['worktree', 'list', '--porcelain']);
     return this._parseWorktreeList(output);
+  }
+
+  /**
+   * Get current branch name
+   */
+  async getCurrentBranch(): Promise<string> {
+    const status = await this.gitClient.status();
+    return status.current ?? 'main';
+  }
+
+  /**
+   * Check if a branch exists
+   */
+  async branchExists(branchName: string): Promise<boolean> {
+    const branches = await this.branch();
+    return branches.includes(branchName);
+  }
+
+  /**
+   * Check out a local branch (creates if doesn't exist)
+   */
+  async checkoutLocalBranch(branchName: string): Promise<void> {
+    await this.gitClient.checkoutLocalBranch(branchName);
+  }
+
+  /**
+   * Merge one branch into another
+   */
+  async mergeFromTo(
+    sourceBranch: string,
+    _targetBranch: string,
+    options?: Record<string, unknown>,
+  ): Promise<void> {
+    const mergeOptions = isNonNullish(options) ? Object.keys(options) : [];
+    await this.gitClient.merge([sourceBranch, ...mergeOptions]);
+  }
+
+  /**
+   * Reset working directory to a specific state
+   */
+  async reset(options: string[]): Promise<void> {
+    await this.gitClient.raw(['reset', ...options]);
+  }
+
+  /**
+   * Access to raw git commands
+   */
+  async raw(args: string[]): Promise<string> {
+    return this.gitClient.raw(args);
   }
 
   /**
