@@ -6,18 +6,17 @@ import { vi } from 'vitest';
 import type { DecomposeOptions, DecomposerAgent } from '@/types/decomposer';
 
 import { createDecomposerAgent } from '@/agents';
+import { createDefaultDependencies, DecomposeCommand } from '@/commands';
 import { generatePlanWithRetry } from '@/planning/plan-generator';
 import { PlanOutputter } from '@/planning/plan-outputter';
 import { DagValidator } from '@/validation/dag-validator';
 
-import { decomposeCommand } from '../decompose';
-
 // Mock external dependencies
 vi.mock('node:fs/promises');
-vi.mock('../@/agents');
-vi.mock('../@/validation/dag-validator');
-vi.mock('../@/planning/plan-generator');
-vi.mock('../@/planning/plan-outputter');
+vi.mock('@/agents');
+vi.mock('@/validation/dag-validator');
+vi.mock('@/planning/plan-generator');
+vi.mock('@/planning/plan-outputter');
 
 const mockReadFile = vi.mocked(readFile);
 const mockResolve = vi.mocked(path.resolve);
@@ -88,7 +87,6 @@ describe('decomposeCommand', () => {
       errors: [],
     });
     mockPlanOutputter.outputPlan.mockResolvedValue();
-    mockPlanOutputter.logMetrics.mockImplementation(() => {});
 
     // Mock process.cwd
     vi.spyOn(process, 'cwd').mockReturnValue('/test/cwd');
@@ -100,7 +98,9 @@ describe('decomposeCommand', () => {
 
   describe('successful execution', () => {
     it('should successfully decompose a specification', async () => {
-      const result = await decomposeCommand(mockOptions);
+      const deps = createDefaultDependencies();
+      const command = new DecomposeCommand(deps);
+      const result = await command.execute(mockOptions);
 
       expect(result).toBe(0);
       expect(mockResolve).toHaveBeenCalledWith('test-spec.md');
@@ -126,7 +126,9 @@ describe('decomposeCommand', () => {
     it('should pass verbose flag to dependencies when verbose is enabled', async () => {
       const verboseOptions = { ...mockOptions, verbose: true };
 
-      const result = await decomposeCommand(verboseOptions);
+      const deps = createDefaultDependencies();
+      const command = new DecomposeCommand(deps);
+      const result = await command.execute(verboseOptions);
 
       expect(result).toBe(0);
       expect(mockGeneratePlanWithRetry).toHaveBeenCalledWith(
@@ -138,14 +140,21 @@ describe('decomposeCommand', () => {
           verbose: true,
         },
       );
-      expect(mockPlanOutputter.logMetrics).toHaveBeenCalledWith(mockMetrics);
+      // The command calls outputPlan, not logMetrics
+      expect(mockPlanOutputter.outputPlan).toHaveBeenCalledWith(
+        mockPlan,
+        mockMetrics,
+        'test-output.yaml',
+      );
     });
 
     it('should use default verbose: false when not specified', async () => {
       const optionsWithoutVerbose = { ...mockOptions };
       delete optionsWithoutVerbose.verbose;
 
-      await decomposeCommand(optionsWithoutVerbose);
+      const deps = createDefaultDependencies();
+      const command = new DecomposeCommand(deps);
+      await command.execute(optionsWithoutVerbose);
 
       expect(mockGeneratePlanWithRetry).toHaveBeenCalledWith(
         mockAgent,
@@ -175,7 +184,9 @@ describe('decomposeCommand', () => {
         circularDependencies: ['task-a -> task-b -> task-a'],
       });
 
-      const result = await decomposeCommand(mockOptions);
+      const deps = createDefaultDependencies();
+      const command = new DecomposeCommand(deps);
+      const result = await command.execute(mockOptions);
 
       expect(result).toBe(1);
       expect(mockDagValidator.validatePlan).toHaveBeenCalledWith(mockPlan);
@@ -189,7 +200,9 @@ describe('decomposeCommand', () => {
         conflicts: ['file1.ts', 'file2.ts'],
       });
 
-      await decomposeCommand(mockOptions);
+      const deps = createDefaultDependencies();
+      const command = new DecomposeCommand(deps);
+      await command.execute(mockOptions);
 
       // Plan should still be output even with validation failure
       expect(mockPlanOutputter.outputPlan).toHaveBeenCalledWith(
@@ -204,7 +217,9 @@ describe('decomposeCommand', () => {
     it('should return error code 1 for file reading errors', async () => {
       mockReadFile.mockRejectedValue(new Error('File not found'));
 
-      const result = await decomposeCommand(mockOptions);
+      const deps = createDefaultDependencies();
+      const command = new DecomposeCommand(deps);
+      const result = await command.execute(mockOptions);
 
       expect(result).toBe(1);
     });
@@ -212,7 +227,9 @@ describe('decomposeCommand', () => {
     it('should return error code 1 for agent creation errors', async () => {
       mockCreateDecomposerAgent.mockRejectedValue(new Error('Invalid agent'));
 
-      const result = await decomposeCommand(mockOptions);
+      const deps = createDefaultDependencies();
+      const command = new DecomposeCommand(deps);
+      const result = await command.execute(mockOptions);
 
       expect(result).toBe(1);
     });
@@ -220,7 +237,9 @@ describe('decomposeCommand', () => {
     it('should return error code 1 for plan generation errors', async () => {
       mockGeneratePlanWithRetry.mockRejectedValue(new Error('Plan generation failed'));
 
-      const result = await decomposeCommand(mockOptions);
+      const deps = createDefaultDependencies();
+      const command = new DecomposeCommand(deps);
+      const result = await command.execute(mockOptions);
 
       expect(result).toBe(1);
     });
@@ -228,7 +247,9 @@ describe('decomposeCommand', () => {
     it('should handle unknown errors gracefully', async () => {
       mockReadFile.mockRejectedValue('String error'); // Non-Error object
 
-      const result = await decomposeCommand(mockOptions);
+      const deps = createDefaultDependencies();
+      const command = new DecomposeCommand(deps);
+      const result = await command.execute(mockOptions);
 
       expect(result).toBe(1);
     });
@@ -236,7 +257,9 @@ describe('decomposeCommand', () => {
 
   describe('integration with dependencies', () => {
     it('should call dependencies with correct parameters', async () => {
-      await decomposeCommand(mockOptions);
+      const deps = createDefaultDependencies();
+      const command = new DecomposeCommand(deps);
+      await command.execute(mockOptions);
 
       expect(mockResolve).toHaveBeenCalledWith('test-spec.md');
       expect(mockReadFile).toHaveBeenCalledWith('/resolved/path/test-spec.md', 'utf8');
@@ -257,7 +280,9 @@ describe('decomposeCommand', () => {
         conflicts: [],
       });
 
-      await decomposeCommand(mockOptions);
+      const deps = createDefaultDependencies();
+      const command = new DecomposeCommand(deps);
+      await command.execute(mockOptions);
 
       expect(mockDagValidator.validatePlan).toHaveBeenCalledWith(mockPlan);
     });

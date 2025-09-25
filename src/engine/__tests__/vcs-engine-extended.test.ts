@@ -2,16 +2,17 @@ import { TEST_CONFIG, TEST_PATHS } from '@test/constants/test-paths';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecutionTask } from '@/types/execution';
+import type { VcsEngine } from '@/vcs/engine/vcs-engine';
 import type { WorktreeContext } from '@/vcs/worktree-manager';
 
-import { VcsEngine } from '@/engine/vcs-engine';
 import { ConflictResolver } from '@/vcs/conflict-resolver';
+import { createTestVcsEngine } from '@/vcs/engine/vcs-engine-factory';
 import { GitWrapper } from '@/vcs/git-wrapper';
 import { StackBuilder } from '@/vcs/stack-builder';
 import { WorktreeManager } from '@/vcs/worktree-manager';
 
 // Mock all dependencies
-vi.mock('@/utils/git-wrapper');
+vi.mock('@/vcs/git-wrapper');
 vi.mock('@/vcs/worktree-manager');
 vi.mock('@/vcs/stack-builder');
 vi.mock('@/vcs/conflict-resolver');
@@ -23,7 +24,7 @@ describe('VcsEngine Extended Tests', () => {
   let mockStackBuilder: any;
   let mockConflictResolver: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
 
     // Setup mock instances
@@ -56,18 +57,21 @@ describe('VcsEngine Extended Tests', () => {
     vi.mocked(StackBuilder).mockImplementation(() => mockStackBuilder as StackBuilder);
     vi.mocked(ConflictResolver).mockImplementation(() => mockConflictResolver as ConflictResolver);
 
-    vcsEngine = new VcsEngine({
-      shadowPath: TEST_PATHS.TEST_SHADOWS,
-      branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
-      cleanupOnSuccess: true,
-      cleanupOnFailure: false,
-      conflictStrategy: 'auto',
-      stackSubmission: {
-        enabled: false,
-        draft: true,
-        autoMerge: false,
+    vcsEngine = await createTestVcsEngine(
+      {},
+      {
+        shadowPath: TEST_PATHS.TEST_SHADOWS,
+        branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
+        cleanupOnSuccess: true,
+        cleanupOnFailure: false,
+        conflictStrategy: 'auto',
+        stackSubmission: {
+          enabled: false,
+          draft: true,
+          autoMerge: false,
+        },
       },
-    });
+    );
   });
 
   describe('createWorktreesForLayer', () => {
@@ -516,18 +520,21 @@ describe('VcsEngine Extended Tests', () => {
 
     it('should not cleanup when options are disabled', async () => {
       // Create new engine with both cleanup options disabled
-      const noCleanupEngine = new VcsEngine({
-        shadowPath: TEST_PATHS.TEST_SHADOWS,
-        branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
-        cleanupOnSuccess: false,
-        cleanupOnFailure: false,
-        conflictStrategy: 'auto',
-        stackSubmission: {
-          enabled: false,
-          draft: true,
-          autoMerge: false,
+      const noCleanupEngine = await createTestVcsEngine(
+        {},
+        {
+          shadowPath: TEST_PATHS.TEST_SHADOWS,
+          branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
+          cleanupOnSuccess: false,
+          cleanupOnFailure: false,
+          conflictStrategy: 'auto',
+          stackSubmission: {
+            enabled: false,
+            draft: true,
+            autoMerge: false,
+          },
         },
-      });
+      );
 
       const contexts = [
         {

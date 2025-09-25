@@ -6,8 +6,9 @@ import { execa } from 'execa';
 import { vi } from 'vitest';
 
 import type { ExecutionTask } from '@/types/execution';
+import type { VcsEngine } from '@/vcs/engine/vcs-engine';
 
-import { VcsEngine } from '@/engine/vcs-engine';
+import { createTestVcsEngine } from '@/vcs/engine/vcs-engine-factory';
 import { GitSpiceBackend } from '@/vcs/git-spice';
 import { GitWrapper } from '@/vcs/git-wrapper';
 
@@ -147,18 +148,21 @@ describe('Git-spice Stack Building Integration', () => {
   beforeAll(async () => {
     await setupGitSpiceTestRepository();
 
-    vcsEngine = new VcsEngine({
-      shadowPath: TEST_PATHS.TEST_SHADOWS,
-      branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
-      cleanupOnSuccess: false, // Keep for inspection during tests
-      cleanupOnFailure: false,
-      conflictStrategy: 'auto',
-      stackSubmission: {
-        enabled: false,
-        draft: true,
-        autoMerge: false,
+    vcsEngine = await createTestVcsEngine(
+      {},
+      {
+        shadowPath: TEST_PATHS.TEST_SHADOWS,
+        branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
+        cleanupOnSuccess: false, // Keep for inspection during tests
+        cleanupOnFailure: false,
+        conflictStrategy: 'auto',
+        stackSubmission: {
+          enabled: false,
+          draft: true,
+          autoMerge: false,
+        },
       },
-    });
+    );
 
     git = new GitWrapper(testRepo);
     gitSpice = new GitSpiceBackend();

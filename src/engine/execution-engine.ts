@@ -12,6 +12,7 @@ import type {
   TaskExecutionRequest,
   TaskExecutionResult,
 } from '@/types/execution';
+import type { VcsEngine, WorktreeExecutionContext } from '@/vcs/engine/vcs-engine';
 
 import { toErrorMessage } from '@/utils/errors';
 import { logger } from '@/utils/logger';
@@ -21,7 +22,6 @@ import { createVcsBackend, detectAvailableVcsBackend } from '@/vcs';
 import type { ExecutionMonitor } from './execution-monitor';
 import type { ExecutionPlanner } from './execution-planner';
 import type { StateManager } from './state-manager';
-import type { VcsEngine, WorktreeExecutionContext } from './vcs-engine';
 
 export type ExecutionEngineDependencies = {
   monitor: ExecutionMonitor;
