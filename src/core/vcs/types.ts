@@ -1,5 +1,5 @@
 /**
- * Git-related type definitions for chopstack
+ * Git and VCS-related type definitions for chopstack
  */
 
 export type GitCommitInfo = {
@@ -27,4 +27,19 @@ export type GitConflictInfo = {
   conflictType: 'merge' | 'cherry-pick' | 'rebase';
   files: string[];
   incomingCommit?: string;
+};
+
+export type GitStatus = {
+  branch: string;
+  clean: boolean;
+  conflicted: string[];
+  staged: string[];
+  unstaged: string[];
+  untracked: string[];
+};
+
+export type WorktreeInfo = {
+  branch: string;
+  commit: string;
+  path: string;
 };

@@ -1,4 +1,4 @@
-import type { TaskState, TaskStateTransition } from '@/types/execution';
+import type { TaskState, TaskStateTransition } from '@/core/execution/types';
 
 /**
  * Core domain logic for task state transitions
