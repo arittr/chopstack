@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 
-import type { VcsEngineOptions } from '@/engine/vcs-engine';
 import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
+import type { VcsEngineOptions } from '@/vcs/engine/vcs-engine';
 
 import { logger } from '@/utils/logger';
 

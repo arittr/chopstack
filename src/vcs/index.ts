@@ -97,6 +97,20 @@ export {
   type CommitMessageOptions,
 } from './commit-message-generator';
 
+// VCS Engine and factories
+export {
+  VcsEngine,
+  type VcsEngineDependencies,
+  type VcsEngineOptions,
+  type WorktreeExecutionContext,
+} from './engine/vcs-engine';
+
+export {
+  createVcsEngine,
+  createTestVcsEngine,
+  createDefaultVcsEngineDependencies,
+  type VcsEngineFactoryConfig,
+} from './engine/vcs-engine-factory';
 // Git utilities
 export { GitWrapper, type GitStatus, type WorktreeInfo } from './git-wrapper';
 
