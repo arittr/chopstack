@@ -8,6 +8,7 @@ This repository includes a GitHub Actions workflow that mimics a "merge stack" b
 - Rebases every branch in the stack onto the latest default branch as it goes, so each PR diff stays scoped to its own changes.
 - Waits for required status checks to finish after the rebase, then merges the PR.
 - Repeats until the entire stack has landed, commenting on progress as it runs.
+- Automatically mirrors new git-spice behaviour: worktree commits are synced back before branch creation and conflicts are auto-resolved (when the repo opts into the `auto` strategy), so the action observes the same stack topology you see locally.
 
 ## One-Time Setup
 

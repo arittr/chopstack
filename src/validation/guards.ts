@@ -10,6 +10,10 @@ export function isNonNullish<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
 
+export function isDefined<T>(value: T | undefined): value is T {
+  return value !== undefined;
+}
+
 export function hasContent(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }

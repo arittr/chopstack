@@ -1,9 +1,20 @@
 import { EventEmitter } from 'node:events';
 
+import { execa } from 'execa';
+
 import type { ExecutionTask } from '@/core/execution/types';
-import type { StackBuildService, StackBuildStrategy, StackInfo } from '@/core/vcs/domain-services';
+import type {
+  ConflictInfo,
+  ConflictResolutionService,
+  ConflictResolutionStrategy,
+  StackBuildService,
+  StackBuildStrategy,
+  StackInfo,
+} from '@/core/vcs/domain-services';
 
 import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
+import { fetchWorktreeCommits } from '@/adapters/vcs/git-spice/worktree-sync';
+import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/logger';
 
 export type StackEvent = {
@@ -16,8 +27,35 @@ export type StackEvent = {
 
 export type StackBuildServiceConfig = {
   branchPrefix: string;
+  conflictStrategy?: ConflictResolutionStrategy;
   parentRef: string;
+  stackSubmission?: {
+    autoMerge?: boolean;
+    draft?: boolean;
+    extraArgs?: string[];
+  };
   stackSubmissionEnabled: boolean;
+};
+
+export type StackBuildServiceDependencies = {
+  conflictResolutionService?: ConflictResolutionService;
+};
+
+type StackSubmissionOptions = {
+  autoMerge?: boolean;
+  draft?: boolean;
+  extraArgs?: string[];
+};
+
+type BranchCreationResult = {
+  branchName?: string;
+  reason?: string;
+  success: boolean;
+};
+
+type CherryPickResult = {
+  reason?: string;
+  success: boolean;
 };
 
 /**
@@ -27,11 +65,17 @@ export type StackBuildServiceConfig = {
 export class StackBuildServiceImpl extends EventEmitter implements StackBuildService {
   private readonly gitSpice: GitSpiceBackend;
   private readonly config: StackBuildServiceConfig;
+  private readonly conflictResolutionService: ConflictResolutionService | undefined;
+  private readonly conflictStrategy: ConflictResolutionStrategy;
+  private readonly stackSubmissionOptions: StackSubmissionOptions;
 
-  constructor(config: StackBuildServiceConfig) {
+  constructor(config: StackBuildServiceConfig, dependencies: StackBuildServiceDependencies = {}) {
     super();
     this.config = config;
     this.gitSpice = new GitSpiceBackend();
+    this.conflictResolutionService = dependencies.conflictResolutionService;
+    this.conflictStrategy = config.conflictStrategy ?? 'auto';
+    this.stackSubmissionOptions = config.stackSubmission ?? {};
   }
 
   async buildStack(
@@ -45,6 +89,9 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     logger.info(
       `🏗️ Building git-spice stack from ${tasks.length} tasks using ${options.strategy} strategy...`,
     );
+
+    // Ensure commits from worktrees are available locally before branch creation
+    await fetchWorktreeCommits(tasks, workdir);
 
     // Filter tasks that have commits
     const tasksWithCommits = tasks.filter((task) => task.commitHash !== undefined);
@@ -69,6 +116,12 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       timestamp: new Date(),
     } as StackEvent);
 
+    if (stackInfo.failedTasks !== undefined && stackInfo.failedTasks.length > 0) {
+      for (const failure of stackInfo.failedTasks) {
+        logger.warn(`⚠️ Task ${failure.taskId} could not be stacked: ${failure.reason}`);
+      }
+    }
+
     logger.info(`✅ Stack built successfully with ${stackInfo.branches.length} branches`);
     return stackInfo;
   }
@@ -81,7 +134,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     logger.info('📤 Submitting git-spice stack for review...');
 
     try {
-      const prUrls = await this.gitSpice.submitStack(workdir);
+      const prUrls = await this.gitSpice.submitStack(workdir, this.stackSubmissionOptions);
       logger.info(`✅ Stack submitted successfully: ${prUrls.length} PRs created`);
       return prUrls;
     } catch (error) {
@@ -145,6 +198,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     parentRef: string,
   ): Promise<StackInfo> {
     const branches: StackInfo['branches'] = [];
+    const failedTasks: Array<{ reason: string; taskId: string }> = [];
     let currentParent = parentRef;
 
     for (const task of orderedTasks) {
@@ -152,48 +206,276 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
         continue;
       }
 
-      const branchName = `${this.config.branchPrefix}${task.id}`;
+      const desiredBranchName = `${this.config.branchPrefix}${task.id}`;
+      let finalBranchName = desiredBranchName;
 
       try {
-        // Create branch for this task's commit
         await this.gitSpice.createBranchFromCommit(
-          branchName,
+          desiredBranchName,
           task.commitHash,
           currentParent,
           workdir,
         );
-
-        branches.push({
-          branchName,
-          commitHash: task.commitHash,
-          taskId: task.id,
+      } catch (error) {
+        const originalMessage = error instanceof Error ? error.message : String(error);
+        logger.warn(
+          `⚠️ git-spice failed to create branch ${desiredBranchName} for task ${task.id}: ${originalMessage}. Attempting fallback strategy...`,
+        );
+        const fallbackResult = await this._createBranchWithCherryPick({
+          branchName: desiredBranchName,
+          parentBranch: currentParent,
+          task,
+          workdir,
         });
 
-        this.emit('branch_created', {
-          type: 'branch_created',
-          branchName,
-          taskId: task.id,
-          timestamp: new Date(),
-        } as StackEvent);
+        if (!fallbackResult.success) {
+          const reason = fallbackResult.reason ?? originalMessage;
+          failedTasks.push({ reason, taskId: task.id });
+          logger.error(
+            `❌ Failed to create branch ${desiredBranchName} for task ${task.id}: ${reason}`,
+          );
+          continue;
+        }
 
-        // Next branch will be based on this one
-        currentParent = branchName;
-
-        logger.info(`✅ Created branch ${branchName} for task ${task.id}`);
-      } catch (error) {
-        logger.error(
-          `❌ Failed to create branch ${branchName} for task ${task.id}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        throw error;
+        finalBranchName = fallbackResult.branchName ?? desiredBranchName;
       }
+
+      branches.push({
+        branchName: finalBranchName,
+        commitHash: task.commitHash,
+        taskId: task.id,
+      });
+
+      this.emit('branch_created', {
+        type: 'branch_created',
+        branchName: finalBranchName,
+        taskId: task.id,
+        timestamp: new Date(),
+      } as StackEvent);
+
+      currentParent = finalBranchName;
+      logger.info(`✅ Created branch ${finalBranchName} for task ${task.id}`);
     }
 
     return {
       branches,
       parentRef,
-      strategy: 'dependency-order', // This is determined by the ordering
+      strategy: 'dependency-order',
       totalTasks: orderedTasks.length,
+      ...(failedTasks.length > 0 ? { failedTasks } : {}),
     };
+  }
+
+  private async _createBranchWithCherryPick({
+    branchName,
+    parentBranch,
+    task,
+    workdir,
+  }: {
+    branchName: string;
+    parentBranch: string;
+    task: ExecutionTask;
+    workdir: string;
+  }): Promise<BranchCreationResult> {
+    const git = new GitWrapper(workdir);
+    let finalBranchName = branchName;
+
+    try {
+      await git.checkout(parentBranch);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes('already used by worktree')) {
+        return { success: false, reason: `Failed to checkout ${parentBranch}: ${message}` };
+      }
+    }
+
+    try {
+      if (await git.branchExists(finalBranchName)) {
+        const uniqueSuffix = Date.now().toString(36);
+        finalBranchName = `${finalBranchName}-${uniqueSuffix}`;
+        logger.warn(`⚠️ Branch ${branchName} already exists, using ${finalBranchName} instead`);
+      }
+
+      await execa(
+        'gs',
+        ['branch', 'create', finalBranchName, '--message', `Create branch for task ${task.id}`],
+        {
+          cwd: workdir,
+          timeout: 10_000,
+        },
+      );
+
+      await git.checkout(finalBranchName);
+
+      const applyResult = await this._applyCommitWithConflictHandling({
+        branchName: finalBranchName,
+        git,
+        task,
+        workdir,
+      });
+
+      if (!applyResult.success) {
+        await this._cleanupFailedBranch(git, finalBranchName, parentBranch);
+        const failureResult: BranchCreationResult = {
+          success: false,
+          branchName: finalBranchName,
+        };
+        if (applyResult.reason !== undefined) {
+          failureResult.reason = applyResult.reason;
+        }
+        return failureResult;
+      }
+
+      return { success: true, branchName: finalBranchName };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      await this._cleanupFailedBranch(git, finalBranchName, parentBranch);
+      return {
+        success: false,
+        branchName: finalBranchName,
+        reason,
+      };
+    }
+  }
+
+  private async _applyCommitWithConflictHandling({
+    branchName,
+    git,
+    task,
+    workdir,
+  }: {
+    branchName: string;
+    git: GitWrapper;
+    task: ExecutionTask;
+    workdir: string;
+  }): Promise<CherryPickResult> {
+    const { commitHash } = task;
+    if (commitHash === undefined) {
+      return { success: true };
+    }
+
+    try {
+      await git.cherryPick(commitHash);
+      return { success: true };
+    } catch (error) {
+      const resolutionResult = await this._resolveCherryPickConflict({
+        branchName,
+        error,
+        git,
+        task,
+        workdir,
+      });
+
+      if (resolutionResult === null) {
+        return { success: true };
+      }
+
+      return { success: false, reason: resolutionResult };
+    }
+  }
+
+  private async _resolveCherryPickConflict({
+    branchName,
+    error,
+    git,
+    task,
+    workdir,
+  }: {
+    branchName: string;
+    error: unknown;
+    git: GitWrapper;
+    task: ExecutionTask;
+    workdir: string;
+  }): Promise<string | null> {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (this.conflictResolutionService === undefined) {
+      await this._safeCherryPickAbort(git);
+      return errorMessage;
+    }
+
+    const status = await git.status();
+    const conflictedFiles = status.conflicted ?? [];
+
+    if (conflictedFiles.length === 0) {
+      await this._safeCherryPickAbort(git);
+      return errorMessage;
+    }
+
+    this.emit('conflict_detected', {
+      type: 'conflict_detected',
+      taskId: task.id,
+      branchName,
+      timestamp: new Date(),
+    } as StackEvent);
+
+    const conflictInfo: ConflictInfo = {
+      taskId: task.id,
+      conflictedFiles,
+      resolution: this.conflictStrategy,
+      timestamp: new Date(),
+    };
+
+    const resolved = await this.conflictResolutionService.resolveConflicts(conflictInfo, workdir);
+
+    if (resolved) {
+      try {
+        await git.raw(['cherry-pick', '--continue']);
+        this.emit('conflict_resolved', {
+          type: 'conflict_resolved',
+          taskId: task.id,
+          branchName,
+          timestamp: new Date(),
+        } as StackEvent);
+        return null;
+      } catch (continueError) {
+        const continueMessage =
+          continueError instanceof Error ? continueError.message : String(continueError);
+        await this._safeCherryPickAbort(git);
+        return continueMessage;
+      }
+    }
+
+    await this._safeCherryPickAbort(git);
+    this.emit('conflict_resolved', {
+      type: 'conflict_resolved',
+      taskId: task.id,
+      branchName,
+      timestamp: new Date(),
+    } as StackEvent);
+    return `Could not resolve conflicts automatically (${conflictedFiles.join(', ')})`;
+  }
+
+  private async _safeCherryPickAbort(git: GitWrapper): Promise<void> {
+    try {
+      await git.raw(['cherry-pick', '--abort']);
+    } catch {
+      // Ignore if there is no cherry-pick in progress
+    }
+  }
+
+  private async _cleanupFailedBranch(
+    git: GitWrapper,
+    branchName: string,
+    parentBranch: string,
+  ): Promise<void> {
+    await this._safeCherryPickAbort(git);
+
+    try {
+      await git.checkout(parentBranch);
+    } catch {
+      // Ignore checkout failures during cleanup
+    }
+
+    try {
+      if (await git.branchExists(branchName)) {
+        await git.raw(['branch', '-D', branchName]);
+      }
+    } catch (deleteError) {
+      logger.warn(
+        `⚠️ Failed to delete temporary branch ${branchName}: ${deleteError instanceof Error ? deleteError.message : String(deleteError)}`,
+      );
+    }
   }
 
   private _orderByDependencies(tasks: ExecutionTask[]): ExecutionTask[] {
