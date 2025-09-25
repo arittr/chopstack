@@ -37,6 +37,12 @@ The new modular execution services are designed using clean architecture princip
 
 ## Components
 
+## Dependency Injection
+
+- `CoreServicesProvider` now registers the execution planner, monitor, orchestrator, and the default `ClaudeCliTaskExecutionAdapter` so `ExecutionEngine` receives fully-configured services via DI.
+- VCS sub-services (`WorktreeService`, `CommitService`, `RepositoryService`, `ConflictResolutionService`, `StackBuildService`, `VcsAnalysisService`) are wired through the container, enabling targeted overrides in tests and alternate runtimes.
+- `TaskOrchestrator` requires a `TaskExecutionAdapter` implementation; the default CLI-backed adapter is provided automatically, while custom adapters can be injected for non-Claude agents.
+
 ### 1. ExecutionOrchestrator
 - **Purpose**: Main coordinator for task execution lifecycle
 - **Responsibilities**:
@@ -126,7 +132,7 @@ import {
 } from '@/services/execution';
 
 const orchestrator = new ExecutionOrchestrator({
-  taskOrchestrator: new TaskOrchestrator(),
+  taskOrchestrator: new TaskOrchestrator(new ClaudeCliTaskExecutionAdapter()),
   vcsEngine: vcsEngineService,
 });
 
