@@ -1,5 +1,5 @@
 import { testWorktreeManager } from '@test/utils/testing-harness-worktree-manager';
-import { afterAll, beforeAll } from 'vitest';
+import { afterAll } from 'vitest';
 
 import { isValidArray } from '@/validation/guards';
 
@@ -8,29 +8,8 @@ const cleanupFlag = Symbol.for('chopstack.testWorktreeCleanupRegistered');
 if (Reflect.get(globalThis, cleanupFlag) !== true) {
   Reflect.set(globalThis, cleanupFlag, true);
 
-  // Initial cleanup before tests start
-  beforeAll(async () => {
-    console.log('🧹 Cleaning up any leftover test worktrees before tests...');
-    try {
-      const { removed, failed } = await testWorktreeManager.cleanupAllWorktrees();
-
-      if (isValidArray(removed) && removed.length > 0) {
-        console.log(
-          `✅ Cleaned up ${removed.length} leftover worktree${removed.length === 1 ? '' : 's'}`,
-        );
-      }
-
-      if (isValidArray(failed) && failed.length > 0) {
-        console.warn(
-          `⚠️ Failed to clean ${failed.length} worktree${failed.length === 1 ? '' : 's'}: ${failed.join(', ')}`,
-        );
-      }
-    } catch (error) {
-      console.warn('⚠️ Pre-test worktree cleanup failed:', error);
-    }
-  });
-
-  // Final cleanup after all tests complete
+  // Only cleanup after ALL tests in the file complete
+  // Don't cleanup before or during tests to avoid interference
   afterAll(async () => {
     console.log('🧹 Cleaning up test worktrees...');
     const { removed, failed } = await testWorktreeManager.cleanupAllWorktrees();
