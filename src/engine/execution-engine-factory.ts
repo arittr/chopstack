@@ -3,8 +3,6 @@ import { type VcsEngineConfig, VcsEngineServiceImpl } from '@/services/vcs';
 
 import type { ExecutionEngine, ExecutionEngineDependencies } from './execution-engine';
 
-import { ExecutionMonitor } from './execution-monitor';
-import { ExecutionPlanner } from './execution-planner';
 import { StateManager } from './state-manager';
 
 /**
@@ -38,9 +36,7 @@ export function createDefaultExecutionEngineDependencies(
   };
 
   return {
-    planner: new ExecutionPlanner(),
     stateManager: new StateManager(),
-    monitor: new ExecutionMonitor(),
     orchestrator: new TaskOrchestrator(),
     vcsEngine: new VcsEngineServiceImpl(defaultVcsConfig),
   };
