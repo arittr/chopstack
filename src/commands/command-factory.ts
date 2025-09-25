@@ -4,7 +4,12 @@
 
 import { logger } from '@/utils/logger';
 
-import type { Command, CommandContext, CommandDependencies } from './types';
+import type {
+  Command,
+  CommandContext,
+  CommandDependencies,
+  CommandServiceOverrides,
+} from './types';
 
 /**
  * Command registry to manage all available commands
@@ -52,6 +57,7 @@ export const commandRegistry = new CommandRegistry();
  */
 export function createDefaultDependencies(
   overrides?: Partial<CommandContext>,
+  serviceOverrides?: CommandServiceOverrides,
 ): CommandDependencies {
   return {
     context: {
@@ -59,6 +65,7 @@ export function createDefaultDependencies(
       cwd: overrides?.cwd ?? process.cwd(),
       env: overrides?.env ?? process.env,
     },
+    ...(serviceOverrides !== undefined ? { services: serviceOverrides } : {}),
   };
 }
 
