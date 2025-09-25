@@ -57,5 +57,7 @@ export type TaskExecutionAdapter = {
     emitUpdate: (update: StreamingUpdate) => void,
   ): Promise<OrchestratorTaskResult>;
 
+  getAllTaskStatuses?(): Map<string, 'running' | 'stopped' | 'completed' | 'failed'>;
+
   stopTask?(taskId: string): boolean;
 };

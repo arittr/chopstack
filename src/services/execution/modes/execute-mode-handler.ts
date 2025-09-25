@@ -255,6 +255,7 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
         task.touches,
         context.cwd,
         'execute',
+        context.agentType,
       );
 
       // Trigger VCS commit if task completed successfully

@@ -121,6 +121,7 @@ describe('runCommand integration tests', () => {
 
       // Verify real execution engine usage
       expect(mockExecute).toHaveBeenCalledWith(mockPlan, {
+        agent: 'claude',
         mode: 'execute',
         strategy: 'parallel',
         verbose: false,
