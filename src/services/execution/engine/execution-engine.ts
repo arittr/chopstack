@@ -6,11 +6,9 @@ import type { TaskOrchestrator } from '@/services/mcp/orchestrator';
 import type { Plan } from '@/types/decomposer';
 import type { ExecutionOptions } from '@/types/execution';
 
-import {
-  ExecutionMonitorServiceImpl,
-  ExecutionOrchestrator,
-  ExecutionPlannerServiceImpl,
-} from '@/services/execution';
+import { ExecutionMonitorServiceImpl } from '@/services/execution/execution-monitor-service';
+import { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
+import { ExecutionPlannerServiceImpl } from '@/services/execution/execution-planner-service';
 import { logger } from '@/utils/logger';
 
 import type { StateManager } from './state-manager';

@@ -4,8 +4,8 @@
 
 import { execa } from 'execa';
 
+import type { VcsBackend } from '@/core/vcs/interfaces';
 import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
-import type { VcsBackend } from '@/vcs';
 
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/logger';
