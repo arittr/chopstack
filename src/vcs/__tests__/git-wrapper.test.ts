@@ -11,7 +11,7 @@ vi.mock('simple-git', () => ({
   default: simpleGitState.factory,
 }));
 
-const { GitWrapper } = await import('../git-wrapper');
+const { GitWrapper } = await import('@/adapters/vcs/git-wrapper');
 type GitWrapperType = InstanceType<typeof GitWrapper>;
 
 let wrapper: GitWrapperType;
@@ -41,7 +41,7 @@ beforeEach(() => {
   status.mockResolvedValue({ staged: ['file.txt'], modified: [], deleted: [] });
   revparse.mockResolvedValue('abc123');
 
-  wrapper = Object.create(GitWrapper.prototype) as GitWrapperType;
+  wrapper = Object.create(GitWrapper.prototype);
   (wrapper as unknown as { gitClient: SimpleGit }).gitClient = simpleGitState.instance as SimpleGit;
 });
 

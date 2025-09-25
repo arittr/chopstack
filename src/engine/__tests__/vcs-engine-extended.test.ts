@@ -5,14 +5,14 @@ import type { ExecutionTask } from '@/types/execution';
 import type { VcsEngine } from '@/vcs/engine/vcs-engine';
 import type { WorktreeContext } from '@/vcs/worktree-manager';
 
+import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { ConflictResolver } from '@/vcs/conflict-resolver';
 import { createTestVcsEngine } from '@/vcs/engine/vcs-engine-factory';
-import { GitWrapper } from '@/vcs/git-wrapper';
 import { StackBuilder } from '@/vcs/stack-builder';
 import { WorktreeManager } from '@/vcs/worktree-manager';
 
 // Mock all dependencies
-vi.mock('@/vcs/git-wrapper');
+vi.mock('@/adapters/vcs/git-wrapper');
 vi.mock('@/vcs/worktree-manager');
 vi.mock('@/vcs/stack-builder');
 vi.mock('@/vcs/conflict-resolver');
