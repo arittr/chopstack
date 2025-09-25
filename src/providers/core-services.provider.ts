@@ -23,11 +23,8 @@ import {
   ExecutionPlannerServiceImpl,
   StateManager,
 } from '@/services/execution';
-import {
-  ClaudeCliTaskExecutionAdapter,
-  type TaskExecutionAdapter,
-  TaskOrchestrator,
-} from '@/services/orchestration';
+import { type TaskExecutionAdapter, TaskOrchestrator } from '@/services/orchestration';
+import { DynamicTaskExecutionAdapter } from '@/services/orchestration/adapters/dynamic-task-execution-adapter';
 import {
   CommitServiceImpl,
   ConflictResolutionServiceImpl,
@@ -49,7 +46,7 @@ export class CoreServicesProvider extends BaseServiceProvider {
     container.registerSingleton(ServiceIdentifiers.AgentService, () => new AgentServiceImpl());
 
     container.registerSingleton(ServiceIdentifiers.TaskExecutionAdapter, () => {
-      return new ClaudeCliTaskExecutionAdapter();
+      return new DynamicTaskExecutionAdapter();
     });
 
     container.registerSingleton(ServiceIdentifiers.TaskOrchestrator, () => {

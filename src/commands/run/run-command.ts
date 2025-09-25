@@ -119,6 +119,7 @@ export class RunCommand extends BaseCommand {
         strategy: options.strategy,
         parallel: options.parallel,
         continueOnError: options.continueOnError,
+        agent: options.agent,
       });
 
       const failureCount = result.tasks.filter((task) => task.status === 'failure').length;

@@ -31,14 +31,16 @@ export class TaskOrchestrator extends EventEmitter {
     files: string[],
     workdir?: string,
     mode: ExecutionMode = 'execute',
+    agent?: string,
   ): Promise<OrchestratorTaskResult> {
-    const request: TaskExecutionRequest = {
+    const request: TaskExecutionRequest & { agent?: string } = {
       taskId,
       title,
       prompt,
       files,
       mode,
       ...(isNonNullish(workdir) ? { workdir } : {}),
+      ...(isNonNullish(agent) ? { agent } : {}),
     };
 
     this.taskStatuses.set(taskId, 'running');
