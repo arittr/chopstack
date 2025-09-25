@@ -115,29 +115,57 @@ pnpm run start:mcp
 The MCP server wraps the same orchestration logic as the CLI, exposing tools for task decomposition, execution planning, worktree management, and stack creation. Schemas are defined with Zod and validated at runtime via FastMCP.
 
 ## Architecture highlights
-- **CLI entrypoint**: `src/cli.ts` wires commander commands, Zod validation, and command handlers
-- **Agents**: `src/agents/` instantiates Claude, Aider, or mock decomposers with consistent capability checks
-- **Execution engine**: `src/engine/` orchestrates scheduling, state transitions, monitoring, VCS coordination, and result aggregation
-- **Parser & types**: `src/parser/` and `src/types/` define the spec grammar, DAG nodes, and execution contracts
-- **MCP**: `src/mcp/` wraps the orchestrator with FastMCP schemas and Git helpers for worktrees and stacks
-- **Utilities**: `src/utils/` contains validation helpers, YAML/plan serializers, metrics calculators, and guard functions
+
+**chopstack** follows clean architecture principles with clear separation of concerns across four main layers:
+
+- **Core Layer** (`src/core/`): Domain interfaces, business rules, and dependency injection infrastructure
+- **Services Layer** (`src/services/`): Business logic implementations for execution, planning, orchestration, and VCS operations
+- **Adapters Layer** (`src/adapters/`): External system integrations (AI agents, Git, git-spice)
+- **Entry Layer** (`src/entry/`): Application entry points for CLI and MCP server
+
+Key architectural features:
+- **Clean interfaces**: Core domain interfaces define contracts without implementation details
+- **Dependency injection**: Centralized container manages service dependencies and lifecycle
+- **Agent abstraction**: Unified interface for Claude, Aider, and mock agents via adapter pattern
+- **Service-oriented design**: Focused services handle specific business domains (execution, planning, VCS)
+- **Type safety**: Comprehensive TypeScript types and Zod schema validation throughout
+
+See [SERVICE_CONTRACTS.md](./SERVICE_CONTRACTS.md) for detailed documentation of all service interfaces and contracts.
 
 ### Project structure
 ```
 src/
-  agents/         # Claude, Aider, and mock agent implementations
-  bin/            # CLI bootstrap
-  commands/       # decompose/run/stack command handlers
-  engine/         # Execution planner, state manager, monitors
-  mcp/            # FastMCP server + orchestrator
-  parser/         # Markdown spec parser and DAG builder
-  types/          # Shared TypeScript types and Zod schemas
-  utils/          # Guards, plan output, YAML parsing, metrics
-  vcs/            # Git + git-spice integration helpers
+  core/                    # Core domain layer
+    agents/                # Agent interfaces and contracts
+    config/                # Configuration interfaces
+    di/                    # Dependency injection container and providers
+    execution/             # Execution domain types and state machines
+    vcs/                   # Version control domain services and interfaces
+
+  services/                # Business logic layer
+    agents/                # Agent service implementations
+    execution/             # Execution planning, orchestration, and monitoring
+    orchestration/         # Task orchestration and coordination
+    planning/              # Plan generation, analysis, and output formatting
+    vcs/                   # VCS operations and repository management
+
+  adapters/                # External system adapters
+    agents/                # AI agent implementations (Claude, Codex, Mock)
+    vcs/                   # Git, git-spice, and commit message generation
+
+  entry/                   # Application entry points
+    cli/                   # Command-line interface bootstrap
+    mcp/                   # Model Context Protocol server
+
+  commands/                # CLI command handlers and validation
+  types/                   # Shared TypeScript definitions and Zod schemas
+  validation/              # Input validation and type guards
+  utils/                   # Shared utilities and helpers
+
 test/
-  e2e/            # Execution flows powered by real CLI invocations
-  execution/      # Plan quality + orchestration decision tests
-  unit/           # Targeted unit tests
+  e2e/                     # End-to-end CLI integration tests
+  execution/               # Execution planning validation and quality tests
+  unit/                    # Unit tests (legacy location)
 ```
 
 ## Development workflow
@@ -159,13 +187,13 @@ pnpm run format:check
 
 ### Test suites
 ```bash
-pnpm run test             # All Jest suites
-pnpm run test:unit        # Unit coverage for src/
-pnpm run test:e2e         # CLI integration coverage
-pnpm run test:execution   # Execution planning quality scores
-pnpm run test:e2e:all     # Run E2E matrix with dry-run + parallel modes
+pnpm run test             # All test suites (unit + integration + E2E + execution)
+pnpm run test:unit        # Unit tests with heavy mocking
+pnpm run test:integration # Integration tests with real class interactions
+pnpm run test:e2e         # End-to-end CLI integration tests
+pnpm run test:execution   # Execution planning validation and quality scores
 ```
-The execution tests exercise Claude Code in `--permission-mode plan` to grade task plans without mutating your repo, keeping costs low while ensuring generated plans are actionable.
+The execution tests exercise Claude Code in `--permission-mode plan` to validate task execution plans without expensive implementation, keeping costs low while ensuring generated plans are actionable.
 
 ## Using git-spice stacks
 - Enable `--git-spice` on `chopstack run` to create stack branches after each successful layer
@@ -175,8 +203,9 @@ The execution tests exercise Claude Code in `--permission-mode plan` to grade ta
 ## Contributing
 Pull requests are welcome! Before opening one:
 1. Run `pnpm run lint`, `pnpm run type-check`, and any relevant tests
-2. Ensure changes follow the guard utilities and `ts-pattern` style guidelines
-3. If adding features, update specs and execution tests when applicable
+2. Follow the clean architecture patterns and service contracts documented in [SERVICE_CONTRACTS.md](./SERVICE_CONTRACTS.md)
+3. Ensure changes follow the guard utilities and `ts-pattern` style guidelines in [CLAUDE.md](./CLAUDE.md)
+4. If adding features, update specs and execution tests when applicable
 
 ## License
 ISC
