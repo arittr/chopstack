@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 
+import type { ExecutionTask } from '@/core/execution/types';
 import type { StackBuildService, StackBuildStrategy, StackInfo } from '@/core/vcs/domain-services';
-import type { ExecutionTask } from '@/types/execution';
 
 import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
 import { logger } from '@/utils/logger';
@@ -100,16 +100,17 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       }
 
       // Convert GitSpiceStackInfo to StackInfo
+      const branches = gitSpiceInfo.branches ?? [];
       return {
-        branches: gitSpiceInfo.branches.map((branch) => ({
+        branches: branches.map((branch) => ({
           branchName: branch.name,
           taskId: branch.taskId,
           commitHash: branch.commitHash,
         })),
         parentRef: gitSpiceInfo.stackRoot !== '' ? gitSpiceInfo.stackRoot : this.config.parentRef,
         strategy: 'dependency-order',
-        totalTasks: gitSpiceInfo.branches.length,
-        prUrls: gitSpiceInfo.prUrls ?? undefined,
+        totalTasks: branches.length,
+        prUrls: gitSpiceInfo.prUrls.length > 0 ? gitSpiceInfo.prUrls : undefined,
       };
     } catch (error) {
       logger.warn(
