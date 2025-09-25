@@ -12,6 +12,29 @@ vi.mock('node:fs/promises', () => ({
   access: vi.fn(),
 }));
 
+// Mock Node.js child process operations
+vi.mock('execa', () => ({
+  execa: vi.fn(),
+}));
+
+// Mock chalk for consistent output in tests
+vi.mock('chalk', () => {
+  const mockChalk = {
+    red: vi.fn((text: string) => `[RED]${text}[/RED]`),
+    green: vi.fn((text: string) => `[GREEN]${text}[/GREEN]`),
+    blue: vi.fn((text: string) => `[BLUE]${text}[/BLUE]`),
+    yellow: vi.fn((text: string) => `[YELLOW]${text}[/YELLOW]`),
+    cyan: vi.fn((text: string) => `[CYAN]${text}[/CYAN]`),
+    magenta: vi.fn((text: string) => `[MAGENTA]${text}[/MAGENTA]`),
+    white: vi.fn((text: string) => `[WHITE]${text}[/WHITE]`),
+    gray: vi.fn((text: string) => `[GRAY]${text}[/GRAY]`),
+    grey: vi.fn((text: string) => `[GRAY]${text}[/GRAY]`),
+    dim: vi.fn((text: string) => `[DIM]${text}[/DIM]`),
+    bold: vi.fn((text: string) => `[BOLD]${text}[/BOLD]`),
+  };
+  return { default: mockChalk };
+});
+
 // Provide real path helpers but allow spying/mocking when needed
 const actualPath = await vi.importActual('node:path');
 vi.mock('node:path', () => ({
