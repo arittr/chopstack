@@ -135,20 +135,20 @@ ${options.output ?? 'No execution output provided'}
 Requirements:
 1. ANALYZE THE ACTUAL CODE CHANGES - don't guess based on file names
 2. Clear, descriptive title (50 chars or less) following conventional commits
-3. Include detailed body with bullet points explaining what actually changed
+3. Be CONCISE - match detail level to scope of changes:
+   - Single file/method: 2-4 bullet points max
+   - Multiple files: 4-6 bullet points max
+   - Major refactor: 6+ bullet points as needed
 4. Use imperative mood ("Add feature" not "Added feature")
 5. Format: Title + blank line + bullet point details
-6. Bullet points must describe ACTUAL changes from the diff:
-   - What specific functions/methods were added/modified/removed
-   - What logic or behavior changed
-   - Why the change was made (based on code context)
-   - Any new dependencies, imports, or architectural changes
-7. If tests were added/removed/modified, specify which test scenarios
-8. If mocking was added/removed, specify what is now mocked/unmocked
-9. Focus on technical accuracy over generic descriptions
-10. DO NOT include preamble like "Looking at the changes" or "Based on the diff"
-11. Start directly with the action ("Add", "Fix", "Update", etc.)
-12. Be specific about what changed, not what you think should have changed
+6. Focus on the most important changes from the diff:
+   - Key functionality added/modified/removed
+   - Significant logic or behavior changes
+   - Important architectural changes
+7. Avoid over-describing implementation details for small changes
+8. DO NOT include preamble like "Looking at the changes"
+9. Start directly with the action ("Add", "Fix", "Update", etc.)
+10. Quality over quantity - fewer, more meaningful bullet points
 
 Example format:
 feat: add user authentication system
@@ -428,7 +428,7 @@ ${changeAnalysis}`;
       .split('\n')
       .filter((line) => line.startsWith('-') && !line.startsWith('---'));
 
-    // Detect specific patterns
+    // Detect significant patterns only
     const patterns = {
       newFunctions: addedLines.filter((line) =>
         /\+.*(?:function|const\s+\w+\s*=|class\s+\w+)/.test(line),
@@ -436,8 +436,6 @@ ${changeAnalysis}`;
       removedFunctions: removedLines.filter((line) =>
         /-.*(?:function|const\s+\w+\s*=|class\s+\w+)/.test(line),
       ).length,
-      newImports: addedLines.filter((line) => /\+.*import\s/.test(line)).length,
-      removedImports: removedLines.filter((line) => /-.*import\s/.test(line)).length,
       newTests: addedLines.filter((line) => /\+.*(test|it|describe)\s*\(/.test(line)).length,
       removedTests: removedLines.filter((line) => /-.*(test|it|describe)\s*\(/.test(line)).length,
       mockChanges:
@@ -450,50 +448,45 @@ ${changeAnalysis}`;
         diffContent.includes('.d.ts'),
     };
 
-    // Generate analysis
-    if (patterns.newFunctions > 0) {
-      analysis.push(`${patterns.newFunctions} new functions/methods added`);
+    // Generate concise analysis - only significant changes
+    if (patterns.newFunctions > patterns.removedFunctions + 1) {
+      analysis.push(`Added ${patterns.newFunctions} new functions/methods`);
+    } else if (patterns.removedFunctions > patterns.newFunctions + 1) {
+      analysis.push(`Removed ${patterns.removedFunctions} functions/methods`);
+    } else if (patterns.newFunctions > 0 || patterns.removedFunctions > 0) {
+      analysis.push('Modified function definitions');
     }
-    if (patterns.removedFunctions > 0) {
-      analysis.push(`${patterns.removedFunctions} functions/methods removed`);
-    }
-    if (patterns.newImports > 0) {
-      analysis.push(`${patterns.newImports} new imports added`);
-    }
-    if (patterns.removedImports > 0) {
-      analysis.push(`${patterns.removedImports} imports removed`);
-    }
+
     if (patterns.newTests > 0) {
-      analysis.push(`${patterns.newTests} new test cases added`);
+      analysis.push(`Added ${patterns.newTests} test cases`);
+    } else if (patterns.removedTests > 0) {
+      analysis.push(`Removed ${patterns.removedTests} test cases`);
     }
-    if (patterns.removedTests > 0) {
-      analysis.push(`${patterns.removedTests} test cases removed`);
-    }
+
     if (patterns.mockChanges) {
-      analysis.push('Mocking/stubbing patterns detected in changes');
+      analysis.push('Modified mocking/test patterns');
     }
+
     if (patterns.typeChanges) {
-      analysis.push('TypeScript type definitions modified');
+      analysis.push('Updated TypeScript definitions');
     }
 
-    // Analyze by file type
-    const testFiles = files.filter((f) => f.includes('test') || f.includes('spec'));
-    const componentFiles = files.filter((f) => f.includes('component') || f.endsWith('.tsx'));
-    const utilFiles = files.filter((f) => f.includes('util') || f.includes('helper'));
-
-    if (testFiles.length > 0) {
-      analysis.push(`Test files modified: ${testFiles.join(', ')}`);
-    }
-    if (componentFiles.length > 0) {
-      analysis.push(`Component files modified: ${componentFiles.join(', ')}`);
-    }
-    if (utilFiles.length > 0) {
-      analysis.push(`Utility files modified: ${utilFiles.join(', ')}`);
+    // File scope context
+    const fileCount = files.length;
+    if (fileCount === 1) {
+      analysis.push('Single file modification');
+    } else if (fileCount > 5) {
+      analysis.push(`Broad changes across ${fileCount} files`);
     }
 
-    // Overall change magnitude
-    analysis.push(`${addedLines.length} lines added, ${removedLines.length} lines removed`);
+    // Change magnitude (only for significant changes)
+    const totalChanges = addedLines.length + removedLines.length;
+    if (totalChanges > 100) {
+      analysis.push(`Substantial changes: ${addedLines.length}+ ${removedLines.length}- lines`);
+    } else if (totalChanges > 20) {
+      analysis.push('Moderate code changes');
+    }
 
-    return analysis.length > 0 ? analysis.join('\n- ') : 'No specific patterns detected';
+    return analysis.length > 0 ? analysis.join('\n- ') : 'Minor code modifications';
   }
 }
