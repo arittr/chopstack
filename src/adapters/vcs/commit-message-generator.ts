@@ -37,7 +37,7 @@ export type CommitMessageOptions = {
   /** Specific files involved in the change */
   files?: string[];
   /** Task execution output or additional context */
-  output?: string;
+  output?: string | undefined;
   /** Working directory for git operations */
   workdir: string;
 };
