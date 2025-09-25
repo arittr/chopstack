@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 
-import { PlanSchema, TaskSchema } from '../types/decomposer';
+import { PlanSchema, TaskSchema } from '@/types/decomposer';
 
 import { isNonNullish } from './guards';
 

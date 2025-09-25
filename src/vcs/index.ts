@@ -1,6 +1,6 @@
 import { match } from 'ts-pattern';
 
-import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
+import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
 
 /**
  * VCS backend types for different stacking tools

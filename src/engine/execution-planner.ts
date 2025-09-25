@@ -3,17 +3,17 @@ import { cpus } from 'node:os';
 import { execaSync } from 'execa';
 import { match, P } from 'ts-pattern';
 
-import type { Plan } from '../types/decomposer';
+import type { Plan } from '@/types/decomposer';
 import type {
   ExecutionOptions,
   ExecutionPlan,
   ExecutionStrategy,
   ExecutionTask,
   ExecutionValidation,
-} from '../types/execution';
+} from '@/types/execution';
 
-import { DagValidator } from '../validation/dag-validator';
-import { isNonEmptyArray } from '../validation/guards';
+import { DagValidator } from '@/validation/dag-validator';
+import { isNonEmptyArray } from '@/validation/guards';
 
 export class ExecutionPlanner {
   determineStrategy(plan: Plan, options: ExecutionOptions): ExecutionStrategy {

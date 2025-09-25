@@ -2,18 +2,17 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { runCliInProcess } from '@test/utils/cli-runner';
+import {
+  type TestWorktreeContext,
+  testWorktreeManager,
+} from '@test/utils/testing-harness-worktree-manager';
 import { parse as parseYaml } from 'yaml';
 
 import type { Plan } from '@/types/decomposer';
 
 import { DagValidator } from '@/validation/dag-validator';
 import { hasContent } from '@/validation/guards';
-
-import { runCliInProcess } from '../utils/cli-runner';
-import {
-  type TestWorktreeContext,
-  testWorktreeManager,
-} from '../utils/testing-harness-worktree-manager';
 
 describe('Chopstack E2E Integration Tests', () => {
   const SPEC_PATH = path.resolve(__dirname, 'specs', 'add-stack-summary-command.md');

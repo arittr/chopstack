@@ -1,8 +1,7 @@
+import { testWorktreeManager } from '@test/utils/testing-harness-worktree-manager';
 import { afterAll } from 'vitest';
 
 import { isValidArray } from '@/validation/guards';
-
-import { testWorktreeManager } from '../utils/testing-harness-worktree-manager';
 
 const cleanupFlag = Symbol.for('chopstack.testWorktreeCleanupRegistered');
 

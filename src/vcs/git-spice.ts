@@ -1,13 +1,13 @@
 import { execa } from 'execa';
 
-import type { ExecutionTask, GitSpiceStackInfo } from '../types/execution';
+import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
 
-import { logger } from '../utils/logger';
-import { hasContent, isNonEmptyString } from '../validation/guards';
+import { logger } from '@/utils/logger';
+import { hasContent, isNonEmptyString } from '@/validation/guards';
 
 import { GitWrapper, type WorktreeInfo } from './git-wrapper';
 
-import type { VcsBackend } from './index';
+import type { VcsBackend } from '.';
 
 export class GitSpiceError extends Error {
   constructor(

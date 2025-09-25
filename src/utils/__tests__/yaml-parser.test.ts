@@ -3,7 +3,7 @@ import { vi } from 'vitest';
 import { YamlPlanParser } from '@/io/yaml-parser';
 
 // Mock the Zod schema validation
-vi.mock('../../types/decomposer', () => ({
+vi.mock('../@/types/decomposer', () => ({
   PlanSchema: {
     parse: vi.fn((data: unknown) => {
       // Simple mock - return the data if it has tasks array
