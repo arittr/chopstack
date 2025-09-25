@@ -1,4 +1,4 @@
-import { TaskOrchestrator } from '../mcp/orchestrator';
+import { TaskOrchestrator } from '@/mcp/orchestrator';
 
 import { ExecutionEngine } from './execution-engine';
 import { ExecutionMonitor } from './execution-monitor';

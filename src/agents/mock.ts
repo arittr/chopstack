@@ -1,4 +1,4 @@
-import type { DecomposerAgent, Plan } from '../types/decomposer';
+import type { DecomposerAgent, Plan } from '@/types/decomposer';
 
 export class MockDecomposer implements DecomposerAgent {
   // eslint-disable-next-line @typescript-eslint/require-await
