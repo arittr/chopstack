@@ -113,13 +113,26 @@ Task Output:
 ${options.output ?? 'No output available'}
 
 Requirements:
-1. Clear, descriptive title (50 chars or less)
-2. Explain WHAT was changed and WHY
+1. Clear, descriptive title (50 chars or less) following conventional commits
+2. Include detailed body with bullet points explaining specific changes
 3. Use imperative mood ("Add feature" not "Added feature")
-4. Be professional and follow conventional commits style
-5. Focus on the business value and purpose
-6. DO NOT include preamble like "Looking at the changes" or "Based on the diff"
-7. Start directly with the action ("Add", "Fix", "Update", etc.)
+4. Format: Title + blank line + bullet point details
+5. Bullet points should describe:
+   - Key functionality added/changed
+   - Files or components affected
+   - Technical details or reasoning
+6. Focus on the business value and technical implementation
+7. DO NOT include preamble like "Looking at the changes" or "Based on the diff"
+8. Start directly with the action ("Add", "Fix", "Update", etc.)
+
+Example format:
+feat: add user authentication system
+
+- Implement JWT-based authentication flow
+- Add login/logout endpoints in auth routes
+- Create user session management middleware
+- Add password hashing with bcrypt
+- Update frontend to handle auth tokens
 
 Return ONLY the commit message content between these markers:
 <<<COMMIT_MESSAGE_START>>>
@@ -189,9 +202,7 @@ Return ONLY the commit message content between these markers:
     }
 
     // If we didn't find a good line, take the first non-empty one
-    if (message === '' && lines.length > 0) {
-      message = lines[0] ?? '';
-    }
+    message = message === '' && lines.length > 0 ? (lines[0] ?? '') : message;
 
     if (!this._isValidMessage(message)) {
       throw new Error('AI generated empty or too short commit message');
@@ -208,23 +219,82 @@ Return ONLY the commit message content between these markers:
 
     // Analyze file patterns for intelligent categorization
     const categories = this._categorizeFiles(files);
+    const bulletPoints: string[] = [];
 
-    // Generate message based on task and file changes
+    // Generate detailed bullet points based on file changes
     if (categories.components.length > 0) {
-      return `Add ${task.title}\n\nImplements ${categories.components.join(', ')} components`;
+      bulletPoints.push(
+        `- Add ${categories.components.length} component${categories.components.length > 1 ? 's' : ''}: ${categories.components.slice(0, 3).join(', ')}${categories.components.length > 3 ? '...' : ''}`,
+      );
     }
 
     if (categories.apis.length > 0) {
-      return `Implement ${task.title}\n\nAdds API endpoints: ${categories.apis.join(', ')}`;
+      bulletPoints.push(
+        `- Implement ${categories.apis.length} API endpoint${categories.apis.length > 1 ? 's' : ''}: ${categories.apis.slice(0, 3).join(', ')}${categories.apis.length > 3 ? '...' : ''}`,
+      );
     }
 
     if (categories.tests.length > 0) {
-      return `Add ${task.title}\n\nImplements test coverage for core functionality`;
+      bulletPoints.push(
+        `- Add ${categories.tests.length} test file${categories.tests.length > 1 ? 's' : ''} for comprehensive coverage`,
+      );
     }
 
-    // Fallback to task-based message
-    const verb = task.produces.length > 0 ? 'Add' : 'Update';
-    return `${verb} ${task.title}\n\n${task.description}`;
+    if (categories.configs.length > 0) {
+      bulletPoints.push(
+        `- Update ${categories.configs.length} configuration file${categories.configs.length > 1 ? 's' : ''}`,
+      );
+    }
+
+    if (categories.docs.length > 0) {
+      bulletPoints.push(`- Update documentation and README files`);
+    }
+
+    // Add file count summary if we have uncategorized files
+    const categorizedCount =
+      categories.components.length +
+      categories.apis.length +
+      categories.tests.length +
+      categories.configs.length +
+      categories.docs.length;
+    const uncategorizedCount = files.length - categorizedCount;
+    if (uncategorizedCount > 0) {
+      bulletPoints.push(
+        `- Modify ${uncategorizedCount} additional file${uncategorizedCount > 1 ? 's' : ''}`,
+      );
+    }
+
+    // Generate title based on predominant file type
+    let title = '';
+    let prefix = '';
+
+    if (categories.tests.length > categories.components.length + categories.apis.length) {
+      prefix = 'test';
+      title = `add test coverage for ${task.title.toLowerCase()}`;
+    } else if (categories.components.length > 0) {
+      prefix = 'feat';
+      title = `add ${task.title.toLowerCase()}`;
+    } else if (categories.apis.length > 0) {
+      prefix = 'feat';
+      title = `implement ${task.title.toLowerCase()}`;
+    } else if (categories.docs.length > 0) {
+      prefix = 'docs';
+      title = `update ${task.title.toLowerCase()}`;
+    } else if (categories.configs.length > 0) {
+      prefix = 'chore';
+      title = `update ${task.title.toLowerCase()}`;
+    } else {
+      prefix = task.produces.length > 0 ? 'feat' : 'chore';
+      title = task.title.toLowerCase();
+    }
+
+    // Create complete commit message
+    const commitTitle = `${prefix}: ${title}`;
+
+    if (bulletPoints.length > 0) {
+      return `${commitTitle}\n\n${bulletPoints.join('\n')}`;
+    }
+    return `${commitTitle}\n\n- ${task.description}`;
   }
 
   private _categorizeFiles(files: string[]): {
