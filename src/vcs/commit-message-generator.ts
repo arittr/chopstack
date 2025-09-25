@@ -52,7 +52,7 @@ export class CommitMessageGenerator {
   constructor(config: CommitMessageGeneratorConfig = {}) {
     this.config = {
       aiCommand: config.aiCommand ?? 'claude',
-      aiTimeout: config.aiTimeout ?? 30_000,
+      aiTimeout: config.aiTimeout ?? 120_000,
       signature:
         config.signature ??
         '🤖 Generated with Claude via chopstack\n\nCo-Authored-By: Claude <noreply@anthropic.com>',
@@ -127,9 +127,12 @@ Return ONLY the commit message content between these markers:
 <<<COMMIT_MESSAGE_END>>>`;
 
     try {
-      const { stdout: aiResponse } = await execa(this.config.aiCommand, [prompt], {
+      // Pass prompt via stdin to handle long prompts properly
+      const { stdout: aiResponse } = await execa(this.config.aiCommand, ['--print'], {
         cwd: options.workdir,
         timeout: this.config.aiTimeout,
+        stdin: 'pipe',
+        input: prompt, // Pass the prompt via stdin
       });
 
       return this._parseAICommitMessage(aiResponse);

@@ -7,7 +7,7 @@ import type { Plan } from '@/types/decomposer';
 import type { ExecutionResult } from '@/types/execution';
 
 import { createDecomposerAgent } from '@/agents';
-import { runCommand } from '@/commands/run';
+import { createDefaultDependencies, RunCommand } from '@/commands';
 import { ExecutionEngine } from '@/engine/execution-engine';
 
 // Mock only external dependencies and complex systems
@@ -106,7 +106,9 @@ describe('runCommand integration tests', () => {
         verbose: false,
       };
 
-      const result = await runCommand(options);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(options);
 
       expect(result).toBe(0);
 
@@ -171,7 +173,9 @@ describe('runCommand integration tests', () => {
         verbose: true,
       };
 
-      const result = await runCommand(options);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(options);
 
       // Should fail due to real validation
       expect(result).toBe(1);
@@ -203,7 +207,9 @@ tasks:
         verbose: false,
       };
 
-      const result = await runCommand(options);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(options);
 
       expect(result).toBe(0);
       expect(mockReadFile).toHaveBeenCalled();
@@ -233,7 +239,9 @@ tasks:
         strategy: 'serial',
       };
 
-      const result = await runCommand(options);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(options);
 
       expect(result).toBe(0);
     });
@@ -249,7 +257,9 @@ tasks:
         strategy: 'parallel',
       };
 
-      const result = await runCommand(options);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(options);
 
       expect(result).toBe(1);
     });
@@ -264,7 +274,9 @@ tasks:
         strategy: 'parallel',
       };
 
-      const result = await runCommand(options);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(options);
 
       expect(result).toBe(1);
     });
@@ -303,7 +315,9 @@ tasks:
         strategy: 'parallel',
       };
 
-      const result = await runCommand(options);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(options);
 
       expect(result).toBe(1);
       expect(mockExecuteFailure).toHaveBeenCalled();
@@ -324,7 +338,9 @@ tasks:
         verbose: true,
       };
 
-      const result = await runCommand(options);
+      const deps = createDefaultDependencies();
+      const command = new RunCommand(deps);
+      const result = await command.execute(options);
 
       expect(result).toBe(0);
 
