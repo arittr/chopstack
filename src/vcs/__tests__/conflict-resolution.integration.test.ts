@@ -5,9 +5,11 @@ import { TEST_CONFIG, TEST_PATHS } from '@test/constants/test-paths';
 import { execa } from 'execa';
 
 import type { ExecutionTask } from '@/types/execution';
+import type { VcsEngine } from '@/vcs/engine/vcs-engine';
 
-import { VcsEngine } from '@/engine/vcs-engine';
+import { isNonNullish } from '@/validation/guards';
 import { ConflictResolver } from '@/vcs/conflict-resolver';
+import { createTestVcsEngine } from '@/vcs/engine/vcs-engine-factory';
 import { GitWrapper } from '@/vcs/git-wrapper';
 
 const testRepo = join(TEST_PATHS.TEST_TMP, 'conflict-resolution-integration');
@@ -80,18 +82,21 @@ describe('Conflict Resolution Integration', () => {
   });
 
   beforeEach(async () => {
-    vcsEngine = new VcsEngine({
-      shadowPath: TEST_PATHS.TEST_SHADOWS,
-      branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
-      cleanupOnSuccess: false,
-      cleanupOnFailure: false,
-      conflictStrategy: 'auto',
-      stackSubmission: {
-        enabled: false,
-        draft: true,
-        autoMerge: false,
+    vcsEngine = await createTestVcsEngine(
+      {},
+      {
+        shadowPath: TEST_PATHS.TEST_SHADOWS,
+        branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
+        cleanupOnSuccess: false,
+        cleanupOnFailure: false,
+        conflictStrategy: 'auto',
+        stackSubmission: {
+          enabled: false,
+          draft: true,
+          autoMerge: false,
+        },
       },
-    });
+    );
 
     conflictResolver = new ConflictResolver({
       shadowPath: TEST_PATHS.TEST_SHADOWS,
@@ -238,18 +243,21 @@ export const Button: React.FC<ButtonProps> = ({ children, onClick, size = 'mediu
   describe('Manual Conflict Resolution Strategy', () => {
     it('should require manual intervention when strategy is manual', async () => {
       // Create VCS engine with manual conflict resolution
-      const manualVcsEngine = new VcsEngine({
-        shadowPath: TEST_PATHS.TEST_SHADOWS,
-        branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
-        cleanupOnSuccess: false,
-        cleanupOnFailure: false,
-        conflictStrategy: 'manual',
-        stackSubmission: {
-          enabled: false,
-          draft: true,
-          autoMerge: false,
+      const manualVcsEngine = await createTestVcsEngine(
+        {},
+        {
+          shadowPath: TEST_PATHS.TEST_SHADOWS,
+          branchPrefix: TEST_CONFIG.TEST_BRANCH_PREFIX,
+          cleanupOnSuccess: false,
+          cleanupOnFailure: false,
+          conflictStrategy: 'manual',
+          stackSubmission: {
+            enabled: false,
+            draft: true,
+            autoMerge: false,
+          },
         },
-      });
+      );
 
       const manualResolver = new ConflictResolver({
         shadowPath: TEST_PATHS.TEST_SHADOWS,
@@ -334,11 +342,15 @@ export const Button: React.FC<ButtonProps> = ({ children, onClick }) => {
       // Create conflict scenario
       await git.checkout('main');
       await git.git.raw(['checkout', '-b', 'manual-test-1', 'main']);
-      await git.cherryPick(task1.commitHash);
+      if (isNonNullish(task1.commitHash)) {
+        await git.cherryPick(task1.commitHash);
+      }
 
       await git.checkout('main');
       await git.git.raw(['checkout', '-b', 'manual-test-2', 'main']);
-      await git.cherryPick(task2.commitHash);
+      if (isNonNullish(task2.commitHash)) {
+        await git.cherryPick(task2.commitHash);
+      }
 
       // Create conflict by merging
       try {
