@@ -1,3 +1,6 @@
+import type { CommitOptions, WorktreeContext } from '@/core/vcs/domain-services';
+import type { ExecutionTask } from '@/types/execution';
+
 /**
  * Core VCS provider interface
  */
@@ -126,4 +129,67 @@ export type StackBranch = {
   hasChanges: boolean;
   name: string;
   pullRequest?: PullRequest;
+};
+
+/**
+ * VCS Engine orchestration interface - coordinates all VCS domain services
+ */
+export type VcsEngineService = {
+  /**
+   * Analyze worktree needs for parallel execution
+   */
+  analyzeWorktreeNeeds(
+    tasks: ExecutionTask[],
+    workdir: string,
+  ): Promise<{
+    estimatedDiskUsage: number;
+    maxConcurrentTasks: number;
+    parallelLayers: number;
+    requiresWorktrees: boolean;
+  }>;
+
+  /**
+   * Build a git-spice stack from completed tasks
+   */
+  buildStackFromTasks(
+    tasks: ExecutionTask[],
+    workdir: string,
+    options?: {
+      parentRef?: string;
+      strategy?: string;
+      submitStack?: boolean;
+    },
+  ): Promise<{
+    branches: Array<{ branchName: string; commitHash: string; taskId: string }>;
+    parentRef: string;
+    prUrls?: string[] | undefined;
+  }>;
+
+  /**
+   * Clean up worktrees after execution
+   */
+  cleanupWorktrees(contexts: WorktreeContext[]): Promise<void>;
+
+  /**
+   * Commit changes for a completed task
+   */
+  commitTaskChanges(
+    task: ExecutionTask,
+    context: WorktreeContext,
+    options?: CommitOptions,
+  ): Promise<string>;
+
+  /**
+   * Create worktrees for parallel task execution
+   */
+  createWorktreesForTasks(
+    tasks: ExecutionTask[],
+    baseRef: string,
+    workdir: string,
+  ): Promise<WorktreeContext[]>;
+
+  /**
+   * Initialize the VCS engine with a working directory
+   */
+  initialize(workdir: string): Promise<void>;
 };
