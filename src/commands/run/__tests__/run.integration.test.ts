@@ -12,8 +12,8 @@ import { ExecutionEngine } from '@/services/execution/engine/execution-engine';
 
 // Mock only external dependencies and complex systems
 vi.mock('node:fs/promises');
-vi.mock('@/agents');
-vi.mock('@/engine/execution-engine');
+vi.mock('@/adapters/agents');
+vi.mock('@/services/execution/engine/execution-engine');
 
 const mockReadFile = vi.mocked(readFile);
 const mockCreateDecomposerAgent = vi.mocked(createDecomposerAgent);
@@ -274,7 +274,14 @@ tasks:
     it('should handle execution failures properly', async () => {
       const failureResult: ExecutionResult = {
         totalDuration: 1000,
-        tasks: [],
+        tasks: [
+          {
+            taskId: 'task-1',
+            status: 'failure',
+            duration: 500,
+            error: 'Task failed',
+          },
+        ],
         branches: [],
         commits: [],
       };

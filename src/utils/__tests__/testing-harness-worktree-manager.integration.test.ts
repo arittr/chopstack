@@ -148,7 +148,7 @@ describe('TestWorktreeManager', () => {
         expect(pkg.name).toBe('chopstack');
 
         // Verify we have TypeScript files
-        const binDir = path.join(context.absolutePath, 'src', 'bin');
+        const binDir = path.join(context.absolutePath, 'src', 'entry', 'cli');
         await expect(fs.access(binDir)).resolves.toBeUndefined();
 
         const chopstackBin = path.join(binDir, 'chopstack.ts');
@@ -156,7 +156,7 @@ describe('TestWorktreeManager', () => {
 
         // Verify we can read actual source code
         const binContent = await fs.readFile(chopstackBin, 'utf8');
-        expect(binContent).toContain('import { run } from');
+        expect(binContent).toContain('import { Command } from');
       } finally {
         await context.cleanup();
       }
