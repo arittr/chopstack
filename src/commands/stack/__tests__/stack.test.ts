@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultDependencies, StackCommand } from '@/commands';
 
 // Mock the CommitMessageGenerator
-vi.mock('@/vcs/commit-message-generator', () => ({
+vi.mock('@/adapters/vcs/commit-message-generator', () => ({
   CommitMessageGenerator: vi.fn().mockImplementation(() => ({
     generateCommitMessage: vi.fn().mockResolvedValue('feat: Update implementation'),
     generateFromDiff: vi.fn().mockResolvedValue('feat: Update implementation'),
@@ -11,7 +11,7 @@ vi.mock('@/vcs/commit-message-generator', () => ({
 }));
 
 // Mock GitSpiceBackend
-vi.mock('@/vcs/git-spice', () => ({
+vi.mock('@/adapters/vcs/git-spice/backend', () => ({
   GitSpiceBackend: vi.fn().mockImplementation(() => ({
     isAvailable: vi.fn().mockResolvedValue(true),
     initialize: vi.fn().mockResolvedValue(undefined),
@@ -57,7 +57,7 @@ describe('stackCommand', () => {
     execaSyncMock = execaSync as unknown as ReturnType<typeof vi.fn>;
 
     // Setup GitSpiceBackend mock instance
-    const { GitSpiceBackend } = await import('@/vcs/git-spice');
+    const { GitSpiceBackend } = await import('@/adapters/vcs/git-spice/backend');
     gitSpiceBackendMock = {
       isAvailable: vi.fn().mockResolvedValue(true),
       initialize: vi.fn().mockResolvedValue(undefined),

@@ -5,10 +5,10 @@ import { vi } from 'vitest';
 
 import type { DecomposeOptions, DecomposerAgent } from '@/types/decomposer';
 
-import { createDecomposerAgent } from '@/agents';
+import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, DecomposeCommand } from '@/commands';
-import { generatePlanWithRetry } from '@/planning/plan-generator';
-import { PlanOutputter } from '@/planning/plan-outputter';
+import { generatePlanWithRetry } from '@/services/planning/plan-generator';
+import { PlanOutputter } from '@/services/planning/plan-outputter';
 import { DagValidator } from '@/validation/dag-validator';
 
 // Mock external dependencies

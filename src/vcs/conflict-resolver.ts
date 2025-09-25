@@ -4,7 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import type { ExecutionTask } from '@/types/execution';
 import type { VcsEngineOptions } from '@/vcs/engine/vcs-engine';
 
-import { GitWrapper } from './git-wrapper';
+import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 
 export type ConflictDetails = {
   baseCommit: string;

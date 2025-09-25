@@ -4,12 +4,12 @@
 
 import chalk from 'chalk';
 
+import { CommitMessageGenerator } from '@/adapters/vcs/commit-message-generator';
+import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
 import { RegisterCommand } from '@/commands/command-factory';
 import { BaseCommand, type CommandDependencies } from '@/commands/types';
 import { validateStackArgs } from '@/types/cli';
 import { hasContent, isValidArray } from '@/validation/guards';
-import { CommitMessageGenerator } from '@/vcs/commit-message-generator';
-import { GitSpiceBackend } from '@/vcs/git-spice';
 
 import type { GitSpiceOptions } from './types';
 
