@@ -1,6 +1,6 @@
 import { match, P } from 'ts-pattern';
 
-import type { ExecutionTask, TaskState, TaskStateTransition } from '../types/execution';
+import type { ExecutionTask, TaskState, TaskStateTransition } from '@/types/execution';
 
 type StateTransitionRule = {
   condition?: (task: ExecutionTask) => boolean;

@@ -1,16 +1,16 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import type { RunCommandOptions } from '../types/cli';
-import type { Plan } from '../types/decomposer';
+import type { RunCommandOptions } from '@/types/cli';
+import type { Plan } from '@/types/decomposer';
 
-import { createDecomposerAgent } from '../agents';
-import { createExecutionEngine } from '../engine';
-import { YamlPlanParser } from '../io/yaml-parser';
-import { generatePlanWithRetry } from '../planning/plan-generator';
-import { logger } from '../utils/logger';
-import { DagValidator } from '../validation/dag-validator';
-import { isNonEmptyString } from '../validation/guards';
+import { createDecomposerAgent } from '@/agents';
+import { createExecutionEngine } from '@/engine';
+import { YamlPlanParser } from '@/io/yaml-parser';
+import { generatePlanWithRetry } from '@/planning/plan-generator';
+import { logger } from '@/utils/logger';
+import { DagValidator } from '@/validation/dag-validator';
+import { isNonEmptyString } from '@/validation/guards';
 
 export async function runCommand(options: RunCommandOptions): Promise<number> {
   try {

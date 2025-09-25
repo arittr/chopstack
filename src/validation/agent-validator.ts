@@ -1,9 +1,9 @@
 import { execa } from 'execa';
 
-import type { AgentType } from '../types/decomposer';
+import type { AgentType } from '@/types/decomposer';
 
-import { AgentNotFoundError } from '../utils/errors';
-import { logger } from '../utils/logger';
+import { AgentNotFoundError } from '@/utils/errors';
+import { logger } from '@/utils/logger';
 
 /**
  * Validates that required tools/dependencies are available for each agent type
