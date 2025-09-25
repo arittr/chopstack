@@ -1,5 +1,5 @@
+import type { ExecutionTask, GitSpiceStackInfo } from '@/core/execution/types';
 import type { CommitOptions, WorktreeContext } from '@/core/vcs/domain-services';
-import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
 
 /**
  * VCS Backend interface for specific VCS implementations (e.g., git-spice)

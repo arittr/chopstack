@@ -1,4 +1,4 @@
-import type { ExecutionMode, ExecutionStrategy } from '@/types/execution';
+import type { ExecutionMode, ExecutionStrategy } from '@/core/execution/types';
 
 /**
  * Core configuration for execution
