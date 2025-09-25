@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, vi } from 'vitest';
+import { vi } from 'vitest';
 
 // Import worktree cleanup to ensure it runs after all tests
 import './worktree-cleanup';
@@ -53,23 +53,6 @@ vi.mock('node:path', () => ({
 vi.spyOn(process, 'cwd').mockReturnValue('/test/cwd');
 vi.spyOn(process, 'exit').mockImplementation(() => {
   throw new Error('process.exit() called');
-});
-
-// Global cleanup after all tests
-beforeAll(() => {
-  // Log that we're starting unit tests
-  console.log('🧹 Cleaning up before unit tests...');
-});
-
-afterAll(async () => {
-  // Run test:clean to ensure everything is cleaned up
-  try {
-    const { execSync } = await import('node:child_process');
-    execSync('pnpm test:clean', { stdio: 'pipe' });
-    console.log('✅ Test cleanup complete');
-  } catch (error) {
-    console.warn('⚠️ Test cleanup failed:', error instanceof Error ? error.message : error);
-  }
 });
 
 // Per-project timeout is configured in vitest.config.ts (projects.unit.testTimeout)
