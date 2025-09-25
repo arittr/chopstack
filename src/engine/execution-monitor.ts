@@ -16,7 +16,7 @@ import {
   createProgressLine,
   ProgressFormatter,
   TaskProgressManager,
-} from '@/planning/progress-formatter';
+} from '@/services/planning/progress-formatter';
 import { logger } from '@/utils/logger';
 
 import { StateManager } from './state-manager';
