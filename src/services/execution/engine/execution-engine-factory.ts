@@ -1,4 +1,7 @@
-import { TaskOrchestrator } from '@/services/orchestration/task-orchestrator';
+import { ExecutionMonitorServiceImpl } from '@/services/execution/execution-monitor-service';
+import { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
+import { ExecutionPlannerServiceImpl } from '@/services/execution/execution-planner-service';
+import { ClaudeCliTaskExecutionAdapter, TaskOrchestrator } from '@/services/orchestration';
 import { type VcsEngineConfig, VcsEngineServiceImpl } from '@/services/vcs';
 
 import type { ExecutionEngine, ExecutionEngineDependencies } from './execution-engine';
@@ -35,10 +38,23 @@ export function createDefaultExecutionEngineDependencies(
     ...vcsConfig,
   };
 
+  const vcsEngine = new VcsEngineServiceImpl(defaultVcsConfig);
+  const taskExecutionAdapter = new ClaudeCliTaskExecutionAdapter();
+  const taskOrchestrator = new TaskOrchestrator(taskExecutionAdapter);
+  const executionOrchestrator = new ExecutionOrchestrator({
+    taskOrchestrator,
+    vcsEngine,
+  });
+
   return {
     stateManager: new StateManager(),
-    orchestrator: new TaskOrchestrator(),
-    vcsEngine: new VcsEngineServiceImpl(defaultVcsConfig),
+    orchestrator: executionOrchestrator,
+    plannerService: new ExecutionPlannerServiceImpl(),
+    monitorService: new ExecutionMonitorServiceImpl({
+      enableProgressBar: true,
+      enableRealTimeStats: true,
+      logLevel: 'info',
+    }),
   };
 }
 
