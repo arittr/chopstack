@@ -16,4 +16,3 @@ export type {
 
 // Export utilities (for testing or extension)
 export * as gitOperations from './utils/git-operations';
-export * as gitSpiceOperations from './utils/git-spice-operations';

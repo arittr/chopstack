@@ -9,7 +9,7 @@ import type { ExecutionTask } from '@/types/execution';
 import type { VcsEngine } from '@/vcs/engine/vcs-engine';
 
 import { createTestVcsEngine } from '@/vcs/engine/vcs-engine-factory';
-import { GitSpiceBackend } from '@/vcs/git-spice';
+import { GitSpiceBackend, initGitSpiceRepo } from '@/vcs/git-spice';
 import { GitWrapper } from '@/vcs/git-wrapper';
 
 const testRepo = join(TEST_PATHS.TEST_TMP, 'git-spice-stack-integration');
@@ -115,6 +115,12 @@ This is a test application for validating git-spice stack building functionality
 
   await execa('git', ['add', '.'], { cwd: testRepo });
   await execa('git', ['commit', '-m', 'Initial project structure'], { cwd: testRepo });
+
+  // Initialize git-spice using the helper
+  const initResult = initGitSpiceRepo(testRepo, 'main');
+  if (!initResult.success) {
+    console.log('Warning: git-spice initialization failed:', initResult.error);
+  }
 }
 
 function createStackTask(
@@ -638,14 +644,14 @@ export const ${task.id}Component = () => "Generated content";
         .fn()
         .mockRejectedValue(new Error('Failed to initialize git-spice'));
 
-      // Build stack with corrupted git-spice should handle error
+      // Build stack with corrupted git-spice should throw an error
       await expect(
         vcsEngine.buildStackIncremental([task], '/nonexistent/path', {
           parentRef: 'main',
           strategy: 'dependency-order',
           submitStack: false,
         }),
-      ).resolves.not.toThrow(); // Should handle errors gracefully
+      ).rejects.toThrow('No tasks with commits found for stack building');
 
       corruptedGitSpice.initialize = originalInitialize;
     });
