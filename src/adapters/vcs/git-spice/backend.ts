@@ -7,9 +7,9 @@ import { execa } from 'execa';
 import type { ExecutionTask, GitSpiceStackInfo } from '@/types/execution';
 import type { VcsBackend } from '@/vcs';
 
+import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/logger';
 import { hasContent, isNonEmptyString } from '@/validation/guards';
-import { GitWrapper } from '@/vcs/git-wrapper';
 
 import { GitSpiceError } from './errors';
 import { extractPrUrls, generateBranchNameFromMessage } from './helpers';
