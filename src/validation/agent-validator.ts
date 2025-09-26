@@ -3,7 +3,7 @@ import { execa } from 'execa';
 import type { AgentType } from '@/types/decomposer';
 
 import { AgentNotFoundError } from '@/utils/errors';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 /**
  * Validates that required tools/dependencies are available for each agent type

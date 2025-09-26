@@ -34,7 +34,7 @@ import {
   VcsEngineServiceImpl,
   WorktreeServiceImpl,
 } from '@/services/vcs';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 export class CoreServicesProvider extends BaseServiceProvider {
   register(container: Container): void {

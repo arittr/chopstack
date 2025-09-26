@@ -15,7 +15,7 @@ import type {
 import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
 import { fetchWorktreeCommits } from '@/adapters/vcs/git-spice/worktree-sync';
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 export type StackEvent = {
   branchName?: string;

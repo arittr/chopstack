@@ -1,7 +1,7 @@
 import type { ExecutionContext, ExecutionResult, TaskResult } from '@/core/execution/interfaces';
 import type { ExecutionPlan } from '@/core/execution/types';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { isNonNullish } from '@/validation/guards';
 
 import { BaseExecutionStrategy, type ExecutionStrategyDependencies } from './execution-strategy';

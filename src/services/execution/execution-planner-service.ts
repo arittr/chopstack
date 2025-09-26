@@ -10,7 +10,7 @@ import type {
 } from '@/core/execution/types';
 import type { Plan } from '@/types/decomposer';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { DagValidator } from '@/validation/dag-validator';
 import { isNonNullish } from '@/validation/guards';
 

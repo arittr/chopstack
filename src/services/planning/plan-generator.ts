@@ -1,7 +1,7 @@
 import type { DecomposerAgent } from '@/core/agents/interfaces';
 import type { Plan } from '@/types/decomposer';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { DagValidator } from '@/validation/dag-validator';
 import { isValidArray } from '@/validation/guards';
 

@@ -7,7 +7,7 @@ import type { ExecutionOrchestrator } from '@/services/execution/execution-orche
 import type { ExecutionPlannerService } from '@/services/execution/execution-planner-service';
 import type { Plan } from '@/types/decomposer';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 import type { StateManager } from './state-manager';
 

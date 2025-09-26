@@ -2,7 +2,7 @@
  * Command factory and registry for easy command creation
  */
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 import type {
   Command,

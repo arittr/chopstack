@@ -8,7 +8,7 @@ import type { ExecutionTask, GitSpiceStackInfo } from '@/core/execution/types';
 import type { VcsBackend } from '@/core/vcs/interfaces';
 
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { hasContent, isNonEmptyString } from '@/validation/guards';
 
 import { GitSpiceError } from './errors';
@@ -18,6 +18,8 @@ import { fetchWorktreeCommits } from './worktree-sync';
 /**
  * Git-spice VCS backend implementation
  */
+const GIT_SPICE_BRANCH_TIMEOUT_MS = 120_000;
+
 export class GitSpiceBackend implements VcsBackend {
   constructor(private readonly _options?: Record<string, unknown>) {}
 
@@ -108,7 +110,7 @@ export class GitSpiceBackend implements VcsBackend {
       await execa('gs', ['branch', 'create', finalBranchName, '-m', commitMessage], {
         all: true,
         cwd: workdir,
-        timeout: 10_000,
+        timeout: GIT_SPICE_BRANCH_TIMEOUT_MS,
       });
 
       logger.info(`🌿 Created git-spice branch: ${finalBranchName}`);
@@ -137,7 +139,7 @@ export class GitSpiceBackend implements VcsBackend {
       // Create branch from commit using git-spice
       await execa('gs', ['branch', 'create', branchName, '--from', commitHash], {
         cwd: workdir,
-        timeout: 10_000,
+        timeout: GIT_SPICE_BRANCH_TIMEOUT_MS,
       });
 
       logger.info(
@@ -448,6 +450,7 @@ export class GitSpiceBackend implements VcsBackend {
       shortMessage?: string;
       stderr?: string;
       stdout?: string;
+      timedOut?: boolean;
     };
 
     // Extract all available error information
@@ -459,6 +462,12 @@ export class GitSpiceBackend implements VcsBackend {
 
     if (execaError.exitCode !== undefined) {
       errorDetails.push(`Exit code: ${execaError.exitCode}`);
+    }
+
+    if (execaError.timedOut === true) {
+      errorDetails.push(
+        `Timed out after ${GIT_SPICE_BRANCH_TIMEOUT_MS / 1000} seconds while waiting for ${command} to finish`,
+      );
     }
 
     // Capture stderr (where most git/pre-commit hook errors appear)
