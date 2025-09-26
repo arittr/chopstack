@@ -5,7 +5,7 @@
 
 import chalk from 'chalk';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 import { commandRegistry, executeCommand } from './command-factory';
 

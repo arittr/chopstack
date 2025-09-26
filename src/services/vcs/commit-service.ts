@@ -3,7 +3,7 @@ import type { CommitOptions, CommitService, WorktreeContext } from '@/core/vcs/d
 
 import { CommitMessageGenerator } from '@/adapters/vcs/commit-message-generator';
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 export type CommitServiceConfig = {
   defaultGenerateMessage: boolean;

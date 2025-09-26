@@ -5,7 +5,7 @@
 import type { ExecutionTask } from '@/core/execution/types';
 
 import { GitWrapper, type WorktreeInfo } from '@/adapters/vcs/git-wrapper';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { isNonEmptyString } from '@/validation/guards';
 
 /**

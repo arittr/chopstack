@@ -11,7 +11,7 @@ import type { VcsEngineService } from '@/core/vcs/interfaces';
 import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/orchestration';
 import type { Task } from '@/types/decomposer';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
   private readonly worktreeContexts: Map<string, WorktreeContext> = new Map();

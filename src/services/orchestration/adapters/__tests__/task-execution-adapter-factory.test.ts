@@ -51,7 +51,7 @@ describe('TaskExecutionAdapterFactory', () => {
     });
 
     it('should warn when using unsupported agents', async () => {
-      const logger = await import('@/utils/logger').then((m) => m.logger);
+      const { logger } = await import('@/utils/global-logger');
       TaskExecutionAdapterFactory.createAdapter('codex');
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("Agent 'codex' does not support task execution"),
@@ -59,7 +59,7 @@ describe('TaskExecutionAdapterFactory', () => {
     });
 
     it('should warn for unknown agent types', async () => {
-      const logger = await import('@/utils/logger').then((m) => m.logger);
+      const { logger } = await import('@/utils/global-logger');
       TaskExecutionAdapterFactory.createAdapter('unknown');
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("Unknown agent type 'unknown'"),

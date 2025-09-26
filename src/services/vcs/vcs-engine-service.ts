@@ -14,7 +14,7 @@ import type {
 } from '@/core/vcs/domain-services';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 import { CommitServiceImpl } from './commit-service';
 import { ConflictResolutionServiceImpl } from './conflict-resolution-service';

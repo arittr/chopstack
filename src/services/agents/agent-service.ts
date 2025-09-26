@@ -5,7 +5,7 @@ import type { AgentService, AgentType, DecomposerAgent } from '@/core/agents/int
 import { ClaudeCodeDecomposer } from '@/adapters/agents/claude';
 import { CodexDecomposer } from '@/adapters/agents/codex';
 import { MockDecomposer } from '@/adapters/agents/mock';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { AgentValidator } from '@/validation/agent-validator';
 
 /**

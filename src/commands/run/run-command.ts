@@ -20,6 +20,7 @@ import { YamlPlanParser } from '@/io/yaml-parser';
 import { bootstrapApplication, getContainer } from '@/providers';
 import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { isTuiSupported, startTui } from '@/ui';
+import { GlobalLogger } from '@/utils/global-logger';
 import { DagValidator } from '@/validation/dag-validator';
 import { isNonEmptyString } from '@/validation/guards';
 
@@ -108,11 +109,6 @@ export class RunCommand extends BaseCommand {
         return 1;
       }
 
-      this.logger.info(chalk.green('✅ Plan validated successfully'));
-      this.logger.info(chalk.dim(`📊 Tasks: ${plan.tasks.length}`));
-
-      const engine = await resolveExecutionEngine();
-
       // Check if TUI should be used
       const isTtyEnvironment = isTuiSupported();
       const shouldUseTui = options.tui && options.silent === false && options.mode === 'execute';
@@ -127,6 +123,11 @@ export class RunCommand extends BaseCommand {
 
       const useTui = shouldUseTui && isTtyEnvironment;
 
+      this.logger.info(chalk.green('✅ Plan validated successfully'));
+      this.logger.info(chalk.dim(`📊 Tasks: ${plan.tasks.length}`));
+
+      const engine = await resolveExecutionEngine();
+
       let result;
       let failureCount: number;
 
@@ -137,21 +138,13 @@ export class RunCommand extends BaseCommand {
           ServiceIdentifiers.ExecutionOrchestrator,
         );
 
-        // Start TUI and execute in parallel
-        [result] = await Promise.all([
-          engine.execute(plan, {
-            mode: options.mode,
-            verbose: options.verbose,
-            dryRun: options.dryRun,
-            strategy: options.strategy,
-            parallel: options.parallel,
-            continueOnError: options.continueOnError,
-            agent: options.agent,
-          }),
-          startTui({
-            orchestrator,
-            plan,
-            options: {
+        // Enable TUI mode in global logger
+        GlobalLogger.enableTuiMode(orchestrator);
+
+        try {
+          // Start TUI and execute in parallel
+          [result] = await Promise.all([
+            engine.execute(plan, {
               mode: options.mode,
               verbose: options.verbose,
               dryRun: options.dryRun,
@@ -159,9 +152,25 @@ export class RunCommand extends BaseCommand {
               parallel: options.parallel,
               continueOnError: options.continueOnError,
               agent: options.agent,
-            },
-          }),
-        ]);
+            }),
+            startTui({
+              orchestrator,
+              plan,
+              options: {
+                mode: options.mode,
+                verbose: options.verbose,
+                dryRun: options.dryRun,
+                strategy: options.strategy,
+                parallel: options.parallel,
+                continueOnError: options.continueOnError,
+                agent: options.agent,
+              },
+            }),
+          ]);
+        } finally {
+          // Disable TUI mode in global logger
+          GlobalLogger.disableTuiMode();
+        }
 
         failureCount = result.tasks.filter((task) => task.status === 'failure').length;
       } else {

@@ -16,7 +16,7 @@ import {
   ProgressFormatter,
   TaskProgressManager,
 } from '@/services/planning/progress-formatter';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { isNonNullish } from '@/validation/guards';
 
 /**

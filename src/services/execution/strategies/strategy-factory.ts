@@ -1,7 +1,7 @@
 import type { ExecutionContext } from '@/core/execution/interfaces';
 import type { ExecutionPlan } from '@/core/execution/types';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
 
 import type { ExecutionStrategy } from './execution-strategy';

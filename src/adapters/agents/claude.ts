@@ -11,7 +11,7 @@ import type { Plan } from '@/types/decomposer';
 import { type ParsedContent, YamlPlanParser } from '@/io/yaml-parser';
 import { PromptBuilder } from '@/services/planning/prompts';
 import { AgentNotFoundError, PlanParsingError } from '@/utils/errors';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
 
 type StreamingMessage = {

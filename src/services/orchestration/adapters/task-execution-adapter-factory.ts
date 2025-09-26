@@ -1,6 +1,6 @@
 import type { TaskExecutionAdapter } from '@/services/orchestration/types';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 import { ClaudeCliTaskExecutionAdapter } from './claude-cli-task-execution-adapter';
 import { MockTaskExecutionAdapter } from './mock-task-execution-adapter';

@@ -9,7 +9,7 @@ import type {
 } from '@/core/vcs/domain-services';
 
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 export type WorktreeEvent = {
   error?: string;
