@@ -11,7 +11,7 @@ export type LogEntry = {
   message: string;
   taskId?: string;
   timestamp: Date;
-  type: 'info' | 'error' | 'success' | 'stdout' | 'stderr';
+  type: 'info' | 'error' | 'success' | 'stdout' | 'stderr' | 'status';
 };
 
 export type TaskUIState = {
