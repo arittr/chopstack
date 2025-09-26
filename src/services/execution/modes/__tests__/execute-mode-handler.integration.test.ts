@@ -6,6 +6,7 @@ import type { TaskOrchestrator } from '@/services/orchestration';
 import type { Task } from '@/types/decomposer';
 
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
+import { VcsStrategyFactory } from '@/services/vcs/strategies/vcs-strategy-factory';
 
 import { ExecuteModeHandlerImpl } from '../execute-mode-handler';
 
@@ -40,7 +41,8 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
     // Use REAL TaskTransitionManager
     transitionManager = new TaskTransitionManager();
 
-    handler = new ExecuteModeHandlerImpl(mockOrchestrator, mockVcsEngine, transitionManager);
+    const vcsStrategyFactory = new VcsStrategyFactory(mockVcsEngine);
+    handler = new ExecuteModeHandlerImpl(mockOrchestrator, vcsStrategyFactory, transitionManager);
 
     context = {
       agentType: 'claude',
@@ -48,7 +50,7 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
       cwd: '/test',
       dryRun: false,
       maxRetries: 3,
-      strategy: 'serial',
+      vcsMode: 'simple',
       verbose: false,
     };
   });
@@ -419,7 +421,7 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
       ];
 
       // Set up parallel context
-      context.strategy = 'parallel';
+      context.vcsMode = 'worktree';
 
       // Mock worktree creation
       (mockVcsEngine.createWorktreesForTasks as any).mockResolvedValue([

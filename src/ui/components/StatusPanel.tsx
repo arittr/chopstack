@@ -42,7 +42,7 @@ export const StatusPanel: FC<StatusPanelProps> = ({ tasks, metrics, options }) =
           </Text>
           <Text dimColor>
             {' '}
-            • {options.strategy} • {options.mode}
+            • {options.vcsMode} • {options.mode}
             {isNonEmptyString(options.agent) && options.agent !== 'claude'
               ? ` • ${options.agent}`
               : ''}
