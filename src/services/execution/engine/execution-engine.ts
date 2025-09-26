@@ -86,7 +86,7 @@ export class ExecutionEngine extends EventEmitter {
     try {
       // Create execution plan using planner service
       const executionPlan = await this.plannerService.createExecutionPlan(plan, options);
-      logger.info(`📋 Created execution plan with ${executionPlan.strategy} strategy`);
+      logger.info(`📋 Created execution plan with ${executionPlan.vcsMode} VCS mode`);
 
       // Start monitoring
       this.monitorService.startMonitoring(executionPlan);

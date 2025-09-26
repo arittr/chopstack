@@ -56,9 +56,8 @@ program
   .option('--plan <file>', 'Path to plan file (JSON/YAML) - if not provided, will decompose spec')
   .option('--mode <mode>', 'Execution mode: plan|dry-run|execute|validate', 'dry-run')
   .option('--workdir <path>', 'Working directory for execution', process.cwd())
-  .option('--strategy <strategy>', 'Execution strategy: parallel|serial|hybrid', 'parallel')
+  .option('--vcs-mode <mode>', 'VCS mode: simple|worktree|stacked', 'simple')
   .option('--agent <type>', 'Agent for decomposition: claude|aider|mock', 'claude')
-  .option('--git-spice', 'Create git-spice stack after execution', false)
   .option('--continue-on-error', 'Continue execution even if tasks fail', false)
   .option('--timeout <ms>', 'Task timeout in milliseconds', (value) => Number.parseInt(value, 10))
   .option(

@@ -49,20 +49,20 @@ describe('CLI argument validation', () => {
       const result = validateRunArgs(args);
       expect(result.spec).toBe('spec.md');
       expect(result.mode).toBe('execute');
-      expect(result.strategy).toBe('parallel');
+      expect(result.vcsMode).toBe('simple');
     });
 
     it('should validate run arguments with plan', () => {
       const args = {
         plan: 'plan.yaml',
         mode: 'plan',
-        strategy: 'serial',
+        vcsMode: 'simple',
       };
 
       const result = validateRunArgs(args);
       expect(result.plan).toBe('plan.yaml');
       expect(result.mode).toBe('plan');
-      expect(result.strategy).toBe('serial');
+      expect(result.vcsMode).toBe('simple');
     });
 
     it('should require either spec or plan', () => {
@@ -85,13 +85,13 @@ describe('CLI argument validation', () => {
       }
     });
 
-    it('should validate execution strategies', () => {
-      const validStrategies = ['serial', 'parallel', 'hybrid'];
+    it('should validate VCS modes', () => {
+      const validModes = ['simple', 'worktree', 'stacked'];
 
-      for (const strategy of validStrategies) {
-        const args = { spec: 'spec.md', strategy, mode: 'execute' };
+      for (const vcsMode of validModes) {
+        const args = { spec: 'spec.md', vcsMode, mode: 'execute' };
         const result = validateRunArgs(args);
-        expect(result.strategy).toBe(strategy);
+        expect(result.vcsMode).toBe(vcsMode);
       }
     });
   });

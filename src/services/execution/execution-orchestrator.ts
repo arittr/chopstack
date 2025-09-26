@@ -17,6 +17,7 @@ import type { StreamingUpdate, TaskOrchestrator } from '@/services/orchestration
 import type { Plan, ValidationResult } from '@/types/decomposer';
 
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
+import { VcsStrategyFactory } from '@/services/vcs/strategies/vcs-strategy-factory';
 import { logger } from '@/utils/global-logger';
 
 import { ExecuteModeHandlerImpl } from './modes/execute-mode-handler';
@@ -60,9 +61,13 @@ export class ExecutionOrchestrator extends EventEmitter {
 
     // Initialize mode handlers
     this.planModeHandler = new PlanModeHandlerImpl(dependencies.taskOrchestrator);
+
+    // Create VcsStrategyFactory for ExecuteModeHandler
+    const vcsStrategyFactory = new VcsStrategyFactory(dependencies.vcsEngine);
+
     this.executeModeHandler = new ExecuteModeHandlerImpl(
       dependencies.taskOrchestrator,
-      dependencies.vcsEngine,
+      vcsStrategyFactory,
       this.taskTransitionManager,
     );
     this.validateModeHandler = new ValidateModeHandlerImpl();
@@ -160,7 +165,7 @@ export class ExecutionOrchestrator extends EventEmitter {
       cwd: options.workdir ?? process.cwd(),
       dryRun: options.dryRun ?? false,
       maxRetries: 3,
-      strategy: options.strategy,
+      vcsMode: options.vcsMode,
       verbose: options.verbose ?? false,
     };
   }

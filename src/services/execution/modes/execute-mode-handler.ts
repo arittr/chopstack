@@ -6,37 +6,61 @@ import type {
 } from '@/core/execution/interfaces';
 import type { TaskTransitionManager } from '@/core/execution/task-transitions';
 import type { ExecutionTask } from '@/core/execution/types';
-import type { WorktreeContext } from '@/core/vcs/domain-services';
-import type { VcsEngineService } from '@/core/vcs/interfaces';
+import type {
+  TaskCommitResult,
+  VcsStrategy,
+  VcsStrategyContext,
+  WorktreeContext,
+} from '@/core/vcs/vcs-strategy';
 import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/orchestration';
+import type { VcsStrategyFactory } from '@/services/vcs/strategies/vcs-strategy-factory';
 import type { Task } from '@/types/decomposer';
 
 import { logger } from '@/utils/global-logger';
+import { isNonEmptyString, isNonNullish } from '@/validation/guards';
 
 export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
-  private readonly worktreeContexts: Map<string, WorktreeContext> = new Map();
+  private _worktreeContexts: Map<string, WorktreeContext> = new Map();
   private readonly executionTasks: Map<string, ExecutionTask> = new Map();
+  private _vcsStrategy: VcsStrategy | null = null;
 
   constructor(
     private readonly _orchestrator: TaskOrchestrator,
-    private readonly _vcsEngine: VcsEngineService,
+    private readonly _vcsStrategyFactory: VcsStrategyFactory,
     private readonly _transitionManager: TaskTransitionManager,
   ) {}
 
   async handle(tasks: Task[], context: ExecutionContext): Promise<ExecutionResult> {
-    logger.info(`[chopstack] Executing ${tasks.length} tasks in execute mode`);
+    logger.info(
+      `[chopstack] Executing ${tasks.length} tasks in execute mode with VCS mode: ${context.vcsMode}`,
+    );
 
     const results: TaskResult[] = [];
-    const branches: string[] = [];
-    const commits: string[] = [];
     const startTime = Date.now();
 
-    // Initialize VCS engine
-    await this._vcsEngine.initialize(context.cwd);
+    // Create VCS strategy
+    this._vcsStrategy = this._vcsStrategyFactory.create(context.vcsMode);
 
-    // Convert tasks to ExecutionTasks and prepare worktrees if needed
-    // Context may be modified (e.g., strategy changed from parallel to serial)
-    context = await this._prepareExecution(tasks, context);
+    // Create VCS strategy context
+    const vcsContext: VcsStrategyContext = {
+      cwd: context.cwd,
+      baseRef: context.parentRef ?? 'HEAD',
+    };
+
+    // Initialize VCS strategy
+    await this._vcsStrategy.initialize(tasks, vcsContext);
+
+    // Convert tasks to ExecutionTasks
+    this._prepareExecution(tasks, context);
+
+    // Let VCS strategy prepare execution contexts (e.g., worktrees)
+    if (isNonNullish(this._vcsStrategy)) {
+      const executionTasksArray = [...this.executionTasks.values()];
+      this._worktreeContexts = await this._vcsStrategy.prepareTaskExecutionContexts(
+        executionTasksArray,
+        vcsContext,
+      );
+    }
 
     // Initialize the transition manager with all tasks
     this._transitionManager.initialize(tasks);
@@ -70,25 +94,11 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
         .map((id) => tasks.find((t) => t.id === id))
         .filter((t): t is Task => t !== undefined);
 
-      logger.info(
-        `[chopstack] Executing ${executableTasks.length} tasks in ${context.strategy} mode`,
-      );
+      logger.info(`[chopstack] Executing ${executableTasks.length} tasks in parallel`);
 
-      // Execute the layer of tasks
+      // Execute the layer of tasks (always smart parallel)
       const layerResults = await this._executeLayer(executableTasks, context);
       results.push(...layerResults);
-
-      // Collect branch and commit information
-      for (const task of executableTasks) {
-        const executionTask = this.executionTasks.get(task.id);
-        if (executionTask?.commitHash !== undefined) {
-          commits.push(executionTask.commitHash);
-        }
-        const worktreeContext = this.worktreeContexts.get(task.id);
-        if (worktreeContext?.branchName !== undefined) {
-          branches.push(worktreeContext.branchName);
-        }
-      }
 
       // Stop if any task failed and continueOnError is false
       if (!context.continueOnError && layerResults.some((r) => r.status === 'failure')) {
@@ -103,40 +113,49 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
       }
     }
 
-    // Clean up worktrees
-    if (this.worktreeContexts.size > 0) {
-      await this._vcsEngine.cleanupWorktrees([...this.worktreeContexts.values()]);
-    }
+    // Finalize VCS operations and get branches/commits
+    let branches: string[] = [];
+    let commits: string[] = [];
 
-    // Build stack if all tasks completed successfully
-    if (context.strategy === 'parallel' && results.every((r) => r.status === 'success')) {
-      try {
-        const executionTasksArray = [...this.executionTasks.values()];
-        const stackResult = await this._vcsEngine.buildStackFromTasks(
-          executionTasksArray,
-          context.cwd,
-          { strategy: 'dependency-order' },
-        );
-        if (stackResult.prUrls !== undefined) {
-          logger.info(`Created PR stack with ${stackResult.prUrls.length} PRs`);
-        }
-      } catch (error) {
-        logger.warn('Failed to build stack from tasks:', error as Record<string, unknown>);
-      }
+    if (isNonNullish(this._vcsStrategy)) {
+      // Collect commit results from completed tasks
+      const commitResults = await Promise.all(
+        tasks
+          .filter((task) => {
+            const state = this._transitionManager.getTaskState(task.id);
+            return state === 'completed';
+          })
+          .map((task) => {
+            const executionTask = this.executionTasks.get(task.id);
+            const result: TaskCommitResult = { taskId: task.id };
+            if (isNonEmptyString(executionTask?.commitHash)) {
+              result.commitHash = executionTask.commitHash;
+            }
+            return result;
+          }),
+      );
+
+      const finalizeResult = await this._vcsStrategy.finalize(commitResults, vcsContext);
+      ({ branches, commits } = finalizeResult);
+
+      // Clean up
+      await this._vcsStrategy.cleanup();
     }
 
     return {
       tasks: results,
       totalDuration: Date.now() - startTime,
-      branches: [...new Set(branches)], // Remove duplicates
-      commits: [...new Set(commits)], // Remove duplicates
+      branches,
+      commits,
     };
   }
 
   // This method is no longer needed as TaskTransitionManager handles dependency logic
 
   private async _executeLayer(layer: Task[], context: ExecutionContext): Promise<TaskResult[]> {
-    if (context.strategy === 'serial' || layer.length === 1) {
+    // Always run smart parallel execution based on DAG
+    if (layer.length === 1) {
+      // Single task can be run "serially" (it's just one task)
       return this._executeLayerSerially(layer, context);
     }
     return this._executeLayerInParallel(layer, context);
@@ -293,9 +312,31 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
       logger.debug(`[chopstack] Task ${task.id}: Orchestrator returned status: ${result.status}`);
 
       // Trigger VCS commit if task completed successfully
-      if (result.status === 'completed' && result.output !== undefined) {
+      if (
+        result.status === 'completed' &&
+        result.output !== undefined &&
+        isNonNullish(this._vcsStrategy)
+      ) {
         try {
-          await this._handleVcsCommit(task, context);
+          const executionTask = this.executionTasks.get(task.id);
+          const worktreeContext = this._worktreeContexts.get(task.id);
+
+          if (isNonNullish(executionTask) && isNonNullish(worktreeContext)) {
+            const commitResult = await this._vcsStrategy.handleTaskCompletion(
+              task,
+              executionTask,
+              worktreeContext,
+              result.output,
+            );
+
+            if (isNonEmptyString(commitResult.commitHash)) {
+              executionTask.commitHash = commitResult.commitHash;
+              logger.info(`Task ${task.id} committed: ${commitResult.commitHash.slice(0, 7)}`);
+            }
+            if (isNonEmptyString(commitResult.error)) {
+              logger.warn(`Failed to commit task ${task.id}: ${commitResult.error}`);
+            }
+          }
         } catch (vcsError) {
           logger.warn(
             `Failed to commit changes for task ${task.id}:`,
@@ -328,10 +369,7 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     return retryCount < context.maxRetries;
   }
 
-  private async _prepareExecution(
-    tasks: Task[],
-    context: ExecutionContext,
-  ): Promise<ExecutionContext> {
+  private _prepareExecution(tasks: Task[], context: ExecutionContext): void {
     // Convert tasks to ExecutionTasks
     for (const task of tasks) {
       const executionTask: ExecutionTask = {
@@ -344,72 +382,13 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
       this.executionTasks.set(task.id, executionTask);
     }
 
-    // Create worktrees for parallel execution if needed
-    if (context.strategy === 'parallel') {
-      try {
-        const execTasks = [...this.executionTasks.values()];
-        const worktreeContexts = await this._vcsEngine.createWorktreesForTasks(
-          execTasks,
-          'HEAD',
-          context.cwd,
-        );
-        for (const worktreeContext of worktreeContexts) {
-          this.worktreeContexts.set(worktreeContext.taskId, worktreeContext);
-          // Update execution task with worktree directory
-          const executionTask = this.executionTasks.get(worktreeContext.taskId);
-          if (executionTask !== undefined) {
-            executionTask.worktreeDir = worktreeContext.absolutePath;
-          }
-        }
-      } catch (error) {
-        logger.warn(
-          'Failed to create worktrees, falling back to serial execution:',
-          error as Record<string, unknown>,
-        );
-        // Actually fall back to serial execution
-        context.strategy = 'serial';
+    // Update execution tasks with worktree directories if available
+    for (const [taskId, worktreeContext] of this._worktreeContexts) {
+      const executionTask = this.executionTasks.get(taskId);
+      if (isNonNullish(executionTask)) {
+        executionTask.worktreeDir = worktreeContext.absolutePath;
+        logger.debug(`Task ${taskId} will execute in: ${worktreeContext.absolutePath}`);
       }
-    }
-
-    return context;
-  }
-
-  private async _handleVcsCommit(task: Task, context: ExecutionContext): Promise<void> {
-    const executionTask = this.executionTasks.get(task.id);
-    if (executionTask === undefined) {
-      logger.warn(`No execution task found for ${task.id}`);
-      return;
-    }
-
-    const worktreeContext = this.worktreeContexts.get(task.id);
-    const workdir = worktreeContext?.absolutePath ?? context.cwd;
-
-    try {
-      // Commit changes using VCS engine
-      const commitHash = await this._vcsEngine.commitTaskChanges(
-        executionTask,
-        worktreeContext ?? {
-          taskId: task.id,
-          branchName: `task-${task.id}`,
-          baseRef: 'HEAD',
-          absolutePath: workdir,
-          worktreePath: workdir,
-          created: new Date(),
-        },
-        {
-          generateMessage: true,
-          includeAll: true,
-        },
-      );
-
-      // Update execution task with commit hash
-      executionTask.commitHash = commitHash;
-      logger.info(`Committed changes for task ${task.id}: ${commitHash}`);
-    } catch (error) {
-      logger.warn(
-        `Failed to commit changes for task ${task.id}:`,
-        error as Record<string, unknown>,
-      );
     }
   }
 }
