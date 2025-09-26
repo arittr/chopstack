@@ -6,6 +6,17 @@ import { TaskExecutionAdapterFactory } from '../task-execution-adapter-factory';
 
 // Mock logger to suppress warnings in tests
 vi.mock('@/utils/logger', () => ({
+  Logger: class {
+    warn = vi.fn();
+    info = vi.fn();
+    error = vi.fn();
+    debug = vi.fn();
+    configure = vi.fn();
+    getOptions = vi.fn(() => ({}));
+  },
+}));
+
+vi.mock('@/utils/global-logger', () => ({
   logger: {
     warn: vi.fn(),
     info: vi.fn(),

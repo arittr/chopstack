@@ -13,7 +13,7 @@ import type {
 } from '@/core/execution/interfaces';
 import type { ExecutionMode, ExecutionOptions } from '@/core/execution/types';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
-import type { TaskOrchestrator } from '@/services/orchestration';
+import type { StreamingUpdate, TaskOrchestrator } from '@/services/orchestration';
 import type { Plan, ValidationResult } from '@/types/decomposer';
 
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
@@ -66,6 +66,39 @@ export class ExecutionOrchestrator extends EventEmitter {
       this.taskTransitionManager,
     );
     this.validateModeHandler = new ValidateModeHandlerImpl();
+
+    // Forward events from TaskOrchestrator to UI
+    dependencies.taskOrchestrator.on('taskUpdate', (update: StreamingUpdate) => {
+      // Map taskUpdate events to appropriate UI events
+      switch (update.type) {
+        case 'status': {
+          if (update.data === 'running') {
+            this.emit('taskStart', { taskId: update.taskId });
+          } else if (update.data === 'completed' || update.data === 'failed') {
+            // Create a result object that matches what the UI expects
+            const result = {
+              taskId: update.taskId,
+              status: update.data === 'completed' ? 'success' : 'failure',
+              duration: 0, // Duration would need to be tracked separately
+            };
+            this.emit('taskComplete', {
+              taskId: update.taskId,
+              result, // Pass the result object as expected by the UI
+            });
+          }
+          break;
+        }
+        case 'stdout': {
+          this.emit('stdout', { taskId: update.taskId, data: update.data });
+          break;
+        }
+        case 'stderr': {
+          this.emit('stderr', { taskId: update.taskId, data: update.data });
+          break;
+        }
+        // No default
+      }
+    });
   }
 
   /**

@@ -44,7 +44,7 @@ describe('ClaudeCliTaskExecutionAdapter', () => {
 
     test('builds execute mode arguments correctly', () => {
       const args = (adapter as any)._buildClaudeArgs('execute', 'Test prompt');
-      expect(args).toEqual(['-p', 'Test prompt']);
+      expect(args).toEqual(['-p', '--permission-mode', 'bypassPermissions', 'Test prompt']);
     });
 
     test('builds validate mode arguments correctly', () => {

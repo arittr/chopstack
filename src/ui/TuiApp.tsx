@@ -1,6 +1,6 @@
 import React, { type FC } from 'react';
 
-import { Box, useApp, useInput } from 'ink';
+import { Box, useApp, useInput, useStdout } from 'ink';
 
 import type { ExecutionOptions } from '@/core/execution/types';
 import type { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
@@ -19,8 +19,19 @@ export type TuiAppProps = {
 
 export const TuiApp: FC<TuiAppProps> = ({ orchestrator, plan, options }) => {
   const { exit } = useApp();
+  const { stdout } = useStdout();
   const { tasks, logs, metrics, isComplete } = useExecutionState(orchestrator, plan);
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | undefined>();
+
+  // Calculate dimensions based on terminal size
+  const terminalHeight = stdout.rows;
+  const terminalWidth = stdout.columns;
+
+  // Fixed height for status panel (approximately 14 lines)
+  const statusPanelHeight = 14;
+  // Calculate remaining height for log panel
+  // Account for status panel, its border, and leave 1 line buffer at bottom
+  const logPanelHeight = Math.max(8, terminalHeight - statusPanelHeight - 1);
 
   // Handle keyboard input
   useInput((input, key) => {
@@ -53,13 +64,28 @@ export const TuiApp: FC<TuiAppProps> = ({ orchestrator, plan, options }) => {
   }, [isComplete, exit]);
 
   return (
-    <Box flexDirection="column" height="100%">
-      <Box height="30%" borderStyle="single" borderColor={theme.borderActive}>
+    <Box flexDirection="column" width={terminalWidth} height={terminalHeight} overflow="hidden">
+      <Box
+        height={statusPanelHeight}
+        borderStyle="single"
+        borderColor={theme.borderActive}
+        flexShrink={0}
+      >
         <StatusPanel tasks={tasks} metrics={metrics} options={options} />
       </Box>
 
-      <Box flexGrow={1} borderStyle="single" borderColor={theme.border}>
-        <LogPanel logs={logs} />
+      <Box
+        height={logPanelHeight}
+        borderStyle="single"
+        borderColor={theme.border}
+        flexShrink={0}
+        overflow="hidden"
+      >
+        <LogPanel
+          logs={logs}
+          maxLines={Math.max(4, logPanelHeight - 4)}
+          {...(selectedTaskId !== undefined && { filterTaskId: selectedTaskId })}
+        />
       </Box>
     </Box>
   );

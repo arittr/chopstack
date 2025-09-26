@@ -5,7 +5,7 @@ import { Box, Spacer, Text, useInput } from 'ink';
 import type { LogEntry } from '@/ui/hooks/useExecutionState';
 
 import { theme } from '@/ui/theme';
-import { isNonEmptyString } from '@/validation/guards';
+import { isNonEmptyString, isNonNullish } from '@/validation/guards';
 
 export type LogPanelProps = {
   filterTaskId?: string;
@@ -43,10 +43,37 @@ const formatTimestamp = (date: Date): string => {
   return date.toTimeString().split(' ')[0] ?? ''; // HH:MM:SS
 };
 
+const truncateMessage = (message: string, maxWidth: number): string => {
+  // Account for timestamp [HH:MM:SS] (11 chars) + taskId [12345678] (11 chars) + spaces (3 chars) = 25 chars overhead
+  const overhead = 25;
+  const availableWidth = Math.max(20, maxWidth - overhead);
+
+  if (message.length <= availableWidth) {
+    return message;
+  }
+
+  return `${message.slice(0, availableWidth - 3)}...`;
+};
+
 export const LogPanel: FC<LogPanelProps> = ({ logs, maxLines = 20, filterTaskId }) => {
   const [scrollOffset, setScrollOffset] = useState(0);
   const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
   const [selectedTaskFilter, setSelectedTaskFilter] = useState<string | undefined>(filterTaskId);
+  const [terminalWidth, setTerminalWidth] = useState(
+    isNonNullish(process.stdout.columns) ? process.stdout.columns : 120,
+  );
+
+  // Update terminal width on resize
+  useEffect(() => {
+    const handleResize = (): void => {
+      setTerminalWidth(isNonNullish(process.stdout.columns) ? process.stdout.columns : 120);
+    };
+
+    process.stdout.on('resize', handleResize);
+    return () => {
+      process.stdout.off('resize', handleResize);
+    };
+  }, []);
 
   // Filter logs by task ID if specified
   const filteredLogs = useMemo(() => {
@@ -153,7 +180,7 @@ export const LogPanel: FC<LogPanelProps> = ({ logs, maxLines = 20, filterTaskId 
   }, [filteredLogs.length, scrollOffset, isAutoScrollEnabled, selectedTaskFilter, maxLines]);
 
   return (
-    <Box flexDirection="column" padding={1} flexGrow={1}>
+    <Box flexDirection="column" padding={1} height="100%">
       <Box marginBottom={1}>
         <Text bold>📋 Execution Logs</Text>
         <Spacer />
@@ -162,38 +189,38 @@ export const LogPanel: FC<LogPanelProps> = ({ logs, maxLines = 20, filterTaskId 
         <Text dimColor>↑/↓ scroll • a: auto • c: clear filter</Text>
       </Box>
 
-      <Box flexDirection="column" flexGrow={1}>
-        {visibleLogs.map((log) => {
-          const logColor = getLogColor(log.type);
-          return (
-            <Box key={log.id} marginBottom={0}>
-              <Text dimColor>[{formatTimestamp(log.timestamp)}]</Text>
-              <Text> </Text>
-              {isNonEmptyString(log.taskId) && (
-                <>
-                  <Text color={theme.warning}>[{log.taskId.slice(0, 8)}]</Text>
-                  <Text> </Text>
-                </>
-              )}
-              {logColor !== undefined ? (
-                <Text color={logColor}>{log.message}</Text>
-              ) : (
-                <Text>{log.message}</Text>
-              )}
-            </Box>
-          );
-        })}
+      <Box flexDirection="column" height={maxLines}>
+        {filteredLogs.length === 0 ? (
+          <Box justifyContent="center" alignItems="center" height="100%">
+            <Text dimColor>
+              {isNonEmptyString(selectedTaskFilter)
+                ? `No logs for task ${selectedTaskFilter.slice(0, 8)}`
+                : 'Waiting for logs...'}
+            </Text>
+          </Box>
+        ) : (
+          visibleLogs.map((log) => {
+            const logColor = getLogColor(log.type);
+            return (
+              <Box key={log.id} marginBottom={0}>
+                <Text dimColor>[{formatTimestamp(log.timestamp)}]</Text>
+                <Text> </Text>
+                {isNonEmptyString(log.taskId) && (
+                  <>
+                    <Text color={theme.warning}>[{log.taskId.slice(0, 8)}]</Text>
+                    <Text> </Text>
+                  </>
+                )}
+                {logColor !== undefined ? (
+                  <Text color={logColor}>{truncateMessage(log.message, terminalWidth)}</Text>
+                ) : (
+                  <Text>{truncateMessage(log.message, terminalWidth)}</Text>
+                )}
+              </Box>
+            );
+          })
+        )}
       </Box>
-
-      {filteredLogs.length === 0 && (
-        <Box justifyContent="center" alignItems="center" flexGrow={1}>
-          <Text dimColor>
-            {isNonEmptyString(selectedTaskFilter)
-              ? `No logs for task ${selectedTaskFilter.slice(0, 8)}`
-              : 'Waiting for logs...'}
-          </Text>
-        </Box>
-      )}
     </Box>
   );
 };
