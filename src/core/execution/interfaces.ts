@@ -1,4 +1,4 @@
-import type { ExecutionStrategy } from '@/core/execution/types';
+import type { VcsMode } from '@/core/execution/types';
 import type { Plan, Task, ValidationResult } from '@/types/decomposer';
 
 /**
@@ -53,7 +53,7 @@ export type ExecutionContext = {
   dryRun: boolean;
   maxRetries: number;
   parentRef?: string;
-  strategy: ExecutionStrategy;
+  vcsMode: VcsMode;
   verbose: boolean;
 };
 
