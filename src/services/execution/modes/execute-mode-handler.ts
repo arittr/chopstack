@@ -35,7 +35,8 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     await this._vcsEngine.initialize(context.cwd);
 
     // Convert tasks to ExecutionTasks and prepare worktrees if needed
-    await this._prepareExecution(tasks, context);
+    // Context may be modified (e.g., strategy changed from parallel to serial)
+    context = await this._prepareExecution(tasks, context);
 
     // Initialize the transition manager with all tasks
     this._transitionManager.initialize(tasks);
@@ -45,9 +46,12 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
       // Get tasks ready for execution
       const executableTaskIds = this._transitionManager.getExecutableTasks();
 
+      logger.debug(`[chopstack] Executable tasks: ${executableTaskIds.join(', ')}`);
+
       if (executableTaskIds.length === 0) {
         // Check for deadlock or all remaining tasks blocked/failed
         const stats = this._transitionManager.getStatistics();
+        logger.debug(`[chopstack] Task stats: ${JSON.stringify(stats)}`);
         if (stats.blocked > 0) {
           logger.error('Execution deadlocked: tasks are blocked but none are ready');
           break;
@@ -65,6 +69,10 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
       const executableTasks = executableTaskIds
         .map((id) => tasks.find((t) => t.id === id))
         .filter((t): t is Task => t !== undefined);
+
+      logger.info(
+        `[chopstack] Executing ${executableTasks.length} tasks in ${context.strategy} mode`,
+      );
 
       // Execute the layer of tasks
       const layerResults = await this._executeLayer(executableTasks, context);
@@ -141,9 +149,14 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     const results: TaskResult[] = [];
 
     for (const task of layer) {
-      // Transition task through states: ready -> queued -> running
-      this._transitionManager.startTask(task.id); // ready -> queued
-      this._transitionManager.transitionTask(task.id, 'running', 'Executing task'); // queued -> running
+      // Properly transition through states: ready -> queued -> running
+      const currentState = this._transitionManager.getTaskState(task.id);
+      if (currentState === 'ready') {
+        this._transitionManager.transitionTask(task.id, 'queued', 'Starting task');
+        this._transitionManager.transitionTask(task.id, 'running', 'Executing task serially');
+      } else {
+        logger.warn(`Task ${task.id} is in unexpected state: ${currentState}`);
+      }
 
       const result = await this._executeTask(task, context);
       results.push(result);
@@ -196,11 +209,22 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     layer: Task[],
     context: ExecutionContext,
   ): Promise<TaskResult[]> {
-    const promises = layer.map(async (task) => {
-      // Transition task through states: ready -> queued -> running
-      this._transitionManager.startTask(task.id); // ready -> queued
-      this._transitionManager.transitionTask(task.id, 'running', 'Executing task'); // queued -> running
+    // Transition all tasks to running state BEFORE starting async execution
+    for (const task of layer) {
+      // Properly transition through states: ready -> queued -> running
+      const currentState = this._transitionManager.getTaskState(task.id);
+      if (currentState === 'ready') {
+        this._transitionManager.transitionTask(task.id, 'queued', 'Starting task');
+        this._transitionManager.transitionTask(task.id, 'running', 'Executing task in parallel');
+      } else {
+        logger.warn(`Task ${task.id} is in unexpected state: ${currentState}`);
+      }
+    }
 
+    logger.debug(`[chopstack] Starting parallel execution of ${layer.length} tasks`);
+
+    const promises = layer.map(async (task) => {
+      logger.debug(`[chopstack] Executing task ${task.id} in worktree`);
       const result = await this._executeTask(task, context);
 
       // Update task state based on result
@@ -248,15 +272,25 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     const taskStart = Date.now();
 
     try {
+      // Use worktree directory if available (parallel mode), otherwise use context.cwd
+      const executionTask = this.executionTasks.get(task.id);
+      const workdir = executionTask?.worktreeDir ?? context.cwd;
+
+      logger.debug(
+        `[chopstack] Task ${task.id}: Calling orchestrator.executeTask with workdir: ${workdir}`,
+      );
+
       const result: OrchestratorTaskResult = await this._orchestrator.executeTask(
         task.id,
         task.title,
         task.agentPrompt,
         task.touches,
-        context.cwd,
+        workdir,
         'execute',
         context.agentType,
       );
+
+      logger.debug(`[chopstack] Task ${task.id}: Orchestrator returned status: ${result.status}`);
 
       // Trigger VCS commit if task completed successfully
       if (result.status === 'completed' && result.output !== undefined) {
@@ -294,7 +328,10 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     return retryCount < context.maxRetries;
   }
 
-  private async _prepareExecution(tasks: Task[], context: ExecutionContext): Promise<void> {
+  private async _prepareExecution(
+    tasks: Task[],
+    context: ExecutionContext,
+  ): Promise<ExecutionContext> {
     // Convert tasks to ExecutionTasks
     for (const task of tasks) {
       const executionTask: ExecutionTask = {
@@ -329,8 +366,12 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
           'Failed to create worktrees, falling back to serial execution:',
           error as Record<string, unknown>,
         );
+        // Actually fall back to serial execution
+        context.strategy = 'serial';
       }
     }
+
+    return context;
   }
 
   private async _handleVcsCommit(task: Task, context: ExecutionContext): Promise<void> {
