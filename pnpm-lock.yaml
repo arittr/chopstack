@@ -11,6 +11,9 @@ importers:
       '@dagrejs/graphlib':
         specifier: ^2.2.4
         version: 2.2.4
+      '@inkjs/ui':
+        specifier: ^2.0.0
+        version: 2.0.0(ink@6.3.1(@types/react@19.1.13)(react@19.1.1))
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.0
         version: 1.17.4
@@ -32,6 +35,9 @@ importers:
       ink-spinner:
         specifier: ^5.0.0
         version: 5.0.0(ink@6.3.1(@types/react@19.1.13)(react@19.1.1))(react@19.1.1)
+      ink-ui:
+        specifier: ^0.4.0
+        version: 0.4.0
       ora:
         specifier: ^9.0.0
         version: 9.0.0
@@ -481,6 +487,12 @@ packages:
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [x64]
     os: [win32]
+
+  '@inkjs/ui@2.0.0':
+    resolution: {integrity: sha512-5+8fJmwtF9UvikzLfph9sA+LS+l37Ij/szQltkuXLOAXwNkBX9innfzh4pLGXIB59vKEQUtc6D4qGvhD7h3pAg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      ink: '>=5'
 
   '@isaacs/balanced-match@4.0.1':
     resolution: {integrity: sha512-yzMTt9lEb8Gv7zRioUilSglI0c0smZ9k5D65677DLWLtWJaXIS3CqcGyUFByYKlnUj6TkjLVs54fBl6+TiGQDQ==}
@@ -1233,6 +1245,10 @@ packages:
   deep-is@0.1.4:
     resolution: {integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==}
 
+  deepmerge@4.3.1:
+    resolution: {integrity: sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==}
+    engines: {node: '>=0.10.0'}
+
   define-data-property@1.1.4:
     resolution: {integrity: sha512-rBMvIzlpA8v6E+SJZoo++HAYqsLrkg7MSfIinMPFhmkorw7X+dOXVJQs+QT69zGkzMyfDnIMN2Wid1+NbL3T+A==}
     engines: {node: '>= 0.4'}
@@ -1805,6 +1821,9 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  ink-ui@0.4.0:
+    resolution: {integrity: sha512-n9Zif1V/c3foSVCmbbU2/HUXwJFZpZUQlX1fowx1FQ8gCsHKXtokeHr+W4+oLnRoPK2ykT7m1D2UVPBKu8IgYg==}
 
   ink@6.3.1:
     resolution: {integrity: sha512-3wGwITGrzL6rkWsi2gEKzgwdafGn4ZYd3u4oRp+sOPvfoxEHlnoB5Vnk9Uy5dMRUhDOqF3hqr4rLQ4lEzBc2sQ==}
@@ -3446,6 +3465,14 @@ snapshots:
   '@img/sharp-win32-x64@0.33.5':
     optional: true
 
+  '@inkjs/ui@2.0.0(ink@6.3.1(@types/react@19.1.13)(react@19.1.1))':
+    dependencies:
+      chalk: 5.6.2
+      cli-spinners: 3.2.0
+      deepmerge: 4.3.1
+      figures: 6.1.0
+      ink: 6.3.1(@types/react@19.1.13)(react@19.1.1)
+
   '@isaacs/balanced-match@4.0.1': {}
 
   '@isaacs/brace-expansion@5.0.0':
@@ -4224,6 +4251,8 @@ snapshots:
 
   deep-is@0.1.4: {}
 
+  deepmerge@4.3.1: {}
+
   define-data-property@1.1.4:
     dependencies:
       es-define-property: 1.0.1
@@ -4986,6 +5015,8 @@ snapshots:
   ink-testing-library@4.0.0(@types/react@19.1.13):
     optionalDependencies:
       '@types/react': 19.1.13
+
+  ink-ui@0.4.0: {}
 
   ink@6.3.1(@types/react@19.1.13)(react@19.1.1):
     dependencies:

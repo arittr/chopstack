@@ -1,30 +1,36 @@
 import React, { type FC } from 'react';
 
+import { ProgressBar } from '@inkjs/ui';
 import { Box, Text } from 'ink';
 
 export type LayerIndicatorProps = {
   completedLayers: number;
+  currentLayer?: number;
   totalLayers: number;
 };
 
-export const LayerIndicator: FC<LayerIndicatorProps> = ({ totalLayers, completedLayers }) => {
-  const percentage = totalLayers > 0 ? Math.round((completedLayers / totalLayers) * 100) : 0;
-  const filledBars = Math.floor(percentage / 5);
-  const emptyBars = 20 - filledBars;
+export const LayerIndicator: FC<LayerIndicatorProps> = ({
+  totalLayers,
+  completedLayers,
+  currentLayer,
+}) => {
+  const percentage = totalLayers > 0 ? (completedLayers / totalLayers) * 100 : 0;
 
   return (
-    <Box>
-      <Text>Layers: </Text>
-      <Box width={20}>
-        <Text color="green">
-          [{'█'.repeat(filledBars)}
-          {'░'.repeat(emptyBars)}]
+    <Box flexDirection="column">
+      <Box>
+        <Text bold>Layers: </Text>
+        <ProgressBar value={percentage} />
+        <Text>
+          {' '}
+          {completedLayers}/{totalLayers} ({Math.round(percentage)}%)
         </Text>
       </Box>
-      <Text>
-        {' '}
-        {completedLayers}/{totalLayers} ({percentage}%)
-      </Text>
+      {currentLayer !== undefined && currentLayer < totalLayers && (
+        <Box marginLeft={2}>
+          <Text dimColor>Currently executing layer {currentLayer}</Text>
+        </Box>
+      )}
     </Box>
   );
 };
