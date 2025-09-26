@@ -113,6 +113,18 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
     logger.info(`✅ VCS engine initialized successfully`);
   }
 
+  initializeStackState(parentRef: string): void {
+    this.stackBuildService.initializeStackState(parentRef);
+  }
+
+  async addTaskToStack(
+    task: ExecutionTask,
+    workdir: string,
+    worktreeContext?: WorktreeContext,
+  ): Promise<void> {
+    await this.stackBuildService.addTaskToStack(task, workdir, worktreeContext);
+  }
+
   async analyzeWorktreeNeeds(
     tasks: ExecutionTask[],
     workdir: string,

@@ -3,6 +3,7 @@
  */
 
 import type { ExecutionTask } from '@/core/execution/types';
+import type { WorktreeContext } from '@/core/vcs/domain-services';
 
 import { GitWrapper, type WorktreeInfo } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/global-logger';
@@ -126,4 +127,79 @@ export function findWorktreeForTask(
   }
 
   return undefined;
+}
+
+/**
+ * Fetch a single task's commit from its worktree to make it accessible in the main repository
+ */
+export async function fetchSingleWorktreeCommit(
+  task: ExecutionTask,
+  worktreeContext: WorktreeContext | undefined,
+  targetWorkdir: string,
+): Promise<void> {
+  if (!isNonEmptyString(task.commitHash)) {
+    logger.warn(`⚠️ Task ${task.id} has no commit hash`);
+    return;
+  }
+
+  const git = new GitWrapper(targetWorkdir);
+
+  // First, check if commit is already accessible
+  try {
+    await git.git.raw(['cat-file', '-e', task.commitHash]);
+    logger.debug(`✅ Commit ${task.commitHash.slice(0, 7)} already accessible for task ${task.id}`);
+    return;
+  } catch {
+    // Commit not accessible, need to fetch
+  }
+
+  // If we have the worktree context, use that directly
+  if (worktreeContext !== undefined) {
+    try {
+      const worktreeGitDir = `${worktreeContext.worktreePath}/.git`;
+
+      // Fetch all refs from the worktree
+      await git.git.raw([
+        'fetch',
+        worktreeGitDir,
+        `+refs/heads/*:refs/remotes/worktree-${task.id}/*`,
+      ]);
+
+      logger.info(
+        `✅ Fetched commit ${task.commitHash.slice(0, 7)} from worktree for task ${task.id}`,
+      );
+      return;
+    } catch (error) {
+      logger.warn(
+        `⚠️ Could not fetch from worktree context: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // Fallback: Try to find worktree from list
+  try {
+    const worktrees = await git.listWorktrees();
+    const taskWorktree = findWorktreeForTask(task, worktrees);
+
+    if (taskWorktree !== undefined) {
+      const worktreeGitDir = `${taskWorktree.path}/.git`;
+
+      await git.git.raw([
+        'fetch',
+        worktreeGitDir,
+        `+refs/heads/*:refs/remotes/worktree-${task.id}/*`,
+      ]);
+
+      logger.info(
+        `✅ Fetched commit ${task.commitHash.slice(0, 7)} from found worktree for task ${task.id}`,
+      );
+    } else {
+      logger.warn(`⚠️ Could not find worktree for task ${task.id}`);
+    }
+  } catch (error) {
+    logger.error(
+      `❌ Failed to fetch commit for task ${task.id}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    throw error;
+  }
 }

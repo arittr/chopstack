@@ -43,13 +43,15 @@ vi.mock('@/adapters/vcs/git-wrapper', () => {
   return { GitWrapper };
 });
 
-const { fetchWorktreeCommitsMock } = vi.hoisted(() => {
-  const mock = vi.fn().mockResolvedValue(undefined);
-  return { fetchWorktreeCommitsMock: mock };
+const { fetchWorktreeCommitsMock, fetchSingleWorktreeCommitMock } = vi.hoisted(() => {
+  const fetchMock = vi.fn().mockResolvedValue(undefined);
+  const singleMock = vi.fn().mockResolvedValue(undefined);
+  return { fetchWorktreeCommitsMock: fetchMock, fetchSingleWorktreeCommitMock: singleMock };
 });
 
 vi.mock('@/adapters/vcs/git-spice/worktree-sync', () => ({
   fetchWorktreeCommits: fetchWorktreeCommitsMock,
+  fetchSingleWorktreeCommit: fetchSingleWorktreeCommitMock,
 }));
 
 const { execaMock } = vi.hoisted(() => {
@@ -103,6 +105,7 @@ const createConflictResolutionService = (resolveResult: boolean): ConflictResolu
 describe('StackBuildServiceImpl', () => {
   beforeEach(() => {
     fetchWorktreeCommitsMock.mockClear();
+    fetchSingleWorktreeCommitMock.mockClear();
     execaMock.mockReset();
     execaMock.mockResolvedValue({ stdout: '', all: '' });
     createBranchFromCommitMock.mockReset();
@@ -210,5 +213,168 @@ describe('StackBuildServiceImpl', () => {
     expect(result.failedTasks).toBeDefined();
     expect(result.failedTasks?.[0]?.taskId).toBe('task-1');
     expect(conflictResolutionService.resolveConflicts).toHaveBeenCalledTimes(1);
+  });
+
+  describe('Incremental Stack Building', () => {
+    it('initializes stack state on first call to addTaskToStack', async () => {
+      const service = new StackBuildServiceImpl(defaultConfig);
+
+      expect(service.getStackTip()).toBe('main');
+      expect(service.isTaskStacked('task-1')).toBe(false);
+
+      await service.addTaskToStack(baseTask, '/repo');
+
+      expect(service.getStackTip()).toBe('chopstack/task-1');
+      expect(service.isTaskStacked('task-1')).toBe(true);
+    });
+
+    it('queues tasks with unsatisfied dependencies', async () => {
+      const service = new StackBuildServiceImpl(defaultConfig);
+      service.initializeStackState('main');
+
+      const dependentTask: ExecutionTask = {
+        ...baseTask,
+        id: 'task-2',
+        title: 'Task 2',
+        requires: ['task-1'],
+        commitHash: 'def5678',
+      };
+
+      // Try to add task-2 before task-1
+      await service.addTaskToStack(dependentTask, '/repo');
+
+      // Task 2 should not be stacked yet
+      expect(service.isTaskStacked('task-2')).toBe(false);
+      expect(service.getStackTip()).toBe('main');
+    });
+
+    it('processes pending tasks when dependencies are satisfied', async () => {
+      const service = new StackBuildServiceImpl(defaultConfig);
+      service.initializeStackState('main');
+
+      const task1: ExecutionTask = {
+        ...baseTask,
+        id: 'task-1',
+        commitHash: 'abc1234',
+      };
+
+      const task2: ExecutionTask = {
+        ...baseTask,
+        id: 'task-2',
+        requires: ['task-1'],
+        commitHash: 'def5678',
+      };
+
+      // Add task-2 first (will be queued)
+      await service.addTaskToStack(task2, '/repo');
+      expect(service.isTaskStacked('task-2')).toBe(false);
+
+      // Add task-1 (should trigger task-2 to be processed)
+      await service.addTaskToStack(task1, '/repo');
+
+      // Both should now be stacked
+      expect(service.isTaskStacked('task-1')).toBe(true);
+      expect(service.isTaskStacked('task-2')).toBe(true);
+      expect(service.getStackTip()).toBe('chopstack/task-2');
+    });
+
+    it('fetches single task commit before creating branch', async () => {
+      const service = new StackBuildServiceImpl(defaultConfig);
+
+      await service.addTaskToStack(baseTask, '/repo');
+
+      expect(fetchSingleWorktreeCommitMock).toHaveBeenCalledTimes(1);
+      expect(fetchSingleWorktreeCommitMock).toHaveBeenCalledWith(baseTask, undefined, '/repo');
+      expect(createBranchFromCommitMock).toHaveBeenCalledWith(
+        'chopstack/task-1',
+        'abc1234',
+        'main',
+        '/repo',
+      );
+    });
+
+    it('skips tasks that are already stacked', async () => {
+      const service = new StackBuildServiceImpl(defaultConfig);
+
+      await service.addTaskToStack(baseTask, '/repo');
+      expect(createBranchFromCommitMock).toHaveBeenCalledTimes(1);
+
+      // Try to add the same task again
+      await service.addTaskToStack(baseTask, '/repo');
+
+      // Should not create branch again
+      expect(createBranchFromCommitMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips tasks without commit hash', async () => {
+      const service = new StackBuildServiceImpl(defaultConfig);
+      const taskWithoutCommit = { ...baseTask, commitHash: undefined };
+
+      await service.addTaskToStack(taskWithoutCommit, '/repo');
+
+      expect(fetchSingleWorktreeCommitMock).not.toHaveBeenCalled();
+      expect(createBranchFromCommitMock).not.toHaveBeenCalled();
+      expect(service.isTaskStacked('task-1')).toBe(false);
+    });
+
+    it('emits branch_created events', async () => {
+      const service = new StackBuildServiceImpl(defaultConfig);
+      const eventSpy = vi.fn();
+      service.on('branch_created', eventSpy);
+
+      await service.addTaskToStack(baseTask, '/repo');
+
+      expect(eventSpy).toHaveBeenCalledTimes(1);
+      expect(eventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'branch_created',
+          branchName: 'chopstack/task-1',
+          taskId: 'task-1',
+          timestamp: expect.any(Date),
+        }),
+      );
+    });
+
+    it('maintains correct stack order with multiple tasks', async () => {
+      const service = new StackBuildServiceImpl(defaultConfig);
+      service.initializeStackState('main');
+
+      const task1 = { ...baseTask, id: 'task-1', commitHash: 'aaa111' };
+      const task2 = { ...baseTask, id: 'task-2', commitHash: 'bbb222', requires: ['task-1'] };
+      const task3 = { ...baseTask, id: 'task-3', commitHash: 'ccc333', requires: ['task-2'] };
+
+      // Add in order
+      await service.addTaskToStack(task1, '/repo');
+      expect(service.getStackTip()).toBe('chopstack/task-1');
+
+      await service.addTaskToStack(task2, '/repo');
+      expect(service.getStackTip()).toBe('chopstack/task-2');
+
+      await service.addTaskToStack(task3, '/repo');
+      expect(service.getStackTip()).toBe('chopstack/task-3');
+
+      // Verify branches were created with correct parents
+      expect(createBranchFromCommitMock).toHaveBeenNthCalledWith(
+        1,
+        'chopstack/task-1',
+        'aaa111',
+        'main',
+        '/repo',
+      );
+      expect(createBranchFromCommitMock).toHaveBeenNthCalledWith(
+        2,
+        'chopstack/task-2',
+        'bbb222',
+        'chopstack/task-1',
+        '/repo',
+      );
+      expect(createBranchFromCommitMock).toHaveBeenNthCalledWith(
+        3,
+        'chopstack/task-3',
+        'ccc333',
+        'chopstack/task-2',
+        '/repo',
+      );
+    });
   });
 });
