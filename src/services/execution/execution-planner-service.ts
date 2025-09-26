@@ -162,6 +162,14 @@ export class ExecutionPlannerServiceImpl implements ExecutionPlannerService {
         estimatedMemoryUsage = estimatedConcurrency * 512 + 1024; // Higher memory for worktrees
         break;
       }
+      case 'worktree': {
+        estimatedConcurrency = Math.min(
+          metrics.maxParallelization,
+          this.config.maxConcurrency ?? 8,
+        );
+        estimatedMemoryUsage = estimatedConcurrency * 512 + 1024;
+        break;
+      }
       default: {
         estimatedConcurrency = Math.min(
           Math.ceil(metrics.maxParallelization / 2),
