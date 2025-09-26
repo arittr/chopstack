@@ -9,6 +9,7 @@ import type { Plan } from '@/types/decomposer';
 import { LogPanel } from './components/LogPanel';
 import { StatusPanel } from './components/StatusPanel';
 import { useExecutionState } from './hooks/useExecutionState';
+import { theme } from './theme';
 
 export type TuiAppProps = {
   options: ExecutionOptions;
@@ -53,15 +54,12 @@ export const TuiApp: FC<TuiAppProps> = ({ orchestrator, plan, options }) => {
 
   return (
     <Box flexDirection="column" height="100%">
-      <Box height="30%" borderStyle="single" borderColor="cyan">
+      <Box height="30%" borderStyle="single" borderColor={theme.borderActive}>
         <StatusPanel tasks={tasks} metrics={metrics} options={options} />
       </Box>
 
-      <Box flexGrow={1} borderStyle="single" borderColor="dim">
-        <LogPanel
-          logs={logs}
-          {...(selectedTaskId !== undefined && { filterTaskId: selectedTaskId })}
-        />
+      <Box flexGrow={1} borderStyle="single" borderColor={theme.border}>
+        <LogPanel logs={logs} />
       </Box>
     </Box>
   );

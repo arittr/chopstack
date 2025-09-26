@@ -6,9 +6,11 @@ import { Box, Text } from 'ink';
 import type { ExecutionOptions } from '@/core/execution/types';
 import type { ExecutionMetrics, TaskUIState } from '@/ui/hooks/useExecutionState';
 
+import { theme } from '@/ui/theme';
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
 
 import { ExecutionTimer } from './ExecutionTimer';
+import { KeyboardHelp } from './KeyboardHelp';
 import { LayerIndicator } from './LayerIndicator';
 import { TaskProgress } from './TaskProgress';
 
@@ -33,16 +35,19 @@ export const StatusPanel: FC<StatusPanelProps> = ({ tasks, metrics, options }) =
   return (
     <Box flexDirection="column" padding={1}>
       {/* Header */}
-      <Box marginBottom={1}>
-        <Text bold color="cyan">
-          📊 ChopStack Execution
-        </Text>
-        <Box marginLeft={2}>
-          <Text dimColor>
-            {options.strategy} • {options.mode} •{' '}
-            {isNonEmptyString(options.agent) ? options.agent : 'claude'}
+      <Box marginBottom={1} flexDirection="row" justifyContent="space-between">
+        <Box>
+          <Text bold color={theme.primary}>
+            📊 ChopStack Execution
           </Text>
+          <Box marginLeft={2}>
+            <Text dimColor>
+              {options.strategy} • {options.mode} •{' '}
+              {isNonEmptyString(options.agent) ? options.agent : 'claude'}
+            </Text>
+          </Box>
         </Box>
+        <KeyboardHelp />
       </Box>
 
       {/* Overall Progress */}
@@ -80,7 +85,7 @@ export const StatusPanel: FC<StatusPanelProps> = ({ tasks, metrics, options }) =
         <Box flexDirection="column" marginTop={1}>
           <Box>
             <Text bold>Active Tasks </Text>
-            <Badge color="yellow">{runningTasks.length}</Badge>
+            <Badge color={theme.warning}>{runningTasks.length}</Badge>
           </Box>
           {runningTasks.slice(0, 3).map((task) => (
             <Box key={task.id} marginLeft={1} gap={1}>
@@ -109,9 +114,13 @@ export const StatusPanel: FC<StatusPanelProps> = ({ tasks, metrics, options }) =
 
       {/* Stats Summary */}
       <Box marginTop={1} gap={1}>
-        {metrics.completedTasks > 0 && <Badge color="green">✓ {metrics.completedTasks}</Badge>}
-        {metrics.failedTasks > 0 && <Badge color="red">✗ {metrics.failedTasks}</Badge>}
-        {metrics.runningTasks > 0 && <Badge color="yellow">↻ {metrics.runningTasks} running</Badge>}
+        {metrics.completedTasks > 0 && (
+          <Badge color={theme.success}>✓ {metrics.completedTasks}</Badge>
+        )}
+        {metrics.failedTasks > 0 && <Badge color={theme.error}>✗ {metrics.failedTasks}</Badge>}
+        {metrics.runningTasks > 0 && (
+          <Badge color={theme.warning}>↻ {metrics.runningTasks} running</Badge>
+        )}
         {metrics.totalTasks - metrics.completedTasks - metrics.failedTasks - metrics.runningTasks >
           0 && (
           <Text dimColor>

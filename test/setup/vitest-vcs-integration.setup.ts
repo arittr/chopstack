@@ -4,9 +4,6 @@ import { vi } from 'vitest';
 // Import worktree cleanup to ensure it runs after all tests
 import './worktree-cleanup';
 
-// Import worktree cleanup to ensure it runs after all tests
-import './worktree-cleanup';
-
 // VCS Integration test setup - for testing real git and filesystem operations
 // These tests need actual filesystem and subprocess access
 

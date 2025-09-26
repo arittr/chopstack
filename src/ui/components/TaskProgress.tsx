@@ -5,6 +5,8 @@ import { Box, Text } from 'ink';
 
 import type { TaskUIState } from '@/ui/hooks/useExecutionState';
 
+import { theme } from '@/ui/theme';
+
 export type TaskProgressProps = {
   showDetails?: boolean;
   task: TaskUIState;
@@ -15,19 +17,19 @@ const getStatusColor = (
 ): 'green' | 'red' | 'yellow' | 'gray' | 'dim' => {
   switch (status) {
     case 'success': {
-      return 'green';
+      return theme.taskSuccess;
     }
     case 'failure': {
-      return 'red';
+      return theme.taskFailure;
     }
     case 'running': {
-      return 'yellow';
+      return theme.taskRunning;
     }
     case 'skipped': {
-      return 'gray';
+      return theme.taskSkipped;
     }
     case 'pending': {
-      return 'dim';
+      return theme.taskPending;
     }
   }
 };
