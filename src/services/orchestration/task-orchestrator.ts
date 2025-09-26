@@ -9,6 +9,7 @@ import type {
   TaskStatus,
 } from '@/services/orchestration/types';
 
+import { logger } from '@/utils/global-logger';
 import { isNonNullish } from '@/validation/guards';
 
 import { OrchestrationError, TaskExecutionError } from './errors';
@@ -40,6 +41,8 @@ export class TaskOrchestrator extends EventEmitter {
     mode: ExecutionMode = 'execute',
     agent?: string,
   ): Promise<OrchestratorTaskResult> {
+    logger.info(`[TaskOrchestrator] executeTask called for ${taskId} with workdir: ${workdir}`);
+
     const request: TaskExecutionRequest & { agent?: string } = {
       taskId,
       title,
@@ -54,10 +57,12 @@ export class TaskOrchestrator extends EventEmitter {
     this._initializeTask(taskId);
 
     try {
+      logger.info(`[TaskOrchestrator] Calling adapter.executeTask for ${taskId}`);
       // Execute task through adapter
       const result = await this._adapter.executeTask(request, (update) => {
         this._handleStreamingUpdate(update);
       });
+      logger.info(`[TaskOrchestrator] Adapter returned for ${taskId}: ${result.status}`);
 
       // Finalize successful task
       this._finalizeTask(taskId, result);

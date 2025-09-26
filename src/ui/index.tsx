@@ -15,10 +15,26 @@ export type TuiOptions = {
 };
 
 export async function startTui({ orchestrator, plan, options }: TuiOptions): Promise<void> {
-  const app = render(<TuiApp orchestrator={orchestrator} plan={plan} options={options} />);
+  // Stop any lingering spinners by clearing the line and resetting cursor
+  process.stdout.write('\r\u001B[K'); // Clear current line
+  process.stdout.write('\u001B[?25l'); // Hide cursor
+  process.stdout.write('\u001Bc'); // Clear entire screen
+  process.stdout.write('\u001B[3J'); // Clear scrollback buffer
+  process.stdout.write('\u001B[H'); // Move cursor to home
 
-  // Wait for the app to exit
-  await app.waitUntilExit();
+  const app = render(<TuiApp orchestrator={orchestrator} plan={plan} options={options} />, {
+    // Ensure we're using the full terminal
+    exitOnCtrlC: false, // We handle exit ourselves
+  });
+
+  try {
+    // Wait for the app to exit
+    await app.waitUntilExit();
+  } finally {
+    // Restore terminal state
+    process.stdout.write('\u001B[?25h'); // Show cursor
+    process.stdout.write('\r\u001B[K'); // Clear any lingering output
+  }
 }
 
 export function isTuiSupported(): boolean {

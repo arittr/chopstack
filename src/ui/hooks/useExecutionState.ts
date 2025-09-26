@@ -235,20 +235,34 @@ export function useExecutionState(orchestrator: ExecutionOrchestrator, plan: Pla
     estimatedTimeRemaining = (pendingTasks * averageTaskDuration) / parallelFactor;
   }
 
+  // Calculate layer metrics
+  const totalLayers = Math.max(0, ...taskArray.map((t) => t.layer ?? 0)) + 1;
+  let completedLayers = 0;
+
+  // Count fully completed layers (all tasks in layer are done)
+  for (let layer = 0; layer < totalLayers; layer++) {
+    const layerTasks = taskArray.filter((t) => t.layer === layer);
+    if (layerTasks.length > 0) {
+      const layerComplete = layerTasks.every(
+        (t) => t.status === 'success' || t.status === 'failure' || t.status === 'skipped',
+      );
+      if (layerComplete) {
+        completedLayers++;
+      } else {
+        break; // Stop at first incomplete layer
+      }
+    }
+  }
+
   const metrics: ExecutionMetrics = {
     ...(isNonNullish(averageTaskDuration) && { averageTaskDuration }),
-    completedLayers: Math.max(
-      0,
-      ...taskArray
-        .filter((t) => t.status === 'success' || t.status === 'failure')
-        .map((t) => t.layer ?? 0),
-    ),
+    completedLayers,
     completedTasks,
     ...(isNonNullish(estimatedTimeRemaining) && { estimatedTimeRemaining }),
     failedTasks,
     runningTasks,
     ...(isNonNullish(executionStartTime) && { startTime: executionStartTime }),
-    totalLayers: Math.max(0, ...taskArray.map((t) => t.layer ?? 0)) + 1,
+    totalLayers,
     totalTasks: taskArray.length,
   };
 

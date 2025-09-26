@@ -17,19 +17,15 @@ export const LayerIndicator: FC<LayerIndicatorProps> = ({
   const percentage = totalLayers > 0 ? (completedLayers / totalLayers) * 100 : 0;
 
   return (
-    <Box flexDirection="column">
-      <Box>
-        <Text bold>Layers: </Text>
-        <ProgressBar value={percentage} />
-        <Text>
-          {' '}
-          {completedLayers}/{totalLayers} ({Math.round(percentage)}%)
-        </Text>
-      </Box>
+    <Box flexDirection="row" alignItems="center">
+      <Text bold>Layers: </Text>
+      <ProgressBar value={percentage} />
+      <Text>
+        {' '}
+        {completedLayers}/{totalLayers}
+      </Text>
       {currentLayer !== undefined && currentLayer < totalLayers && (
-        <Box marginLeft={2}>
-          <Text dimColor>Currently executing layer {currentLayer}</Text>
-        </Box>
+        <Text dimColor> • Layer {currentLayer} running</Text>
       )}
     </Box>
   );
