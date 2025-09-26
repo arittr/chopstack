@@ -44,6 +44,7 @@
     "test:coverage": "vitest --coverage",
     "test:integration": "vitest --project=integration --run",
     "test:unit": "vitest --project=unit --run",
+    "test:e2e": "vitest --project=e2e --run",
     "prepublishOnly": "pnpm run clean && pnpm run build",
     "prepare": "husky"
   },

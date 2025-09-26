@@ -335,6 +335,65 @@ describe('StackBuildServiceImpl', () => {
       );
     });
 
+    it('retries on transient failures', async () => {
+      const service = new StackBuildServiceImpl({
+        ...defaultConfig,
+        retryConfig: {
+          maxRetries: 3,
+          retryDelayMs: 10,
+        },
+      });
+
+      // First two attempts fail with retryable error, third succeeds
+      createBranchFromCommitMock
+        .mockRejectedValueOnce(new Error('timeout'))
+        .mockRejectedValueOnce(new Error('resource temporarily unavailable'))
+        .mockResolvedValueOnce(undefined);
+
+      await service.addTaskToStack(baseTask, '/repo');
+
+      expect(createBranchFromCommitMock).toHaveBeenCalledTimes(3);
+      expect(service.isTaskStacked('task-1')).toBe(true);
+    });
+
+    it('falls back to cherry-pick after max retries', async () => {
+      const service = new StackBuildServiceImpl({
+        ...defaultConfig,
+        retryConfig: {
+          maxRetries: 2,
+          retryDelayMs: 10,
+        },
+      });
+
+      // All attempts fail with retryable error
+      createBranchFromCommitMock.mockRejectedValue(new Error('timeout'));
+
+      await service.addTaskToStack(baseTask, '/repo');
+
+      expect(createBranchFromCommitMock).toHaveBeenCalledTimes(2);
+      expect(execaMock).toHaveBeenCalled(); // Fallback to cherry-pick
+      expect(service.isTaskStacked('task-1')).toBe(true);
+    });
+
+    it('does not retry non-retryable errors', async () => {
+      const service = new StackBuildServiceImpl({
+        ...defaultConfig,
+        retryConfig: {
+          maxRetries: 3,
+          retryDelayMs: 10,
+        },
+      });
+
+      // Non-retryable error
+      createBranchFromCommitMock.mockRejectedValueOnce(new Error('conflict detected'));
+
+      await service.addTaskToStack(baseTask, '/repo');
+
+      expect(createBranchFromCommitMock).toHaveBeenCalledTimes(1); // No retries
+      expect(execaMock).toHaveBeenCalled(); // Immediate fallback
+      expect(service.isTaskStacked('task-1')).toBe(true);
+    });
+
     it('maintains correct stack order with multiple tasks', async () => {
       const service = new StackBuildServiceImpl(defaultConfig);
       service.initializeStackState('main');
