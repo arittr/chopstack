@@ -166,6 +166,16 @@ export type StackBuildService = {
   ): Promise<StackInfo>;
 
   /**
+   * Create a branch from a specific commit, optionally tracking a parent branch
+   */
+  createBranchFromCommit(
+    branchName: string,
+    commitHash: string,
+    parentBranch: string,
+    workdir: string,
+  ): Promise<void>;
+
+  /**
    * Get stack information
    */
   getStackInfo(workdir: string): Promise<StackInfo | null>;

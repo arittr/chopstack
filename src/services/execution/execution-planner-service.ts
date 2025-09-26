@@ -111,6 +111,7 @@ export class ExecutionPlannerServiceImpl implements ExecutionPlannerService {
       mode: options.mode,
       status: 'pending',
       createdAt: new Date(),
+      totalTasks: plan.tasks.length,
     };
 
     logger.info(
@@ -168,6 +169,11 @@ export class ExecutionPlannerServiceImpl implements ExecutionPlannerService {
           this.config.maxConcurrency ?? 8,
         );
         estimatedMemoryUsage = estimatedConcurrency * 512 + 1024;
+        break;
+      }
+      case 'stacked-branches': {
+        estimatedConcurrency = 1; // Serial execution
+        estimatedMemoryUsage = 768; // Higher memory for git-spice operations
         break;
       }
       default: {

@@ -52,6 +52,7 @@ export type ExecutionContext = {
   cwd: string;
   dryRun: boolean;
   maxRetries: number;
+  parentRef?: string;
   strategy: ExecutionStrategy;
   verbose: boolean;
 };

@@ -1,16 +1,19 @@
 import type { EventEmitter } from 'node:events';
 
+import type { FileLogWriter } from '@/services/logging/file-log-writer';
+
 import { isNonNullish } from '@/validation/guards';
 
 import { Logger } from './logger';
 
 /**
  * Logger that emits events to an EventEmitter (for TUI integration)
- * while also optionally logging to console
+ * while also optionally logging to console and file
  */
 export class EventLogger extends Logger {
   private _emitter?: EventEmitter;
   private _suppressConsole = false;
+  private _fileLogWriter?: FileLogWriter;
 
   /**
    * Set the event emitter for log events
@@ -24,6 +27,13 @@ export class EventLogger extends Logger {
    */
   setSuppressConsole(suppress: boolean): void {
     this._suppressConsole = suppress;
+  }
+
+  /**
+   * Set the file log writer for file output
+   */
+  setFileLogWriter(writer: FileLogWriter): void {
+    this._fileLogWriter = writer;
   }
 
   override debug(message: string, metadata?: Record<string, unknown>): void {
@@ -66,10 +76,6 @@ export class EventLogger extends Logger {
     message: string,
     metadata?: Record<string, unknown>,
   ): void {
-    if (this._emitter === undefined) {
-      return;
-    }
-
     // Parse message for task ID
     let cleanMessage = message;
     let taskId: string | undefined;
@@ -85,7 +91,7 @@ export class EventLogger extends Logger {
       }
     }
 
-    // Remove ANSI color codes for cleaner display in TUI
+    // Remove ANSI color codes for cleaner display in TUI and logs
     cleanMessage = cleanMessage.replaceAll(
       // eslint-disable-next-line no-control-regex
       /\u001B\[[\d;]*m/g,
@@ -99,14 +105,23 @@ export class EventLogger extends Logger {
       .replace(/^\[INFO]\s*/, '')
       .replace(/^\[DEBUG]\s*/, '');
 
-    // Map log levels to TUI log types
-    const logType = level === 'error' ? 'error' : level === 'warn' ? 'stderr' : 'info';
+    // Write to file log if writer is available
+    if (this._fileLogWriter !== undefined) {
+      const logMessage = `[${level.toUpperCase()}] ${cleanMessage.trim()}`;
+      this._fileLogWriter.write(logMessage, taskId);
+    }
 
-    this._emitter.emit('log', {
-      level: logType,
-      message: cleanMessage.trim(),
-      ...(taskId !== undefined && { taskId }),
-      ...(metadata !== undefined && { metadata }),
-    });
+    // Emit to TUI if emitter is available
+    if (this._emitter !== undefined) {
+      // Map log levels to TUI log types
+      const logType = level === 'error' ? 'error' : level === 'warn' ? 'stderr' : 'info';
+
+      this._emitter.emit('log', {
+        level: logType,
+        message: cleanMessage.trim(),
+        ...(taskId !== undefined && { taskId }),
+        ...(metadata !== undefined && { metadata }),
+      });
+    }
   }
 }

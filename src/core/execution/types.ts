@@ -17,7 +17,13 @@ export const TaskStateSchema = z.enum([
 ]);
 export type TaskState = z.infer<typeof TaskStateSchema>;
 
-export const ExecutionStrategySchema = z.enum(['serial', 'parallel', 'hybrid', 'worktree']);
+export const ExecutionStrategySchema = z.enum([
+  'serial',
+  'parallel',
+  'hybrid',
+  'worktree',
+  'stacked-branches',
+]);
 export type ExecutionStrategy = z.infer<typeof ExecutionStrategySchema>;
 
 export const ExecutionPlanStatusSchema = z.enum([
@@ -83,6 +89,7 @@ export type ExecutionPlan = {
   status: 'pending' | 'running' | 'completed' | 'failed';
   strategy: ExecutionStrategy;
   tasks: Map<string, ExecutionTask>;
+  totalTasks: number;
 };
 
 export type ExecutionEvent = {
@@ -123,6 +130,7 @@ export type ExecutionContext = {
   logger?: typeof console;
   maxRetries: number;
   mode?: ExecutionMode;
+  parentRef?: string;
   planMode?: boolean;
   strategy: ExecutionStrategy;
   taskTimeout?: number;
