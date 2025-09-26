@@ -102,6 +102,10 @@ const config: Record<string, unknown>[] = [
       '@typescript-eslint/naming-convention': [
         'error',
         {
+          format: ['camelCase', 'PascalCase'],
+          selector: 'import',
+        },
+        {
           format: ['camelCase'],
           selector: 'default',
         },
@@ -218,7 +222,7 @@ const config: Record<string, unknown>[] = [
       curly: ['error', 'all'],
       'dot-notation': 'error',
       eqeqeq: ['error', 'always', { null: 'ignore' }],
-      'guards/prefer-guards-defined': 'warn',
+      'guards/prefer-guards-defined': 'off', // TODO: enable this and fix the issues in batch
       'import-x/default': 'off', // TypeScript handles this
       'import-x/first': 'error',
       'import-x/named': 'off', // TypeScript handles this
@@ -467,6 +471,122 @@ const config: Record<string, unknown>[] = [
         typescript: {
           project: './tsconfig.json',
         },
+      },
+    },
+  },
+
+  // React/TSX configuration
+  {
+    files: ['**/*.tsx', 'src/ui/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+        jsx: true,
+      },
+    },
+    rules: {
+      // Allow type imports in TSX
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          disallowTypeAnnotations: false,
+          fixStyle: 'inline-type-imports',
+          prefer: 'type-imports',
+        },
+      ],
+
+      // React Hooks rules (if you add eslint-plugin-react-hooks)
+      // 'react-hooks/rules-of-hooks': 'error',
+      // 'react-hooks/exhaustive-deps': 'warn',
+
+      // Allow JSX expressions
+      '@typescript-eslint/no-confusing-void-expression': [
+        'error',
+        {
+          ignoreArrowShorthand: true,
+          ignoreVoidOperator: true,
+        },
+      ],
+
+      // Allow arrow functions for components
+      '@typescript-eslint/no-empty-function': [
+        'error',
+        {
+          allow: ['arrowFunctions'],
+        },
+      ],
+
+      // React-specific rules for TSX files
+      // Allow JSX syntax
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          args: 'all',
+          argsIgnorePattern: '^_',
+          caughtErrors: 'all',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+          varsIgnorePattern: '^_',
+        },
+      ],
+
+      // More lenient for React components
+      '@typescript-eslint/strict-boolean-expressions': [
+        'error',
+        {
+          allowAny: false,
+          allowNullableBoolean: false,
+          allowNullableEnum: true, // Allow for conditional rendering
+          allowNullableNumber: false,
+          allowNullableObject: false,
+          allowNullableString: false,
+          allowNumber: false,
+          allowString: false,
+        },
+      ],
+
+      // Import ordering for React
+      'perfectionist/sort-imports': [
+        'error',
+        {
+          customGroups: {
+            value: {
+              react: ['react', 'react-*'],
+              'react-dom': ['react-dom', 'react-dom/*'],
+            },
+          },
+          groups: [
+            'type',
+            ['builtin', 'react', 'react-dom'], // React imports first
+            'external',
+            'internal-type',
+            'internal',
+            'parent-type',
+            'parent',
+            'sibling-type',
+            'sibling',
+            'index-type',
+            'index',
+            'object',
+            'unknown',
+          ],
+          internalPattern: ['^@/', '^../types/', '^./types/'],
+          newlinesBetween: 'always',
+          order: 'asc',
+          type: 'natural',
+        },
+      ],
+      // Allow fragments and JSX elements
+      'unicorn/no-null': 'off', // React uses null for empty renders
+
+      'unicorn/no-useless-undefined': 'off', // Sometimes needed in React
+    },
+    settings: {
+      react: {
+        version: '18.0',
       },
     },
   },

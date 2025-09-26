@@ -99,6 +99,7 @@ describe('runCommand integration tests', () => {
         agent: 'claude',
         mode: 'execute',
         strategy: 'parallel',
+        tui: false,
         verbose: false,
       };
 
@@ -165,6 +166,7 @@ describe('runCommand integration tests', () => {
         agent: 'claude',
         mode: 'execute',
         strategy: 'parallel',
+        tui: false,
         verbose: true,
       };
 
@@ -199,6 +201,7 @@ tasks:
         plan: 'layout-plan.yaml',
         mode: 'execute',
         strategy: 'serial',
+        tui: false,
         verbose: false,
       };
 
@@ -232,6 +235,7 @@ tasks:
         plan: 'plan.json',
         mode: 'execute',
         strategy: 'serial',
+        tui: false,
       };
 
       const deps = createDeps();
@@ -250,6 +254,7 @@ tasks:
         spec: 'protected-spec.md',
         mode: 'execute',
         strategy: 'parallel',
+        tui: false,
       };
 
       const deps = createDeps();
@@ -267,6 +272,7 @@ tasks:
         agent: 'invalid-agent' as any,
         mode: 'execute',
         strategy: 'parallel',
+        tui: false,
       };
 
       const deps = createDeps();
@@ -297,6 +303,7 @@ tasks:
         spec: 'test-spec.md',
         mode: 'execute',
         strategy: 'parallel',
+        tui: false,
       };
 
       const deps = createDeps();
@@ -314,6 +321,7 @@ tasks:
         spec: 'test-spec.md',
         mode: 'plan',
         strategy: 'serial',
+        tui: false,
         workdir: '/custom/workdir',
         gitSpice: true,
         continueOnError: true,
@@ -335,6 +343,7 @@ tasks:
         dryRun: undefined,
         parallel: undefined,
         continueOnError: true,
+        agent: undefined,
       });
     });
   });

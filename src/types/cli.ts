@@ -22,6 +22,7 @@ export const RunCommandOptionsSchema = ExecutionOptionsSchema.extend({
   agent: AgentTypeSchema.optional(),
   plan: z.string().optional(),
   spec: z.string().optional(),
+  tui: z.boolean().default(true),
 }).refine((data) => data.spec !== undefined || data.plan !== undefined, {
   message: 'Either --spec or --plan must be provided',
   path: ['spec', 'plan'],
@@ -35,6 +36,7 @@ export const StackCommandOptionsSchema = z.object({
   dryRun: z.boolean().default(false),
   message: z.string().optional(),
   verbose: z.boolean().default(false),
+  tui: z.boolean().default(true),
 });
 export type StackArgs = z.infer<typeof StackCommandOptionsSchema>;
 

@@ -5,6 +5,13 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./bin/chopstack": "./dist/bin/chopstack.js"
+  },
   "bin": {
     "chopstack": "./dist/bin/chopstack.js"
   },
@@ -13,13 +20,13 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsup --dts",
+    "build": "tsup",
     "build:watch": "tsup --watch",
     "commit": "pnpm build && ./dist/bin/chopstack.js stack --verbose",
-    "dev": "tsx watch src/bin/chopstack.ts",
-    "dev:run": "tsx src/bin/chopstack.ts",
+    "dev": "tsx watch src/entry/cli/chopstack.ts",
+    "dev:run": "tsx src/entry/cli/chopstack.ts",
     "dev:lib": "tsx watch src/index.ts",
-    "dev:debug": "tsx watch --inspect src/bin/chopstack.ts",
+    "dev:debug": "tsx watch --inspect src/entry/cli/chopstack.ts",
     "dev:mcp": "fastmcp dev src/index.ts",
     "inspect:mcp": "fastmcp inspect src/index.ts",
     "clean": "rm -rf dist",
@@ -61,10 +68,14 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-code": "^1.0.111",
+    "@esbuild-plugins/tsconfig-paths": "^0.1.2",
     "@eslint/js": "^9.15.0",
     "@types/eslint-config-prettier": "^6.11.3",
     "@types/graphlib": "^2.1.12",
+    "@types/ink-spinner": "^3.0.5",
+    "@types/ink-testing-library": "^1.0.4",
     "@types/node": "^24.3.0",
+    "@types/react": "^19.1.13",
     "@typescript-eslint/eslint-plugin": "^8.15.0",
     "@typescript-eslint/parser": "^8.15.0",
     "@vitest/coverage-v8": "^3.2.4",
@@ -77,13 +88,14 @@
     "eslint-plugin-promise": "^7.2.1",
     "eslint-plugin-unicorn": "^56.0.1",
     "husky": "^9.1.7",
+    "ink-testing-library": "^4.0.0",
     "jiti": "^2.6.0",
     "prettier": "^3.6.2",
     "rimraf": "^6.0.1",
     "rulesync": "^1.0.0",
     "tsup": "^8.5.0",
     "tsx": "^4.20.5",
-    "typescript": "^5.6.3",
+    "typescript": "^5.9.2",
     "vite": "^7.1.7",
     "vitest": "^3.2.4"
   },
@@ -94,7 +106,10 @@
     "commander": "^14.0.1",
     "execa": "^9.6.0",
     "fastmcp": "^3.16.0",
+    "ink": "^6.3.1",
+    "ink-spinner": "^5.0.0",
     "ora": "^9.0.0",
+    "react": "^19.1.1",
     "simple-git": "^3.28.0",
     "ts-pattern": "^5.8.0",
     "yaml": "^2.8.1",
