@@ -165,8 +165,5 @@ class Logger {
   }
 }
 
-// Create a singleton instance for the application
-export const logger = new Logger();
-
 // Export the class for testing and custom instances
 export { Logger };

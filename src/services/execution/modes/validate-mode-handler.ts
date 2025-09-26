@@ -1,7 +1,7 @@
 import type { ValidateModeHandler } from '@/core/execution/interfaces';
 import type { Plan, ValidationResult } from '@/types/decomposer';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { DagValidator } from '@/validation/dag-validator';
 import { isValidArray } from '@/validation/guards';
 

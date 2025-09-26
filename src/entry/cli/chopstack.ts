@@ -4,7 +4,7 @@ import { ZodError } from 'zod';
 
 import { createDefaultDependencies, DecomposeCommand, RunCommand, StackCommand } from '@/commands';
 import { validateDecomposeArgs, validateRunArgs, validateStackArgs } from '@/types/cli';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 const program = new Command();
 

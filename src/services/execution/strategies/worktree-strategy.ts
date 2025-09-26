@@ -2,7 +2,7 @@ import type { ExecutionContext, ExecutionResult, TaskResult } from '@/core/execu
 import type { ExecutionPlan, ExecutionTask } from '@/core/execution/types';
 import type { WorktreeContext } from '@/core/vcs/domain-services';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { isNonNullish } from '@/validation/guards';
 
 import { BaseExecutionStrategy, type ExecutionStrategyDependencies } from './execution-strategy';

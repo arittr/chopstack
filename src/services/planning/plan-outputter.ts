@@ -4,7 +4,7 @@ import { stringify as stringifyYaml } from 'yaml';
 
 import type { Plan, PlanMetrics } from '@/types/decomposer';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { isNonEmptyString } from '@/validation/guards';
 
 export class PlanOutputter {

@@ -7,7 +7,7 @@ import type {
 import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/orchestration';
 import type { Task } from '@/types/decomposer';
 
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 import { isNonNullish } from '@/validation/guards';
 
 export class PlanModeHandlerImpl implements PlanModeHandler {

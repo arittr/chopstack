@@ -17,7 +17,7 @@ import type { TaskOrchestrator } from '@/services/orchestration';
 import type { Plan, ValidationResult } from '@/types/decomposer';
 
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
-import { logger } from '@/utils/logger';
+import { logger } from '@/utils/global-logger';
 
 import { ExecuteModeHandlerImpl } from './modes/execute-mode-handler';
 import { PlanModeHandlerImpl } from './modes/plan-mode-handler';
