@@ -19,11 +19,13 @@ export type TaskUIState = {
   id: string;
   layer?: number;
   progress: number;
+  startTime?: Date;
   status: 'pending' | 'running' | 'success' | 'failure' | 'skipped';
   title: string;
 };
 
 export type ExecutionMetrics = {
+  averageTaskDuration?: number;
   completedLayers: number;
   completedTasks: number;
   estimatedTimeRemaining?: number;
@@ -59,7 +61,9 @@ export function useExecutionState(orchestrator: ExecutionOrchestrator, plan: Pla
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isComplete, setIsComplete] = useState(false);
+  const [executionStartTime, setExecutionStartTime] = useState<Date>();
   const logIdCounter = useRef(0);
+  const taskDurations = useRef<number[]>([]);
 
   const addLog = useCallback((log: Omit<LogEntry, 'id' | 'timestamp'>): void => {
     const newLog: LogEntry = {
@@ -72,6 +76,8 @@ export function useExecutionState(orchestrator: ExecutionOrchestrator, plan: Pla
 
   useEffect(() => {
     const handleExecutionStart = (): void => {
+      const startTime = new Date();
+      setExecutionStartTime(startTime);
       addLog({ message: 'Execution started', type: 'info' });
     };
 
@@ -92,6 +98,7 @@ export function useExecutionState(orchestrator: ExecutionOrchestrator, plan: Pla
         if (isNonNullish(task)) {
           task.status = 'running';
           task.progress = 0;
+          task.startTime = new Date();
         }
         return updated;
       });
@@ -134,6 +141,16 @@ export function useExecutionState(orchestrator: ExecutionOrchestrator, plan: Pla
         if (isNonNullish(task)) {
           task.status = result.status;
           task.progress = 100;
+
+          // Track task duration for time estimates
+          if (isNonNullish(task.startTime)) {
+            const duration = Date.now() - task.startTime.getTime();
+            taskDurations.current.push(duration);
+            // Keep only last 10 durations for moving average
+            if (taskDurations.current.length > 10) {
+              taskDurations.current.shift();
+            }
+          }
         }
         return updated;
       });
@@ -194,22 +211,43 @@ export function useExecutionState(orchestrator: ExecutionOrchestrator, plan: Pla
       orchestrator.off('stdout', handleStdout);
       orchestrator.off('stderr', handleStderr);
     };
-  }, [orchestrator, addLog]);
+  }, [orchestrator, addLog, tasks]);
 
   // Calculate metrics
   const taskArray = [...tasks.values()];
-  const firstLog = logs[0];
+  const completedTasks = taskArray.filter((t) => t.status === 'success').length;
+  const failedTasks = taskArray.filter((t) => t.status === 'failure').length;
+  const runningTasks = taskArray.filter((t) => t.status === 'running').length;
+  const pendingTasks = taskArray.filter((t) => t.status === 'pending').length;
+
+  // Calculate average task duration
+  const averageTaskDuration =
+    taskDurations.current.length > 0
+      ? taskDurations.current.reduce((sum, d) => sum + d, 0) / taskDurations.current.length
+      : undefined;
+
+  // Calculate estimated time remaining
+  let estimatedTimeRemaining: number | undefined;
+  if (isNonNullish(averageTaskDuration) && pendingTasks > 0) {
+    // Simple estimate based on average task duration and remaining tasks
+    // Adjust for parallelism based on strategy
+    const parallelFactor = runningTasks > 0 ? runningTasks : 1;
+    estimatedTimeRemaining = (pendingTasks * averageTaskDuration) / parallelFactor;
+  }
+
   const metrics: ExecutionMetrics = {
+    ...(isNonNullish(averageTaskDuration) && { averageTaskDuration }),
     completedLayers: Math.max(
       0,
       ...taskArray
         .filter((t) => t.status === 'success' || t.status === 'failure')
         .map((t) => t.layer ?? 0),
     ),
-    completedTasks: taskArray.filter((t) => t.status === 'success').length,
-    failedTasks: taskArray.filter((t) => t.status === 'failure').length,
-    runningTasks: taskArray.filter((t) => t.status === 'running').length,
-    ...(isNonNullish(firstLog) && { startTime: firstLog.timestamp }),
+    completedTasks,
+    ...(isNonNullish(estimatedTimeRemaining) && { estimatedTimeRemaining }),
+    failedTasks,
+    runningTasks,
+    ...(isNonNullish(executionStartTime) && { startTime: executionStartTime }),
     totalLayers: Math.max(0, ...taskArray.map((t) => t.layer ?? 0)) + 1,
     totalTasks: taskArray.length,
   };
