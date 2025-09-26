@@ -137,7 +137,7 @@ export class RunCommand extends BaseCommand {
       if (options.writeLog) {
         fileLogWriter.writeSeparator('EXECUTION PLAN');
         fileLogWriter.write(`Mode: ${options.mode}`);
-        fileLogWriter.write(`Strategy: ${options.strategy}`);
+        fileLogWriter.write(`VCS Mode: ${options.vcsMode}`);
         fileLogWriter.write(`Tasks: ${plan.tasks.length}`);
         fileLogWriter.write(`Agent: ${options.agent ?? 'claude'}`);
         fileLogWriter.writeSeparator();
@@ -165,8 +165,7 @@ export class RunCommand extends BaseCommand {
               mode: options.mode,
               verbose: options.verbose,
               dryRun: options.dryRun,
-              strategy: options.strategy,
-              parallel: options.parallel,
+              vcsMode: options.vcsMode,
               continueOnError: options.continueOnError,
               agent: options.agent,
             }),
@@ -177,8 +176,7 @@ export class RunCommand extends BaseCommand {
                 mode: options.mode,
                 verbose: options.verbose,
                 dryRun: options.dryRun,
-                strategy: options.strategy,
-                parallel: options.parallel,
+                vcsMode: options.vcsMode,
                 continueOnError: options.continueOnError,
                 agent: options.agent,
               },
@@ -202,8 +200,7 @@ export class RunCommand extends BaseCommand {
           mode: options.mode,
           verbose: options.verbose,
           dryRun: options.dryRun,
-          strategy: options.strategy,
-          parallel: options.parallel,
+          vcsMode: options.vcsMode,
           continueOnError: options.continueOnError,
           agent: options.agent,
         });

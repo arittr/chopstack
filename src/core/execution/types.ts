@@ -17,14 +17,9 @@ export const TaskStateSchema = z.enum([
 ]);
 export type TaskState = z.infer<typeof TaskStateSchema>;
 
-export const ExecutionStrategySchema = z.enum([
-  'serial',
-  'parallel',
-  'hybrid',
-  'worktree',
-  'stacked-branches',
-]);
-export type ExecutionStrategy = z.infer<typeof ExecutionStrategySchema>;
+// VCS mode for controlling how commits/branches are organized
+export const VcsModeSchema = z.enum(['simple', 'worktree', 'stacked']);
+export type VcsMode = z.infer<typeof VcsModeSchema>;
 
 export const ExecutionPlanStatusSchema = z.enum([
   'pending',
@@ -63,15 +58,13 @@ export const ExecutionOptionsSchema = z.object({
   agent: z.string().optional(),
   continueOnError: z.boolean().optional(),
   dryRun: z.boolean().optional(),
-  gitSpice: z.boolean().optional(),
   mode: ExecutionModeSchema,
-  parallel: z.boolean().optional(),
   retryAttempts: z.number().int().min(0).optional(),
   retryDelay: z.number().int().min(0).optional(),
   silent: z.boolean().optional(),
-  strategy: ExecutionStrategySchema,
   timeout: z.number().int().min(0).optional(),
   verbose: z.boolean().optional(),
+  vcsMode: VcsModeSchema.optional().default('simple'),
   workdir: z.string().optional(),
 });
 export type ExecutionOptions = z.infer<typeof ExecutionOptionsSchema>;
@@ -87,9 +80,9 @@ export type ExecutionPlan = {
     tasks: Task[];
   };
   status: 'pending' | 'running' | 'completed' | 'failed';
-  strategy: ExecutionStrategy;
   tasks: Map<string, ExecutionTask>;
   totalTasks: number;
+  vcsMode: VcsMode;
 };
 
 export type ExecutionEvent = {
@@ -132,8 +125,8 @@ export type ExecutionContext = {
   mode?: ExecutionMode;
   parentRef?: string;
   planMode?: boolean;
-  strategy: ExecutionStrategy;
   taskTimeout?: number;
+  vcsMode?: VcsMode;
   verbose: boolean;
   worktreeDir?: string;
 };
