@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process';
 import { clearTimeout, setTimeout } from 'node:timers';
 
 import chalk from 'chalk';
-import ora, { type Ora } from 'ora';
 
 import type { AgentCapabilities, AgentType, DecomposerAgent } from '@/core/agents/interfaces';
 import type { Plan } from '@/types/decomposer';
@@ -149,9 +148,6 @@ export class CodexDecomposer implements DecomposerAgent {
       });
 
       const handler = new CodexStreamCollector(resolve, reject, verbose);
-      if (!verbose) {
-        handler.startInitialSpinner(); // Start spinner only in non-verbose mode
-      }
       handler.attachToProcess(child, prompt);
     });
   }
@@ -259,22 +255,12 @@ class CodexStreamCollector {
   private readonly agentMessages: string[] = [];
   private _lastAgentMessage: string | null = null;
   private _timeout: ReturnType<typeof setTimeout> | null = null;
-  private _spinner: Ora | null = null;
-  private _progressDots = 0;
 
   constructor(
     private readonly _resolve: (value: string) => void,
     private readonly _reject: (error: Error) => void,
     private readonly _verbose: boolean = false,
   ) {}
-
-  startInitialSpinner(): void {
-    this._spinner ??= ora({
-      text: 'Codex is analyzing the codebase',
-      spinner: 'dots',
-      color: 'cyan',
-    }).start();
-  }
 
   attachToProcess(child: ReturnType<typeof spawn>, prompt: string): void {
     this._timeout = setTimeout(() => {
@@ -292,10 +278,6 @@ class CodexStreamCollector {
 
     child.on('error', (error) => {
       this._clearTimeout();
-      if (this._spinner !== null) {
-        this._spinner.fail('Failed to start Codex');
-        this._spinner = null;
-      }
       this._reject(new Error(`Failed to spawn Codex CLI: ${error.message}`));
     });
 
@@ -319,16 +301,6 @@ class CodexStreamCollector {
     if (this._verbose) {
       // In verbose mode, stream raw output directly
       process.stdout.write(chunk);
-    } else if (chunk.trim() !== '') {
-      // In standard mode, use spinner with progress
-      if (this._spinner === null) {
-        this.startInitialSpinner();
-      }
-      if (this._spinner !== null) {
-        this._progressDots++;
-        const dots = '.'.repeat(Math.min(this._progressDots % 4, 3));
-        this._spinner.text = `Codex is analyzing${dots}`;
-      }
     }
 
     const lines = this._lineBuffer.split('\n');
@@ -369,9 +341,6 @@ class CodexStreamCollector {
         const message = readStringField(msg, 'message');
         if (isNonEmptyString(message)) {
           this.agentMessages.push(message);
-          if (!this._verbose && this._spinner !== null) {
-            this._spinner.text = 'Codex is generating the plan';
-          }
         }
         break;
       }
@@ -379,11 +348,6 @@ class CodexStreamCollector {
         const delta = readStringField(msg, 'delta');
         if (isNonEmptyString(delta)) {
           this.agentMessages.push(delta);
-          if (!this._verbose && this._spinner !== null) {
-            this._progressDots++;
-            const dots = '.'.repeat(Math.min(this._progressDots % 4, 3));
-            this._spinner.text = `Codex is writing${dots}`;
-          }
         }
         break;
       }
@@ -391,10 +355,6 @@ class CodexStreamCollector {
         const lastAgentMessage = readStringField(msg, 'last_agent_message');
         if (isNonEmptyString(lastAgentMessage)) {
           this._lastAgentMessage = lastAgentMessage;
-          if (!this._verbose && this._spinner !== null) {
-            this._spinner.succeed('Codex finished generating response');
-            this._spinner = null;
-          }
         }
         break;
       }
@@ -411,11 +371,6 @@ class CodexStreamCollector {
   private _handleClose(code: number | null): void {
     this._clearTimeout();
     this._flushRemainingBuffer();
-
-    if (this._spinner !== null) {
-      this._spinner.stop();
-      this._spinner = null;
-    }
 
     if (code !== 0) {
       logger.error(chalk.red(`❌ Codex CLI exited with code ${code}`));
