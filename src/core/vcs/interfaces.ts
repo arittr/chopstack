@@ -221,6 +221,16 @@ export type VcsEngineService = {
   ): Promise<string>;
 
   /**
+   * Create a branch from a specific commit, optionally tracking a parent branch
+   */
+  createBranchFromCommit(
+    branchName: string,
+    commitHash: string,
+    parentBranch: string,
+    workdir: string,
+  ): Promise<void>;
+
+  /**
    * Create worktrees for parallel task execution
    */
   createWorktreesForTasks(
