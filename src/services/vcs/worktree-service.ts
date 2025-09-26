@@ -51,12 +51,28 @@ export class WorktreeServiceImpl extends EventEmitter implements WorktreeService
     const absolutePath = path.resolve(workdir, worktreePath);
     const git = new GitWrapper(workdir);
 
+    // Check if worktree already exists at this path and remove it
+    try {
+      const existingWorktrees = await git.listWorktrees();
+      const existingWorktree = existingWorktrees.find((w) => w.path === absolutePath);
+      if (existingWorktree !== undefined) {
+        logger.info(`🧹 Removing existing worktree at ${absolutePath}`);
+        await git.removeWorktree(absolutePath, true);
+      }
+    } catch (error) {
+      // Ignore errors when checking/removing existing worktrees
+      logger.debug(
+        `Could not check/remove existing worktree: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
     try {
       // Check if branch already exists and generate unique name if needed
       const finalBranchName = await this._generateUniqueBranchName(git, branchName);
 
       // Create worktree
-      await git.createWorktree(absolutePath, finalBranchName, baseRef);
+      // Pass baseRef as checkout source and branchName for -b to avoid invalid reference errors
+      await git.createWorktree(absolutePath, baseRef, finalBranchName);
 
       const context: WorktreeContext = {
         taskId,

@@ -393,5 +393,92 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
       expect(stats.failed).toBe(1); // task2
       expect(stats.skipped).toBe(0);
     });
+
+    it('should use worktree directories when executing tasks in parallel mode', async () => {
+      const tasks: Task[] = [
+        {
+          id: 'task1',
+          title: 'Task 1',
+          agentPrompt: 'Do task 1',
+          touches: ['file1.ts'],
+          requires: [],
+          description: 'Task 1',
+          produces: [],
+          estimatedLines: 10,
+        },
+        {
+          id: 'task2',
+          title: 'Task 2',
+          agentPrompt: 'Do task 2',
+          touches: ['file2.ts'],
+          requires: [],
+          description: 'Task 2',
+          produces: [],
+          estimatedLines: 10,
+        },
+      ];
+
+      // Set up parallel context
+      context.strategy = 'parallel';
+
+      // Mock worktree creation
+      (mockVcsEngine.createWorktreesForTasks as any).mockResolvedValue([
+        {
+          taskId: 'task1',
+          branchName: 'chopstack/task1',
+          baseRef: 'HEAD',
+          absolutePath: '/test/.chopstack/shadows/task1',
+          worktreePath: '.chopstack/shadows/task1',
+          created: new Date(),
+        },
+        {
+          taskId: 'task2',
+          branchName: 'chopstack/task2',
+          baseRef: 'HEAD',
+          absolutePath: '/test/.chopstack/shadows/task2',
+          worktreePath: '.chopstack/shadows/task2',
+          created: new Date(),
+        },
+      ]);
+
+      // Mock successful task execution
+      (mockOrchestrator.executeTask as any).mockResolvedValue({
+        status: 'completed',
+        output: 'Task completed',
+      });
+
+      await handler.handle(tasks, context);
+
+      // Verify worktrees were created
+      expect(mockVcsEngine.createWorktreesForTasks).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'task1' }),
+          expect.objectContaining({ id: 'task2' }),
+        ]),
+        'HEAD',
+        '/test',
+      );
+
+      // Verify tasks were executed with worktree directories
+      expect(mockOrchestrator.executeTask).toHaveBeenCalledWith(
+        'task1',
+        'Task 1',
+        'Do task 1',
+        ['file1.ts'],
+        '/test/.chopstack/shadows/task1', // Worktree directory for task1
+        'execute',
+        'claude',
+      );
+
+      expect(mockOrchestrator.executeTask).toHaveBeenCalledWith(
+        'task2',
+        'Task 2',
+        'Do task 2',
+        ['file2.ts'],
+        '/test/.chopstack/shadows/task2', // Worktree directory for task2
+        'execute',
+        'claude',
+      );
+    });
   });
 });

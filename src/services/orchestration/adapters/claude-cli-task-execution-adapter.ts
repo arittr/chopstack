@@ -10,6 +10,8 @@ import type {
   TaskExecutionRequest,
 } from '@/services/orchestration/types';
 
+import { logger } from '@/utils/global-logger';
+
 /**
  * Task execution adapter that delegates to the Claude CLI
  */
@@ -24,22 +26,68 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
   ): Promise<OrchestratorTaskResult> {
     const { taskId, workdir, mode } = request;
 
+    logger.info(`[ClaudeCliAdapter] Starting task ${taskId} in ${workdir ?? process.cwd()}`);
+
     this.taskOutputs.set(taskId, []);
     this.taskStartTimes.set(taskId, new Date());
 
     const prompt = this._createPrompt(request);
     const args = this._buildClaudeArgs(mode, prompt);
 
+    logger.info(`[ClaudeCliAdapter] Created prompt (first 200 chars): ${prompt.slice(0, 200)}`);
+    logger.info(`[ClaudeCliAdapter] Spawning claude with args: ${JSON.stringify(args)}`);
+    logger.info(`[ClaudeCliAdapter] Working directory: ${workdir ?? process.cwd()}`);
+
     const claudeProcess = spawn('claude', args, {
       cwd: workdir ?? process.cwd(),
-      env: { ...process.env },
+      env: process.env,
       shell: false,
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
+
+    logger.info(`[ClaudeCliAdapter] Process spawned with PID: ${claudeProcess.pid}`);
+
+    // Close stdin since we're not sending any input
+    claudeProcess.stdin.end();
+
+    // Add timeout to detect if process hangs - Claude CLI can take 60+ seconds
+    const hangTimeout = global.setTimeout(() => {
+      logger.warn(
+        `[ClaudeCliAdapter] Task ${taskId} appears to be hanging after 2 minutes - this may be normal for complex tasks`,
+      );
+    }, 120_000);
+
+    // Add periodic status updates
+    const statusInterval = global.setInterval(() => {
+      if (this.runningTasks.has(taskId)) {
+        // Check if process is actually still running
+        try {
+          if (claudeProcess.pid !== undefined) {
+            process.kill(claudeProcess.pid, 0); // Signal 0 just checks if process exists
+            logger.info(
+              `[ClaudeCliAdapter] Task ${taskId} still running (PID: ${claudeProcess.pid} confirmed alive)`,
+            );
+          }
+        } catch {
+          logger.warn(
+            `[ClaudeCliAdapter] Task ${taskId} PID ${claudeProcess.pid} is not running anymore but hasn't fired close event`,
+          );
+        }
+      }
+    }, 30_000);
 
     this.runningTasks.set(taskId, claudeProcess);
 
+    // Track if we've received any output
+    let receivedOutput = false;
+
     claudeProcess.stdout.on('data', (data: Buffer) => {
       const output = data.toString();
+      receivedOutput = true;
+      logger.info(`[ClaudeCliAdapter] Task ${taskId} STDOUT received (${output.length} chars)`);
+      logger.info(`[ClaudeCliAdapter] Task ${taskId} STDOUT content: ${output}`);
+      global.clearTimeout(hangTimeout);
+      global.clearInterval(statusInterval);
       this._appendOutput(taskId, output);
       emitUpdate({
         taskId,
@@ -51,6 +99,11 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
 
     claudeProcess.stderr.on('data', (data: Buffer) => {
       const output = data.toString();
+      receivedOutput = true;
+      logger.info(`[ClaudeCliAdapter] Task ${taskId} STDERR received (${output.length} chars)`);
+      logger.info(`[ClaudeCliAdapter] Task ${taskId} STDERR content: ${output}`);
+      global.clearTimeout(hangTimeout);
+      global.clearInterval(statusInterval);
       this._appendOutput(taskId, `[stderr] ${output}`);
       emitUpdate({
         taskId,
@@ -60,9 +113,30 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
       });
     });
 
+    // Also listen for stdout/stderr end events
+    claudeProcess.stdout.on('end', () => {
+      logger.info(`[ClaudeCliAdapter] Task ${taskId} stdout stream ended`);
+    });
+
+    claudeProcess.stderr.on('end', () => {
+      logger.info(`[ClaudeCliAdapter] Task ${taskId} stderr stream ended`);
+    });
+
     return new Promise((resolve, reject) => {
       claudeProcess.on('close', (code) => {
+        logger.info(
+          `[ClaudeCliAdapter] Task ${taskId} process CLOSE event fired with code: ${code}`,
+        );
+        logger.info(`[ClaudeCliAdapter] Task ${taskId} received output: ${receivedOutput}`);
+
+        global.clearTimeout(hangTimeout);
+        global.clearInterval(statusInterval);
+
         const result = this._createResultFromClose(request, code);
+        logger.info(
+          `[ClaudeCliAdapter] Task ${taskId} result status: ${result.status}, output length: ${result.output?.length ?? 0}`,
+        );
+
         this._finalizeTask(taskId);
 
         emitUpdate({
@@ -73,8 +147,10 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
         });
 
         if (code === 0) {
+          logger.info(`[ClaudeCliAdapter] Task ${taskId} resolving promise with success`);
           resolve(result);
         } else {
+          logger.info(`[ClaudeCliAdapter] Task ${taskId} rejecting promise with code ${code}`);
           result.error = `Process exited with code ${code}`;
           reject(result);
         }
@@ -82,6 +158,9 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
 
       claudeProcess.on('error', (error) => {
         const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`[ClaudeCliAdapter] Process error for task ${taskId}: ${errorMessage}`);
+        global.clearTimeout(hangTimeout);
+        global.clearInterval(statusInterval);
         const result = this._createErrorResult(request, errorMessage);
 
         this._finalizeTask(taskId);
@@ -93,6 +172,18 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
         });
 
         reject(result);
+      });
+
+      // Also listen for spawn event to confirm process started
+      claudeProcess.on('spawn', () => {
+        logger.info(`[ClaudeCliAdapter] Task ${taskId} process spawned successfully`);
+      });
+
+      // Listen for exit event separately from close
+      claudeProcess.on('exit', (code, signal) => {
+        logger.info(
+          `[ClaudeCliAdapter] Task ${taskId} process exited with code: ${code}, signal: ${signal}`,
+        );
       });
     });
   }
@@ -174,7 +265,7 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
     return match(mode)
       .with('plan', () => ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt])
       .with('dry-run', () => ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt])
-      .with('execute', () => ['-p', prompt])
+      .with('execute', () => ['-p', '--permission-mode', 'bypassPermissions', prompt])
       .with('validate', () => [
         '-p',
         '--permission-mode',

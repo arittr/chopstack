@@ -36,21 +36,22 @@ export const StatusPanel: FC<StatusPanelProps> = ({ tasks, metrics, options }) =
     <Box flexDirection="column" padding={1}>
       {/* Header */}
       <Box marginBottom={1} flexDirection="row" justifyContent="space-between">
-        <Box>
+        <Box flexDirection="row" alignItems="center">
           <Text bold color={theme.primary}>
-            📊 ChopStack Execution
+            📊 ChopStack
           </Text>
-          <Box marginLeft={2}>
-            <Text dimColor>
-              {options.strategy} • {options.mode} •{' '}
-              {isNonEmptyString(options.agent) ? options.agent : 'claude'}
-            </Text>
-          </Box>
+          <Text dimColor>
+            {' '}
+            • {options.strategy} • {options.mode}
+            {isNonEmptyString(options.agent) && options.agent !== 'claude'
+              ? ` • ${options.agent}`
+              : ''}
+          </Text>
         </Box>
         <KeyboardHelp />
       </Box>
 
-      {/* Overall Progress */}
+      {/* Progress */}
       <Box flexDirection="column" marginBottom={1}>
         <Box>
           <Text bold>Overall: </Text>
@@ -61,14 +62,15 @@ export const StatusPanel: FC<StatusPanelProps> = ({ tasks, metrics, options }) =
           </Text>
         </Box>
 
-        {/* Layer Progress */}
-        <Box marginTop={1}>
-          <LayerIndicator
-            totalLayers={metrics.totalLayers}
-            completedLayers={metrics.completedLayers}
-            currentLayer={currentLayer}
-          />
-        </Box>
+        {metrics.totalLayers > 1 && (
+          <Box marginTop={1}>
+            <LayerIndicator
+              totalLayers={metrics.totalLayers}
+              completedLayers={metrics.completedLayers}
+              currentLayer={currentLayer}
+            />
+          </Box>
+        )}
       </Box>
 
       {/* Timer */}
