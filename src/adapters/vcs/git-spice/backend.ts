@@ -138,27 +138,66 @@ export class GitSpiceBackend implements VcsBackend {
     logger.info(`  📂 Working dir: ${workdir}`);
 
     try {
-      // Switch to parent branch first
       const git = new GitWrapper(workdir);
-      logger.info(`  🔄 Checking out parent branch: ${parentBranch}...`);
-      await git.checkout(parentBranch);
 
-      // Get current branch to verify
+      // Check if this is a worktree
+      const gitDir = await git.git.revparse(['.git']);
+      const isWorktree = !gitDir.endsWith('.git');
+      logger.info(`  📊 Is worktree: ${isWorktree} (git dir: ${gitDir})`);
+
+      // Checkout the commit
+      logger.info(`  📍 Checking out commit: ${commitHash}`);
+      await git.git.checkout([commitHash]);
+
+      // Create a regular git branch in the worktree first
+      // (git-spice can't initialize in detached HEAD state)
+      logger.info(`  🌿 Creating git branch ${branchName} in worktree`);
+      await git.git.checkoutBranch(branchName, commitHash);
+
+      // Verify we're on the new branch
       const currentBranch = await git.git.revparse(['--abbrev-ref', 'HEAD']);
-      logger.info(`  📍 Current branch after checkout: ${currentBranch}`);
+      logger.info(`  ✅ Created and checked out branch: ${currentBranch}`);
 
-      // Create branch from commit using git-spice
-      const gsCommand = ['branch', 'create', branchName, '--from', commitHash];
-      logger.info(`  🆕 Running: gs ${gsCommand.join(' ')}`);
+      // If we're in a worktree, we need to set up git-spice tracking in the main repo
+      if (isWorktree) {
+        // Get the main repository path
+        const mainRepoPath = workdir.replace(/\/\.chopstack(?:\/[^/]+){2}$/, '');
+        logger.info(`  🏠 Main repo path: ${mainRepoPath}`);
 
-      const result = await execa('gs', gsCommand, {
-        cwd: workdir,
-        timeout: GIT_SPICE_BRANCH_TIMEOUT_MS,
-      });
+        // Fetch the branch from the worktree to the main repo
+        const mainGit = new GitWrapper(mainRepoPath);
+        logger.info(`  📥 Fetching branch from worktree to main repo`);
+        await mainGit.git.fetch([workdir, `${branchName}:${branchName}`]);
 
-      logger.info(`  📤 git-spice stdout: ${result.stdout}`);
-      if (result.stderr.length > 0) {
-        logger.warn(`  ⚠️ git-spice stderr: ${result.stderr}`);
+        // Now track it with git-spice in the main repo
+        const trackCommand = ['branch', 'track', branchName, '--from', parentBranch];
+        logger.info(`  🔗 Running in main repo: gs ${trackCommand.join(' ')}`);
+
+        try {
+          const trackResult = await execa('gs', trackCommand, {
+            cwd: mainRepoPath,
+            timeout: GIT_SPICE_BRANCH_TIMEOUT_MS,
+          });
+          logger.info(`  📤 Track result: ${trackResult.stdout}`);
+
+          // Checkout the branch in the main repo so future ops use the right head
+          logger.info(`  🔄 Checking out ${branchName} in main repo`);
+          await mainGit.git.checkout([branchName]);
+
+          // Remove the worktree since we've moved the branch to the main repo
+          logger.info(`  🗑️ Removing worktree: ${workdir}`);
+          try {
+            await execa('git', ['worktree', 'remove', workdir, '--force'], {
+              cwd: mainRepoPath,
+            });
+            logger.info(`  ✅ Worktree removed successfully`);
+          } catch (removeError) {
+            logger.warn(`  ⚠️ Failed to remove worktree: ${String(removeError)}`);
+          }
+        } catch (trackError) {
+          logger.warn(`  ⚠️ Failed to track branch with git-spice: ${String(trackError)}`);
+          // Branch still exists as regular git branch even if git-spice tracking fails
+        }
       }
 
       // Verify the branch was created
@@ -166,11 +205,7 @@ export class GitSpiceBackend implements VcsBackend {
       const branchExists = branches.all.includes(branchName);
       logger.info(`  🔍 Branch ${branchName} exists: ${branchExists}`);
 
-      // Check what branch we're on now
-      const finalBranch = await git.git.revparse(['--abbrev-ref', 'HEAD']);
-      logger.info(`  📍 Final branch: ${finalBranch}`);
-
-      logger.info(`  ✅ git-spice branch ${branchName} created successfully`);
+      logger.info(`  ✅ git-spice branch ${branchName} created and tracked successfully`);
     } catch (error) {
       const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
       const stdout = error instanceof Error && 'stdout' in error ? String(error.stdout) : '';

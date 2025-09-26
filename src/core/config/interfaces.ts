@@ -1,4 +1,4 @@
-import type { ExecutionMode, ExecutionStrategy } from '@/core/execution/types';
+import type { ExecutionMode, VcsMode } from '@/core/execution/types';
 
 /**
  * Core configuration for execution
@@ -9,8 +9,8 @@ export type ExecutionConfig = {
   dryRun: boolean;
   maxRetries: number;
   mode: ExecutionMode;
-  strategy: ExecutionStrategy;
   timeout?: number;
+  vcsMode: VcsMode;
   verbose: boolean;
 };
 
