@@ -6,6 +6,7 @@
     /* Bundler-style ESM build for tsup */
     "module": "ES2022",
     "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
     "rootDir": ".",
     "outDir": "dist",
     "resolveJsonModule": true,
@@ -38,6 +39,27 @@
     /* Node types */
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts"],
-  "exclude": ["node_modules", "dist", "build", "coverage", ".chopstack", "test/tmp"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.mts",
+    "src/**/*.cts",
+    "test/**/*.ts",
+    "test/**/*.tsx",
+    "tools/**/*.ts",
+    "*.config.ts",
+    "*.config.mts",
+    "eslint.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    ".chopstack",
+    "test/tmp",
+    "**/*.js",
+    "**/*.mjs",
+    "**/*.cjs"
+  ]
 }

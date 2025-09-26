@@ -10,6 +10,7 @@ export const TaskSchema = z.object({
   requires: z.array(z.string()).describe('List of task IDs this depends on'),
   estimatedLines: z.number().describe('Estimated lines of code changes'),
   agentPrompt: z.string().describe('Specific prompt for implementing this task'),
+  layer: z.number().optional().describe('Execution layer for parallel processing'),
 });
 
 export type Task = z.infer<typeof TaskSchema>;
