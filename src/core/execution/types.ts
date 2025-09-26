@@ -17,7 +17,7 @@ export const TaskStateSchema = z.enum([
 ]);
 export type TaskState = z.infer<typeof TaskStateSchema>;
 
-export const ExecutionStrategySchema = z.enum(['serial', 'parallel', 'hybrid']);
+export const ExecutionStrategySchema = z.enum(['serial', 'parallel', 'hybrid', 'worktree']);
 export type ExecutionStrategy = z.infer<typeof ExecutionStrategySchema>;
 
 export const ExecutionPlanStatusSchema = z.enum([

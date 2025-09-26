@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { execa } from 'execa';
 
@@ -34,6 +35,10 @@ export type StackBuildServiceConfig = {
   branchPrefix: string;
   conflictStrategy?: ConflictResolutionStrategy;
   parentRef: string;
+  retryConfig?: {
+    maxRetries?: number;
+    retryDelayMs?: number;
+  };
   stackSubmission?: {
     autoMerge?: boolean;
     draft?: boolean;
@@ -81,6 +86,8 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
   private readonly conflictStrategy: ConflictResolutionStrategy;
   private readonly stackSubmissionOptions: StackSubmissionOptions;
   private _stackState: StackState | null = null;
+  private readonly maxRetries: number;
+  private readonly retryDelayMs: number;
 
   constructor(config: StackBuildServiceConfig, dependencies: StackBuildServiceDependencies = {}) {
     super();
@@ -89,6 +96,8 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     this.conflictResolutionService = dependencies.conflictResolutionService;
     this.conflictStrategy = config.conflictStrategy ?? 'auto';
     this.stackSubmissionOptions = config.stackSubmission ?? {};
+    this.maxRetries = config.retryConfig?.maxRetries ?? 2;
+    this.retryDelayMs = config.retryConfig?.retryDelayMs ?? 1000;
   }
 
   /**
@@ -200,33 +209,22 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       const branchName = `${this.config.branchPrefix}${task.id}`;
       const parentBranch = this.getStackTip();
 
-      // Try to create branch using git-spice
-      try {
-        await this.gitSpice.createBranchFromCommit(
-          branchName,
-          task.commitHash,
-          parentBranch,
-          workdir,
+      // Try to create branch using git-spice with retries
+      const branchCreated = await this._createBranchWithRetry({
+        branchName,
+        commitHash: task.commitHash,
+        parentBranch,
+        workdir,
+        task,
+      });
+
+      if (!branchCreated) {
+        throw new Error(
+          `Failed to create branch for task ${task.id} after ${this.maxRetries} retries`,
         );
-
-        logger.info(`✅ Created branch ${branchName} for task ${task.id}`);
-      } catch (error) {
-        // Fallback to manual branch creation with cherry-pick
-        logger.warn(
-          `⚠️ git-spice failed to create branch, using fallback: ${error instanceof Error ? error.message : String(error)}`,
-        );
-
-        const fallbackResult = await this._createBranchWithCherryPick({
-          branchName,
-          parentBranch,
-          task,
-          workdir,
-        });
-
-        if (!fallbackResult.success) {
-          throw new Error(fallbackResult.reason ?? `Failed to create branch for task ${task.id}`);
-        }
       }
+
+      logger.info(`✅ Created branch ${branchName} for task ${task.id}`);
 
       // Update stack state
       if (this._stackState !== null) {
@@ -708,5 +706,108 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     const descriptionLength = task.description.length;
 
     return fileCount * 10 + descriptionLength / 10;
+  }
+
+  /**
+   * Create branch with retry logic for transient failures
+   */
+  private async _createBranchWithRetry({
+    branchName,
+    commitHash,
+    parentBranch,
+    workdir,
+    task,
+  }: {
+    branchName: string;
+    commitHash: string;
+    parentBranch: string;
+    task: ExecutionTask;
+    workdir: string;
+  }): Promise<boolean> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      try {
+        // First attempt: use git-spice
+        if (attempt === 1) {
+          await this.gitSpice.createBranchFromCommit(branchName, commitHash, parentBranch, workdir);
+          return true;
+        }
+
+        // Subsequent attempts: wait then retry
+        logger.info(
+          `🔄 Retrying branch creation for ${branchName} (attempt ${attempt}/${this.maxRetries})...`,
+        );
+        await this._delay(this.retryDelayMs * attempt); // Exponential backoff
+        await this.gitSpice.createBranchFromCommit(branchName, commitHash, parentBranch, workdir);
+        return true;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Check if error is retryable
+        if (!this._isRetryableError(lastError)) {
+          // Non-retryable error, try fallback immediately
+          logger.warn(`⚠️ Non-retryable error, trying fallback: ${lastError.message}`);
+          break;
+        }
+
+        if (attempt < this.maxRetries) {
+          logger.debug(`⚠️ Attempt ${attempt} failed: ${lastError.message}`);
+        }
+      }
+    }
+
+    // All retries failed, try fallback
+    logger.warn(
+      `⚠️ git-spice failed after ${this.maxRetries} attempts, using cherry-pick fallback: ${lastError?.message ?? 'Unknown error'}`,
+    );
+
+    const fallbackResult = await this._createBranchWithCherryPick({
+      branchName,
+      parentBranch,
+      task,
+      workdir,
+    });
+
+    return fallbackResult.success;
+  }
+
+  /**
+   * Check if an error is retryable
+   */
+  private _isRetryableError(error: Error): boolean {
+    const message = error.message.toLowerCase();
+
+    // Retryable conditions
+    if (
+      message.includes('timeout') ||
+      message.includes('enoent') ||
+      message.includes('spawn') ||
+      message.includes('lock') ||
+      message.includes('another process') ||
+      message.includes('resource temporarily unavailable')
+    ) {
+      return true;
+    }
+
+    // Non-retryable conditions
+    if (
+      message.includes('conflict') ||
+      message.includes('commit not found') ||
+      message.includes('branch already exists') ||
+      message.includes('permission denied')
+    ) {
+      return false;
+    }
+
+    // Default to retryable for unknown errors
+    return true;
+  }
+
+  /**
+   * Delay for a specified number of milliseconds
+   */
+  private async _delay(ms: number): Promise<void> {
+    await delay(ms);
   }
 }
