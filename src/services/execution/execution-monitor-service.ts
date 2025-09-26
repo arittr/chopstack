@@ -113,7 +113,7 @@ export class ExecutionMonitorServiceImpl extends EventEmitter implements Executi
       planId,
       data: {
         mode: plan.mode,
-        strategy: plan.strategy,
+        vcsMode: plan.vcsMode,
         taskCount: plan.tasks.size,
         layerCount: plan.executionLayers.length,
       },
@@ -296,7 +296,7 @@ export class ExecutionMonitorServiceImpl extends EventEmitter implements Executi
     logger.info(`\n${chalk.bold('Execution Progress:')}\n${progressLine}`);
 
     if (this.config.logLevel === 'verbose') {
-      logger.info(`📋 Plan: ${plan.strategy} strategy, ${plan.executionLayers.length} layers`);
+      logger.info(`📋 Plan: ${plan.vcsMode} VCS mode, ${plan.executionLayers.length} layers`);
 
       for (const [index, layer] of plan.executionLayers.entries()) {
         logger.info(`  Layer ${index + 1}: ${layer.map((t) => t.id).join(', ')}`);

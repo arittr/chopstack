@@ -98,7 +98,7 @@ describe('runCommand integration tests', () => {
         spec: 'components-spec.md',
         agent: 'claude',
         mode: 'execute',
-        strategy: 'parallel',
+        vcsMode: 'simple',
         tui: false,
         verbose: false,
         writeLog: false,
@@ -125,7 +125,7 @@ describe('runCommand integration tests', () => {
       expect(mockExecute).toHaveBeenCalledWith(mockPlan, {
         agent: 'claude',
         mode: 'execute',
-        strategy: 'parallel',
+        vcsMode: 'simple',
         verbose: false,
         dryRun: undefined,
         parallel: undefined,
@@ -166,7 +166,7 @@ describe('runCommand integration tests', () => {
         spec: 'conflicting-spec.md',
         agent: 'claude',
         mode: 'execute',
-        strategy: 'parallel',
+        vcsMode: 'simple',
         tui: false,
         verbose: true,
         writeLog: false,
@@ -202,7 +202,7 @@ tasks:
       const options: RunCommandOptions = {
         plan: 'layout-plan.yaml',
         mode: 'execute',
-        strategy: 'serial',
+        vcsMode: 'simple',
         tui: false,
         verbose: false,
         writeLog: false,
@@ -237,7 +237,7 @@ tasks:
       const options: RunCommandOptions = {
         plan: 'plan.json',
         mode: 'execute',
-        strategy: 'serial',
+        vcsMode: 'simple',
         tui: false,
         writeLog: false,
       };
@@ -257,7 +257,7 @@ tasks:
       const options: RunCommandOptions = {
         spec: 'protected-spec.md',
         mode: 'execute',
-        strategy: 'parallel',
+        vcsMode: 'simple',
         tui: false,
         writeLog: false,
       };
@@ -276,7 +276,7 @@ tasks:
         spec: 'test-spec.md',
         agent: 'invalid-agent' as any,
         mode: 'execute',
-        strategy: 'parallel',
+        vcsMode: 'simple',
         tui: false,
         writeLog: false,
       };
@@ -308,7 +308,7 @@ tasks:
       const options: RunCommandOptions = {
         spec: 'test-spec.md',
         mode: 'execute',
-        strategy: 'parallel',
+        vcsMode: 'simple',
         tui: false,
         writeLog: false,
       };
@@ -327,10 +327,9 @@ tasks:
       const options: RunCommandOptions = {
         spec: 'test-spec.md',
         mode: 'plan',
-        strategy: 'serial',
+        vcsMode: 'simple',
         tui: false,
         workdir: '/custom/workdir',
-        gitSpice: true,
         continueOnError: true,
         timeout: 600,
         retryAttempts: 5,
@@ -346,7 +345,7 @@ tasks:
 
       expect(mockExecute).toHaveBeenCalledWith(mockPlan, {
         mode: 'plan',
-        strategy: 'serial',
+        vcsMode: 'simple',
         verbose: true,
         dryRun: undefined,
         parallel: undefined,

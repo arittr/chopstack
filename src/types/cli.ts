@@ -6,7 +6,7 @@ import { AgentTypeSchema, type DecomposeOptions, DecomposeOptionsSchema } from '
 
 // Re-export types for convenience
 export type { DecomposeOptions } from './decomposer';
-export type { ExecutionMode, ExecutionOptions, ExecutionStrategy } from '@/core/execution/types';
+export type { ExecutionMode, ExecutionOptions, VcsMode } from '@/core/execution/types';
 
 // Decompose command options schema
 export const DecomposeCommandOptionsSchema = z.object({

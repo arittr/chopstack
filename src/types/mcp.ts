@@ -1,15 +1,13 @@
 import { z } from 'zod';
 
-import { ExecutionStrategySchema } from '@/core/execution/types';
-
-// MCP-specific strategy (subset of full ExecutionStrategy)
-export const TaskExecutionStrategySchema = ExecutionStrategySchema.exclude(['hybrid']);
-export type TaskExecutionStrategy = z.infer<typeof TaskExecutionStrategySchema>;
+// VCS mode for MCP operations
+export const McpVcsModeSchema = z.enum(['simple', 'worktree', 'stacked']);
+export type McpVcsMode = z.infer<typeof McpVcsModeSchema>;
 
 export const TaskExecutionParamsSchema = z.object({
   files: z.array(z.string()),
   prompt: z.string().min(1),
-  strategy: TaskExecutionStrategySchema,
+  vcsMode: McpVcsModeSchema.optional().default('simple'),
   taskId: z.string().min(1),
   title: z.string().min(1),
   workdir: z.string().optional(),
