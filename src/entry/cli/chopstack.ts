@@ -76,6 +76,7 @@ program
   .option('--verbose, -v', 'Verbose output', false)
   .option('--silent, -s', 'Silent mode - suppress all output', false)
   .option('--no-tui', 'Disable the interactive TUI (use plain output)', true)
+  .option('--write-log', 'Write execution logs to files in .chopstack/logs/', false)
   .action(async (options: unknown) => {
     try {
       const validatedOptions = validateRunArgs(options);

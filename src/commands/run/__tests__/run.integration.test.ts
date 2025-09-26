@@ -101,6 +101,7 @@ describe('runCommand integration tests', () => {
         strategy: 'parallel',
         tui: false,
         verbose: false,
+        writeLog: false,
       };
 
       const deps = createDeps();
@@ -168,6 +169,7 @@ describe('runCommand integration tests', () => {
         strategy: 'parallel',
         tui: false,
         verbose: true,
+        writeLog: false,
       };
 
       const deps = createDeps();
@@ -203,6 +205,7 @@ tasks:
         strategy: 'serial',
         tui: false,
         verbose: false,
+        writeLog: false,
       };
 
       const deps = createDeps();
@@ -236,6 +239,7 @@ tasks:
         mode: 'execute',
         strategy: 'serial',
         tui: false,
+        writeLog: false,
       };
 
       const deps = createDeps();
@@ -255,6 +259,7 @@ tasks:
         mode: 'execute',
         strategy: 'parallel',
         tui: false,
+        writeLog: false,
       };
 
       const deps = createDeps();
@@ -273,6 +278,7 @@ tasks:
         mode: 'execute',
         strategy: 'parallel',
         tui: false,
+        writeLog: false,
       };
 
       const deps = createDeps();
@@ -304,6 +310,7 @@ tasks:
         mode: 'execute',
         strategy: 'parallel',
         tui: false,
+        writeLog: false,
       };
 
       const deps = createDeps();
@@ -328,6 +335,7 @@ tasks:
         timeout: 600,
         retryAttempts: 5,
         verbose: true,
+        writeLog: false,
       };
 
       const deps = createDeps();

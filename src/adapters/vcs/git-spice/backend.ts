@@ -131,22 +131,54 @@ export class GitSpiceBackend implements VcsBackend {
     parentBranch: string,
     workdir: string,
   ): Promise<void> {
+    logger.info(`🆕 [GitSpiceBackend.createBranchFromCommit]`);
+    logger.info(`  🎯 Branch name: ${branchName}`);
+    logger.info(`  📝 Commit hash: ${commitHash.slice(0, 7)}`);
+    logger.info(`  🌳 Parent branch: ${parentBranch}`);
+    logger.info(`  📂 Working dir: ${workdir}`);
+
     try {
       // Switch to parent branch first
       const git = new GitWrapper(workdir);
+      logger.info(`  🔄 Checking out parent branch: ${parentBranch}...`);
       await git.checkout(parentBranch);
 
+      // Get current branch to verify
+      const currentBranch = await git.git.revparse(['--abbrev-ref', 'HEAD']);
+      logger.info(`  📍 Current branch after checkout: ${currentBranch}`);
+
       // Create branch from commit using git-spice
-      await execa('gs', ['branch', 'create', branchName, '--from', commitHash], {
+      const gsCommand = ['branch', 'create', branchName, '--from', commitHash];
+      logger.info(`  🆕 Running: gs ${gsCommand.join(' ')}`);
+
+      const result = await execa('gs', gsCommand, {
         cwd: workdir,
         timeout: GIT_SPICE_BRANCH_TIMEOUT_MS,
       });
 
-      logger.info(
-        `🌿 Created git-spice branch ${branchName} from commit ${commitHash.slice(0, 7)}`,
-      );
+      logger.info(`  📤 git-spice stdout: ${result.stdout}`);
+      if (result.stderr.length > 0) {
+        logger.warn(`  ⚠️ git-spice stderr: ${result.stderr}`);
+      }
+
+      // Verify the branch was created
+      const branches = await git.git.branch();
+      const branchExists = branches.all.includes(branchName);
+      logger.info(`  🔍 Branch ${branchName} exists: ${branchExists}`);
+
+      // Check what branch we're on now
+      const finalBranch = await git.git.revparse(['--abbrev-ref', 'HEAD']);
+      logger.info(`  📍 Final branch: ${finalBranch}`);
+
+      logger.info(`  ✅ git-spice branch ${branchName} created successfully`);
     } catch (error) {
       const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
+      const stdout = error instanceof Error && 'stdout' in error ? String(error.stdout) : '';
+      logger.error(
+        `  ❌ Failed to create branch: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      logger.error(`  📤 stdout: ${stdout}`);
+      logger.error(`  📥 stderr: ${stderr}`);
       throw new GitSpiceError(
         `Failed to create branch ${branchName} from commit`,
         'gs branch create',

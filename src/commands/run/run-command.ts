@@ -18,6 +18,7 @@ import { BaseCommand, type CommandDependencies } from '@/commands/types';
 import { ServiceIdentifiers } from '@/core/di';
 import { YamlPlanParser } from '@/io/yaml-parser';
 import { bootstrapApplication, getContainer } from '@/providers';
+import { initializeFileLogWriter } from '@/services/logging/file-log-writer';
 import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { isTuiSupported, startTui } from '@/ui';
 import { GlobalLogger } from '@/utils/global-logger';
@@ -37,6 +38,12 @@ export class RunCommand extends BaseCommand {
     try {
       const cwd = options.workdir ?? this.context.cwd;
       const serviceOverrides = this.dependencies.services ?? {};
+
+      // Initialize file logging if requested
+      const fileLogWriter = initializeFileLogWriter(cwd, options.writeLog);
+      if (options.writeLog) {
+        this.logger.info(chalk.cyan(`📝 Logging enabled: ${fileLogWriter.getLogDirectory()}`));
+      }
       type AppContainer = ReturnType<typeof getContainer>;
 
       let containerCache: AppContainer | null = null;
@@ -126,6 +133,16 @@ export class RunCommand extends BaseCommand {
       this.logger.info(chalk.green('✅ Plan validated successfully'));
       this.logger.info(chalk.dim(`📊 Tasks: ${plan.tasks.length}`));
 
+      // If logging is enabled, write plan summary
+      if (options.writeLog) {
+        fileLogWriter.writeSeparator('EXECUTION PLAN');
+        fileLogWriter.write(`Mode: ${options.mode}`);
+        fileLogWriter.write(`Strategy: ${options.strategy}`);
+        fileLogWriter.write(`Tasks: ${plan.tasks.length}`);
+        fileLogWriter.write(`Agent: ${options.agent ?? 'claude'}`);
+        fileLogWriter.writeSeparator();
+      }
+
       const engine = await resolveExecutionEngine();
 
       let result;
@@ -138,8 +155,8 @@ export class RunCommand extends BaseCommand {
           ServiceIdentifiers.ExecutionOrchestrator,
         );
 
-        // Enable TUI mode in global logger
-        GlobalLogger.enableTuiMode(orchestrator);
+        // Enable TUI mode in global logger with file logging
+        GlobalLogger.enableTuiMode(orchestrator, fileLogWriter);
 
         try {
           // Start TUI and execute in parallel
@@ -174,7 +191,12 @@ export class RunCommand extends BaseCommand {
 
         failureCount = result.tasks.filter((task) => task.status === 'failure').length;
       } else {
-        // Use regular logging output
+        // Use regular logging output with optional file logging
+        if (options.writeLog) {
+          // Enable file logging for console mode
+          GlobalLogger.enableFileLogging(fileLogWriter);
+        }
+
         this.logger.info(chalk.blue('🚀 Starting plan execution...'));
         result = await engine.execute(plan, {
           mode: options.mode,
@@ -187,6 +209,23 @@ export class RunCommand extends BaseCommand {
         });
 
         failureCount = result.tasks.filter((task) => task.status === 'failure').length;
+
+        if (options.writeLog) {
+          // Disable file logging for console mode
+          GlobalLogger.disableFileLogging();
+        }
+      }
+
+      // Write final results to log
+      if (options.writeLog) {
+        fileLogWriter.writeSeparator('EXECUTION RESULTS');
+        fileLogWriter.write(`Total tasks: ${result.tasks.length}`);
+        fileLogWriter.write(
+          `Successful: ${result.tasks.filter((t) => t.status === 'success').length}`,
+        );
+        fileLogWriter.write(`Failed: ${failureCount}`);
+        fileLogWriter.write(`Execution time: ${result.totalDuration}ms`);
+        fileLogWriter.closeAllStreams();
       }
 
       if (failureCount === 0) {
