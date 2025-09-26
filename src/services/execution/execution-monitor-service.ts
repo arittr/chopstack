@@ -11,11 +11,7 @@ import type {
   TaskState,
 } from '@/core/execution/types';
 
-import {
-  createProgressLine,
-  ProgressFormatter,
-  TaskProgressManager,
-} from '@/services/planning/progress-formatter';
+import { createProgressLine, ProgressFormatter } from '@/services/planning/progress-formatter';
 import { logger } from '@/utils/global-logger';
 import { isNonNullish } from '@/validation/guards';
 
@@ -82,7 +78,6 @@ export class ExecutionMonitorServiceImpl extends EventEmitter implements Executi
   private readonly config: ExecutionMonitorConfig;
   private readonly metricsHistory: Map<string, ExecutionMetrics[]>;
   private readonly startTimes: Map<string, number>;
-  private readonly progressManager: TaskProgressManager;
   private readonly formatter: ProgressFormatter;
   private readonly activePlans: Map<string, ExecutionPlan>;
   private readonly progressIntervals: Map<string, ReturnType<typeof setInterval>>;
@@ -100,7 +95,6 @@ export class ExecutionMonitorServiceImpl extends EventEmitter implements Executi
 
     this.metricsHistory = new Map();
     this.startTimes = new Map();
-    this.progressManager = new TaskProgressManager();
     this.formatter = new ProgressFormatter();
     this.activePlans = new Map();
     this.progressIntervals = new Map();
@@ -112,11 +106,6 @@ export class ExecutionMonitorServiceImpl extends EventEmitter implements Executi
     this.startTimes.set(planId, Date.now());
     this.metricsHistory.set(planId, []);
     this.activePlans.set(planId, plan);
-
-    // Initialize progress manager
-    for (const task of plan.tasks.values()) {
-      this.progressManager.startTask(task.id, task.title);
-    }
 
     this._emitEvent({
       type: 'execution_start',
@@ -199,24 +188,6 @@ export class ExecutionMonitorServiceImpl extends EventEmitter implements Executi
       task.state = state;
       // Update timestamp - tracked separately
     }
-
-    // Update progress manager
-    match(state)
-      .with('running', () => {
-        this.progressManager.updateTask(taskId, 'Running task');
-      })
-      .with('completed', () => {
-        this.progressManager.completeTask(taskId);
-      })
-      .with('failed', () => {
-        this.progressManager.failTask(taskId, metadata.error as string);
-      })
-      .with('skipped', () => {
-        this.progressManager.updateTask(taskId, 'Task skipped');
-      })
-      .otherwise(() => {
-        // Handle other states if needed
-      });
 
     this._emitEvent({
       type: 'task_state_change',
