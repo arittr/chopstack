@@ -145,6 +145,15 @@ export type ConflictResolutionService = {
  */
 export type StackBuildService = {
   /**
+   * Add a single task to the stack incrementally
+   */
+  addTaskToStack(
+    task: ExecutionTask,
+    workdir: string,
+    worktreeContext?: WorktreeContext,
+  ): Promise<void>;
+
+  /**
    * Build a git-spice stack from completed tasks
    */
   buildStack(
@@ -160,6 +169,21 @@ export type StackBuildService = {
    * Get stack information
    */
   getStackInfo(workdir: string): Promise<StackInfo | null>;
+
+  /**
+   * Get the current top of the stack
+   */
+  getStackTip(): string;
+
+  /**
+   * Initialize stack state for incremental building
+   */
+  initializeStackState(parentRef: string): void;
+
+  /**
+   * Check if a task is already in the stack
+   */
+  isTaskStacked(taskId: string): boolean;
 
   /**
    * Reorder stack branches based on dependencies

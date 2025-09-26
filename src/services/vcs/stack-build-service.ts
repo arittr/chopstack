@@ -10,12 +10,17 @@ import type {
   StackBuildService,
   StackBuildStrategy,
   StackInfo,
+  WorktreeContext,
 } from '@/core/vcs/domain-services';
 
 import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
-import { fetchWorktreeCommits } from '@/adapters/vcs/git-spice/worktree-sync';
+import {
+  fetchSingleWorktreeCommit,
+  fetchWorktreeCommits,
+} from '@/adapters/vcs/git-spice/worktree-sync';
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/global-logger';
+import { isNonEmptyString } from '@/validation/guards';
 
 export type StackEvent = {
   branchName?: string;
@@ -58,6 +63,13 @@ type CherryPickResult = {
   success: boolean;
 };
 
+type StackState = {
+  pending: Map<string, ExecutionTask>; // Tasks waiting on dependencies
+  stacked: Set<string>; // Task IDs already in stack
+  taskToBranch: Map<string, string>; // Maps task ID to branch name
+  tip: string; // Current top of stack (branch name)
+};
+
 /**
  * Implementation of StackBuildService domain interface
  * Handles git-spice stack creation and management
@@ -68,6 +80,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
   private readonly conflictResolutionService: ConflictResolutionService | undefined;
   private readonly conflictStrategy: ConflictResolutionStrategy;
   private readonly stackSubmissionOptions: StackSubmissionOptions;
+  private _stackState: StackState | null = null;
 
   constructor(config: StackBuildServiceConfig, dependencies: StackBuildServiceDependencies = {}) {
     super();
@@ -76,6 +89,172 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     this.conflictResolutionService = dependencies.conflictResolutionService;
     this.conflictStrategy = config.conflictStrategy ?? 'auto';
     this.stackSubmissionOptions = config.stackSubmission ?? {};
+  }
+
+  /**
+   * Initialize stack state for incremental building
+   */
+  initializeStackState(parentRef: string): void {
+    this._stackState = {
+      tip: parentRef,
+      stacked: new Set<string>(),
+      pending: new Map<string, ExecutionTask>(),
+      taskToBranch: new Map<string, string>(),
+    };
+    logger.debug(`📚 Initialized stack state with base ref: ${parentRef}`);
+  }
+
+  /**
+   * Get the current top of the stack
+   */
+  getStackTip(): string {
+    if (this._stackState === null) {
+      return this.config.parentRef;
+    }
+    return this._stackState.tip;
+  }
+
+  /**
+   * Check if a task is already in the stack
+   */
+  isTaskStacked(taskId: string): boolean {
+    return this._stackState?.stacked.has(taskId) ?? false;
+  }
+
+  /**
+   * Check if all task dependencies are satisfied (stacked)
+   */
+  private _areDependenciesSatisfied(task: ExecutionTask): boolean {
+    if (this._stackState === null) {
+      return false;
+    }
+    return task.requires.every((depId) => this._stackState?.stacked.has(depId) ?? false);
+  }
+
+  /**
+   * Process pending tasks that may now have satisfied dependencies
+   */
+  private async _processPendingTasks(workdir: string): Promise<void> {
+    if (this._stackState === null) {
+      return;
+    }
+
+    const readyTasks: ExecutionTask[] = [];
+
+    // Find tasks whose dependencies are now satisfied
+    for (const task of this._stackState.pending.values()) {
+      if (this._areDependenciesSatisfied(task)) {
+        readyTasks.push(task);
+      }
+    }
+
+    // Process ready tasks
+    for (const task of readyTasks) {
+      this._stackState.pending.delete(task.id);
+      await this.addTaskToStack(task, workdir);
+    }
+  }
+
+  /**
+   * Add a single task to the stack incrementally
+   * This is called as each task completes during execution
+   */
+  async addTaskToStack(
+    task: ExecutionTask,
+    workdir: string,
+    worktreeContext?: WorktreeContext,
+  ): Promise<void> {
+    // Initialize stack state if needed
+    if (this._stackState === null) {
+      this.initializeStackState(this.config.parentRef);
+    }
+
+    // Check if task is already stacked
+    if (this.isTaskStacked(task.id)) {
+      logger.debug(`📚 Task ${task.id} is already in the stack`);
+      return;
+    }
+
+    // Check if task has a commit
+    if (!isNonEmptyString(task.commitHash)) {
+      logger.warn(`⚠️ Task ${task.id} has no commit hash, cannot add to stack`);
+      return;
+    }
+
+    // Check dependencies
+    if (!this._areDependenciesSatisfied(task)) {
+      logger.info(`⏸️ Task ${task.id} has unsatisfied dependencies, queuing for later`);
+      if (this._stackState !== null) {
+        this._stackState.pending.set(task.id, task);
+      }
+      return;
+    }
+
+    logger.info(`📚 Adding task ${task.id} to stack...`);
+
+    try {
+      // Fetch commit from worktree to main repository
+      await fetchSingleWorktreeCommit(task, worktreeContext, workdir);
+
+      // Create branch for this task
+      const branchName = `${this.config.branchPrefix}${task.id}`;
+      const parentBranch = this.getStackTip();
+
+      // Try to create branch using git-spice
+      try {
+        await this.gitSpice.createBranchFromCommit(
+          branchName,
+          task.commitHash,
+          parentBranch,
+          workdir,
+        );
+
+        logger.info(`✅ Created branch ${branchName} for task ${task.id}`);
+      } catch (error) {
+        // Fallback to manual branch creation with cherry-pick
+        logger.warn(
+          `⚠️ git-spice failed to create branch, using fallback: ${error instanceof Error ? error.message : String(error)}`,
+        );
+
+        const fallbackResult = await this._createBranchWithCherryPick({
+          branchName,
+          parentBranch,
+          task,
+          workdir,
+        });
+
+        if (!fallbackResult.success) {
+          throw new Error(fallbackResult.reason ?? `Failed to create branch for task ${task.id}`);
+        }
+      }
+
+      // Update stack state
+      if (this._stackState !== null) {
+        this._stackState.stacked.add(task.id);
+        this._stackState.taskToBranch.set(task.id, branchName);
+        this._stackState.tip = branchName;
+      }
+
+      // Emit event
+      this.emit('branch_created', {
+        type: 'branch_created',
+        branchName,
+        taskId: task.id,
+        timestamp: new Date(),
+      } as StackEvent);
+
+      // Process any pending tasks that might now be ready
+      await this._processPendingTasks(workdir);
+    } catch (error) {
+      logger.error(
+        `❌ Failed to add task ${task.id} to stack: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      // Keep task in pending if it failed
+      if (this._stackState !== null) {
+        this._stackState.pending.set(task.id, task);
+      }
+      throw error;
+    }
   }
 
   async buildStack(

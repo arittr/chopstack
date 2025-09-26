@@ -168,6 +168,15 @@ export type StackBranch = {
  */
 export type VcsEngineService = {
   /**
+   * Add a single task to the stack incrementally
+   */
+  addTaskToStack(
+    task: ExecutionTask,
+    workdir: string,
+    worktreeContext?: WorktreeContext,
+  ): Promise<void>;
+
+  /**
    * Analyze worktree needs for parallel execution
    */
   analyzeWorktreeNeeds(
@@ -224,4 +233,9 @@ export type VcsEngineService = {
    * Initialize the VCS engine with a working directory
    */
   initialize(workdir: string): Promise<void>;
+
+  /**
+   * Initialize stack state for incremental building
+   */
+  initializeStackState(parentRef: string): void;
 };
