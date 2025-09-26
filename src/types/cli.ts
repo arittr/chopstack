@@ -23,6 +23,7 @@ export const RunCommandOptionsSchema = ExecutionOptionsSchema.extend({
   plan: z.string().optional(),
   spec: z.string().optional(),
   tui: z.boolean().default(true),
+  writeLog: z.boolean().default(false),
 }).refine((data) => data.spec !== undefined || data.plan !== undefined, {
   message: 'Either --spec or --plan must be provided',
   path: ['spec', 'plan'],

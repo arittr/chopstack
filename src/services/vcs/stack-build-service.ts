@@ -210,6 +210,9 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       const parentBranch = this.getStackTip();
 
       // Try to create branch using git-spice with retries
+      logger.info(
+        `  🔨 Creating branch ${branchName} from commit ${task.commitHash.slice(0, 7)}...`,
+      );
       const branchCreated = await this._createBranchWithRetry({
         branchName,
         commitHash: task.commitHash,
@@ -219,12 +222,14 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       });
 
       if (!branchCreated) {
+        logger.error(`  ❌ Failed to create branch ${branchName} after ${this.maxRetries} retries`);
         throw new Error(
           `Failed to create branch for task ${task.id} after ${this.maxRetries} retries`,
         );
       }
 
-      logger.info(`✅ Created branch ${branchName} for task ${task.id}`);
+      logger.info(`  ✅ Branch ${branchName} created successfully`);
+      logger.info(`✅ [addTaskToStack] Completed - task ${task.id} added to stack`);
 
       // Update stack state
       if (this._stackState !== null) {
@@ -802,6 +807,18 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
 
     // Default to retryable for unknown errors
     return true;
+  }
+
+  /**
+   * Create a branch from a specific commit, optionally tracking a parent branch
+   */
+  async createBranchFromCommit(
+    branchName: string,
+    commitHash: string,
+    parentBranch: string,
+    workdir: string,
+  ): Promise<void> {
+    await this.gitSpice.createBranchFromCommit(branchName, commitHash, parentBranch, workdir);
   }
 
   /**
