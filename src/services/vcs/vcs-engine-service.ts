@@ -236,6 +236,20 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
     await this.worktreeService.cleanupWorktrees(taskIds);
   }
 
+  async createBranchFromCommit(
+    branchName: string,
+    commitHash: string,
+    parentBranch: string,
+    workdir: string,
+  ): Promise<void> {
+    await this.stackBuildService.createBranchFromCommit(
+      branchName,
+      commitHash,
+      parentBranch,
+      workdir,
+    );
+  }
+
   private _setupEventForwarding(): void {
     // Forward worktree events - implementation extends EventEmitter
     if ('on' in this.worktreeService && typeof this.worktreeService.on === 'function') {

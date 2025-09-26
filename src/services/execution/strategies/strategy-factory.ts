@@ -8,6 +8,7 @@ import type { ExecutionStrategy } from './execution-strategy';
 
 import { ParallelExecutionStrategy } from './parallel-strategy';
 import { SerialExecutionStrategy } from './serial-strategy';
+import { StackedBranchesExecutionStrategy } from './stacked-branches-strategy';
 import { WorktreeExecutionStrategy } from './worktree-strategy';
 
 /**
@@ -15,6 +16,7 @@ import { WorktreeExecutionStrategy } from './worktree-strategy';
  */
 export class ExecutionStrategyFactory {
   private readonly strategies: ExecutionStrategy[] = [
+    new StackedBranchesExecutionStrategy(),
     new WorktreeExecutionStrategy(),
     new ParallelExecutionStrategy(),
     new SerialExecutionStrategy(),
