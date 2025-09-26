@@ -4,9 +4,6 @@ import { vi } from 'vitest';
 // Import worktree cleanup to ensure it runs after all tests
 import './worktree-cleanup';
 
-// Import worktree cleanup to ensure it runs after all tests
-import './worktree-cleanup';
-
 // Integration test setup - for testing real class interactions
 // Mock only truly external dependencies (file system, network, subprocess calls)
 

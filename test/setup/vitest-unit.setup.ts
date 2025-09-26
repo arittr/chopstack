@@ -3,9 +3,6 @@ import { vi } from 'vitest';
 // Import worktree cleanup to ensure it runs after all tests
 import './worktree-cleanup';
 
-// Import worktree cleanup to ensure it runs after all tests
-import './worktree-cleanup';
-
 // Unit test setup - for fast, isolated tests with heavy mocking
 // Mock common external dependencies that we don't want to test
 

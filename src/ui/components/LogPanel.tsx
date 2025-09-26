@@ -4,6 +4,7 @@ import { Box, Spacer, Text, useInput } from 'ink';
 
 import type { LogEntry } from '@/ui/hooks/useExecutionState';
 
+import { theme } from '@/ui/theme';
 import { isNonEmptyString } from '@/validation/guards';
 
 export type LogPanelProps = {
@@ -14,19 +15,26 @@ export type LogPanelProps = {
 
 const getLogColor = (type: LogEntry['type']): string | undefined => {
   switch (type) {
-    case 'error':
+    case 'error': {
+      return theme.logError;
+    }
     case 'stderr': {
-      return 'red';
+      return theme.logStderr;
     }
     case 'success': {
-      return 'green';
+      return theme.logSuccess;
     }
-    case 'info':
-    case 'status': {
-      return 'cyan';
+    case 'info': {
+      return theme.logInfo;
     }
     case 'stdout': {
-      return undefined; // white/default
+      return theme.logStdout;
+    }
+    case 'status': {
+      return theme.logStatus;
+    }
+    default: {
+      return undefined;
     }
   }
 };
@@ -163,7 +171,7 @@ export const LogPanel: FC<LogPanelProps> = ({ logs, maxLines = 20, filterTaskId 
               <Text> </Text>
               {isNonEmptyString(log.taskId) && (
                 <>
-                  <Text color="yellow">[{log.taskId.slice(0, 8)}]</Text>
+                  <Text color={theme.warning}>[{log.taskId.slice(0, 8)}]</Text>
                   <Text> </Text>
                 </>
               )}

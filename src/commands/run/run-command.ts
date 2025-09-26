@@ -114,8 +114,18 @@ export class RunCommand extends BaseCommand {
       const engine = await resolveExecutionEngine();
 
       // Check if TUI should be used
-      const useTui =
-        options.tui && isTuiSupported() && options.silent === false && options.mode === 'execute';
+      const isTtyEnvironment = isTuiSupported();
+      const shouldUseTui = options.tui && options.silent === false && options.mode === 'execute';
+
+      // Check for headless environment when TUI is requested
+      if (shouldUseTui && !isTtyEnvironment) {
+        this.logger.error(
+          chalk.yellow('⚠️  TUI requires TTY environment. Use --no-tui for headless mode.'),
+        );
+        return 1;
+      }
+
+      const useTui = shouldUseTui && isTtyEnvironment;
 
       let result;
       let failureCount: number;

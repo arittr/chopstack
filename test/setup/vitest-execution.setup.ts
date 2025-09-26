@@ -3,9 +3,6 @@ import { vi } from 'vitest';
 // Import worktree cleanup to ensure it runs after all tests
 import './worktree-cleanup';
 
-// Import worktree cleanup to ensure it runs after all tests
-import './worktree-cleanup';
-
 // Execution test setup - for testing Claude's execution planning
 // Allow real API calls but provide utilities for test management
 
