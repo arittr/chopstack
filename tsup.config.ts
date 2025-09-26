@@ -12,6 +12,7 @@ export default defineConfig([
       'bin/chopstack': 'src/entry/cli/chopstack.ts',
       index: 'src/index.ts',
     },
+    esbuildPlugins: [],
     format: ['esm'],
     minify: false,
     outDir: 'dist',

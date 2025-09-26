@@ -9,6 +9,7 @@ import chalk from 'chalk';
 
 import type { AgentService } from '@/core/agents/interfaces';
 import type { ExecutionEngine } from '@/services/execution';
+import type { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
 import type { RunCommandOptions } from '@/types/cli';
 import type { Plan } from '@/types/decomposer';
 
@@ -18,6 +19,7 @@ import { ServiceIdentifiers } from '@/core/di';
 import { YamlPlanParser } from '@/io/yaml-parser';
 import { bootstrapApplication, getContainer } from '@/providers';
 import { generatePlanWithRetry } from '@/services/planning/plan-generator';
+import { isTuiSupported, startTui } from '@/ui';
 import { DagValidator } from '@/validation/dag-validator';
 import { isNonEmptyString } from '@/validation/guards';
 
@@ -111,18 +113,62 @@ export class RunCommand extends BaseCommand {
 
       const engine = await resolveExecutionEngine();
 
-      this.logger.info(chalk.blue('🚀 Starting plan execution...'));
-      const result = await engine.execute(plan, {
-        mode: options.mode,
-        verbose: options.verbose,
-        dryRun: options.dryRun,
-        strategy: options.strategy,
-        parallel: options.parallel,
-        continueOnError: options.continueOnError,
-        agent: options.agent,
-      });
+      // Check if TUI should be used
+      const useTui =
+        options.tui && isTuiSupported() && options.silent === false && options.mode === 'execute';
 
-      const failureCount = result.tasks.filter((task) => task.status === 'failure').length;
+      let result;
+      let failureCount: number;
+
+      if (useTui) {
+        // Get the orchestrator for TUI event handling
+        const container = await resolveContainer();
+        const orchestrator = container.get<ExecutionOrchestrator>(
+          ServiceIdentifiers.ExecutionOrchestrator,
+        );
+
+        // Start TUI and execute in parallel
+        [result] = await Promise.all([
+          engine.execute(plan, {
+            mode: options.mode,
+            verbose: options.verbose,
+            dryRun: options.dryRun,
+            strategy: options.strategy,
+            parallel: options.parallel,
+            continueOnError: options.continueOnError,
+            agent: options.agent,
+          }),
+          startTui({
+            orchestrator,
+            plan,
+            options: {
+              mode: options.mode,
+              verbose: options.verbose,
+              dryRun: options.dryRun,
+              strategy: options.strategy,
+              parallel: options.parallel,
+              continueOnError: options.continueOnError,
+              agent: options.agent,
+            },
+          }),
+        ]);
+
+        failureCount = result.tasks.filter((task) => task.status === 'failure').length;
+      } else {
+        // Use regular logging output
+        this.logger.info(chalk.blue('🚀 Starting plan execution...'));
+        result = await engine.execute(plan, {
+          mode: options.mode,
+          verbose: options.verbose,
+          dryRun: options.dryRun,
+          strategy: options.strategy,
+          parallel: options.parallel,
+          continueOnError: options.continueOnError,
+          agent: options.agent,
+        });
+
+        failureCount = result.tasks.filter((task) => task.status === 'failure').length;
+      }
 
       if (failureCount === 0) {
         this.logger.info(chalk.green('✅ Plan executed successfully!'));
