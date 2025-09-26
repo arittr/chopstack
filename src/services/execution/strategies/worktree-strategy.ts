@@ -31,6 +31,12 @@ export class WorktreeExecutionStrategy extends BaseExecutionStrategy {
     const allResults: TaskResult[] = [];
     const worktreeContexts: WorktreeContext[] = [];
 
+    // Initialize stack state for incremental building
+    if (context.strategy === 'parallel' && !context.dryRun) {
+      dependencies.vcsEngine.initializeStackState('main');
+      logger.info(`📚 Initialized stack state for incremental building`);
+    }
+
     try {
       // Analyze worktree needs
       const analysis = await dependencies.vcsEngine.analyzeWorktreeNeeds(
@@ -79,8 +85,14 @@ export class WorktreeExecutionStrategy extends BaseExecutionStrategy {
         const layerResults = await Promise.all(layerPromises);
         allResults.push(...layerResults);
 
-        // Commit successful tasks
-        await this._commitCompletedTasks(layerResults, worktreeContexts, dependencies);
+        // Commit successful tasks and add to stack incrementally
+        await this._commitCompletedTasks(
+          layerResults,
+          worktreeContexts,
+          dependencies,
+          plan,
+          context,
+        );
 
         // Check for failures
         const failures = layerResults.filter((r) => r.status === 'failure');
@@ -92,36 +104,28 @@ export class WorktreeExecutionStrategy extends BaseExecutionStrategy {
         }
       }
 
-      // Build git-spice stack if enabled
-      let branches: string[] = [];
-      let commits: string[] = [];
+      // Collect branches and commits from incremental stacking
+      // The stack has been built incrementally during execution
+      const branches: string[] = [];
+      const commits: string[] = [];
 
       if (context.strategy === 'parallel' && !context.dryRun) {
-        try {
-          const completedTasks = [...plan.tasks.values()].filter((task) =>
-            allResults.some((r) => r.taskId === task.id && r.status === 'success'),
-          );
+        // Get final stack info
+        const completedTasks = [...plan.tasks.values()].filter((task) =>
+          allResults.some((r) => r.taskId === task.id && r.status === 'success'),
+        );
 
-          if (completedTasks.length > 0) {
-            const stackInfo = await dependencies.vcsEngine.buildStackFromTasks(
-              completedTasks,
-              context.cwd,
-              {
-                parentRef: 'main',
-                strategy: 'dependency-order',
-                submitStack: false, // Don't auto-submit in worktree mode
-              },
-            );
-
-            branches = stackInfo.branches.map((b) => b.branchName);
-            commits = stackInfo.branches.map((b) => b.commitHash);
-
-            logger.info(`📚 Created git-spice stack with ${branches.length} branches`);
+        // Extract branch names and commits from completed tasks
+        // These have already been added to the stack incrementally
+        for (const task of completedTasks) {
+          if (isNonNullish(task.commitHash)) {
+            branches.push(`${this._getBranchPrefix(dependencies)}${task.id}`);
+            commits.push(task.commitHash);
           }
-        } catch (error) {
-          logger.warn(
-            `⚠️ Failed to create git-spice stack: ${error instanceof Error ? error.message : String(error)}`,
-          );
+        }
+
+        if (branches.length > 0) {
+          logger.info(`📚 Stack built incrementally with ${branches.length} branches`);
         }
       }
 
@@ -201,6 +205,8 @@ export class WorktreeExecutionStrategy extends BaseExecutionStrategy {
     results: TaskResult[],
     worktreeContexts: WorktreeContext[],
     dependencies: ExecutionStrategyDependencies,
+    plan?: ExecutionPlan,
+    executionContext?: ExecutionContext,
   ): Promise<void> {
     const successfulResults = results.filter((r) => r.status === 'success');
 
@@ -208,14 +214,40 @@ export class WorktreeExecutionStrategy extends BaseExecutionStrategy {
       const context = worktreeContexts.find((ctx) => ctx.taskId === result.taskId);
       if (isNonNullish(context)) {
         try {
-          // Find the original task
-          const task = { id: result.taskId } as ExecutionTask; // Simplified for commit
+          // Find the original task with all its metadata
+          let task: ExecutionTask | undefined;
+          if (plan !== undefined) {
+            task = plan.tasks.get(result.taskId);
+          }
 
-          await dependencies.vcsEngine.commitTaskChanges(task, context, {
+          // Fallback if plan not provided or task not found
+          task ??= { id: result.taskId } as ExecutionTask;
+
+          // Commit changes
+          const commitHash = await dependencies.vcsEngine.commitTaskChanges(task, context, {
             generateMessage: true,
           });
 
           logger.debug(`📝 Committed changes for task ${result.taskId}`);
+
+          // Update task with commit hash for incremental stacking
+          task.commitHash ??= commitHash;
+
+          // Add to stack incrementally (only in parallel mode, not dry run)
+          if (
+            executionContext !== undefined &&
+            executionContext.strategy === 'parallel' &&
+            !executionContext.dryRun
+          ) {
+            try {
+              await dependencies.vcsEngine.addTaskToStack(task, executionContext.cwd, context);
+              logger.debug(`📚 Added task ${result.taskId} to stack`);
+            } catch (error) {
+              logger.warn(
+                `⚠️ Failed to add task ${result.taskId} to stack: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+          }
         } catch (error) {
           logger.warn(
             `⚠️ Failed to commit task ${result.taskId}: ${error instanceof Error ? error.message : String(error)}`,
@@ -223,5 +255,10 @@ export class WorktreeExecutionStrategy extends BaseExecutionStrategy {
         }
       }
     }
+  }
+
+  private _getBranchPrefix(_dependencies: ExecutionStrategyDependencies): string {
+    // Get branch prefix from VCS engine config, default to 'chopstack/'
+    return 'chopstack/';
   }
 }
