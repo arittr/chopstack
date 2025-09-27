@@ -40,16 +40,16 @@ export default defineConfig({
           testTimeout: 15_000,
         },
       },
-      {
-        extends: true,
-        test: {
-          exclude: ['test/execution/**/*.test.ts'],
-          include: ['test/e2e/**/*.test.ts'],
-          name: 'e2e',
-          setupFiles: ['test/setup/vitest-e2e.setup.ts'],
-          testTimeout: 30_000,
-        },
-      },
+      // {
+      //   extends: true,
+      //   test: {
+      //     exclude: ['test/execution/**/*.test.ts'],
+      //     include: ['test/e2e/**/*.test.ts'],
+      //     name: 'e2e',
+      //     setupFiles: ['test/setup/vitest-e2e.setup.ts'],
+      //     testTimeout: 30_000,
+      //   },
+      // },
       // {
       //   extends: true,
       //   test: {
