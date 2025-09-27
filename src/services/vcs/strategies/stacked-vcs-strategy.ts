@@ -115,8 +115,18 @@ export class StackedVcsStrategy implements VcsStrategy {
       logger.warn(`  ⚠️ Failed to create worktree for task ${task.id}: ${String(error)}`);
     }
 
+    // Fallback to main repository with a proper context
     logger.info(`  📁 Fallback - using main repository: ${context.cwd}`);
-    return null; // Fallback to main repository
+    const fallbackContext: WorktreeContext = {
+      taskId: task.id,
+      branchName: `chopstack/${task.id}`,
+      worktreePath: context.cwd,
+      absolutePath: context.cwd,
+      baseRef: parentBranch,
+      created: new Date(),
+    };
+    this.worktreeContexts.set(task.id, fallbackContext);
+    return fallbackContext;
   }
 
   async handleTaskCompletion(

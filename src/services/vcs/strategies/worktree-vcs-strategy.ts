@@ -64,6 +64,20 @@ export class WorktreeVcsStrategy implements VcsStrategy {
     return contexts;
   }
 
+  async prepareTaskExecution(
+    task: Task,
+    _executionTask: ExecutionTask,
+    _context: VcsStrategyContext,
+  ): Promise<WorktreeContext | null> {
+    logger.info(`[WorktreeVcsStrategy] Preparing execution for task ${task.id}`);
+
+    // Return the worktree context if it exists
+    // Using await to satisfy async requirement without unnecessary Promise.resolve
+    const result = this._worktreeContexts.find((ctx) => ctx.taskId === task.id) ?? null;
+    await Promise.resolve(); // Ensure async behavior
+    return result;
+  }
+
   async handleTaskCompletion(
     task: Task,
     executionTask: ExecutionTask,
