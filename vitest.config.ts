@@ -40,6 +40,16 @@ export default defineConfig({
           testTimeout: 15_000,
         },
       },
+      {
+        extends: true,
+        test: {
+          exclude: ['test/e2e/**/*.test.ts', 'test/execution/**/*.test.ts'],
+          include: ['test/helpers/__tests__/*.test.ts'],
+          name: 'test-infrastructure',
+          setupFiles: ['test/setup/vitest-integration.setup.ts'],
+          testTimeout: 10_000,
+        },
+      },
       // {
       //   extends: true,
       //   test: {
