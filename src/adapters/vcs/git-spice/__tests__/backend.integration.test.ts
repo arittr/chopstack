@@ -1,34 +1,15 @@
-import type { TestWorktreeContext } from '@test/utils/testing-harness-worktree-manager';
-
-import { testWorktreeManager } from '@test/utils/testing-harness-worktree-manager';
-import { execa } from 'execa';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { setupGitTest } from '@test/helpers';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
-
-const createTestWorktreeOrSkip = async (testId: string): Promise<TestWorktreeContext | null> => {
-  try {
-    return await testWorktreeManager.createTestWorktree({
-      testId,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('Operation not permitted')) {
-      console.log(`⏭️  Skipping git-spice test '${testId}' - worktree creation denied`);
-      return null;
-    }
-    throw error;
-  }
-};
 
 describe('GitSpiceBackend integration tests', () => {
   let backend: GitSpiceBackend;
 
+  const { getGit, getTmpDir } = setupGitTest('git-spice-backend-integration');
+
   beforeEach(() => {
     backend = new GitSpiceBackend();
-  });
-
-  afterEach(async () => {
-    await testWorktreeManager.cleanupAllWorktrees();
   });
 
   describe('isAvailable', () => {
@@ -41,6 +22,7 @@ describe('GitSpiceBackend integration tests', () => {
 
       if (available) {
         // If git-spice is available, verify we can actually run gs --version
+        const { execa } = await import('execa');
         const { stdout } = await execa('gs', ['--version']);
         expect(stdout).toContain('git-spice');
       }
@@ -63,17 +45,10 @@ describe('GitSpiceBackend integration tests', () => {
         return;
       }
 
-      const context = await createTestWorktreeOrSkip('git-spice-init-test');
-      if (context === null) {
-        return;
-      }
+      const testDir = getTmpDir();
 
-      try {
-        // Test that initialization doesn't throw when git-spice is available
-        await expect(backend.initialize(context.absolutePath, 'main')).resolves.not.toThrow();
-      } finally {
-        await context.cleanup();
-      }
+      // Test that initialization doesn't throw when git-spice is available
+      await expect(backend.initialize(testDir, 'main')).resolves.not.toThrow();
     });
 
     it('should handle missing directory gracefully', async () => {
@@ -96,20 +71,13 @@ describe('GitSpiceBackend integration tests', () => {
         return;
       }
 
-      const context = await createTestWorktreeOrSkip('git-spice-duplicate-init-test');
-      if (context === null) {
-        return;
-      }
+      const testDir = getTmpDir();
 
-      try {
-        // First initialization
-        await backend.initialize(context.absolutePath, 'main');
+      // First initialization
+      await backend.initialize(testDir, 'main');
 
-        // Second initialization should not throw (should detect existing)
-        await expect(backend.initialize(context.absolutePath, 'main')).resolves.not.toThrow();
-      } finally {
-        await context.cleanup();
-      }
+      // Second initialization should not throw (should detect existing)
+      await expect(backend.initialize(testDir, 'main')).resolves.not.toThrow();
     });
 
     it('should use current branch as trunk when none specified', async () => {
@@ -120,25 +88,17 @@ describe('GitSpiceBackend integration tests', () => {
         return;
       }
 
-      const context = await createTestWorktreeOrSkip('git-spice-auto-trunk-test');
-      if (context === null) {
-        return;
-      }
+      const git = getGit();
+      const testDir = getTmpDir();
 
-      try {
-        // Create unique branch name to avoid conflicts
-        const uniqueBranch = `feature-branch-${Date.now()}`;
+      // Create unique branch name to avoid conflicts
+      const uniqueBranch = `feature-branch-${Date.now()}`;
 
-        // Create and switch to a feature branch
-        await execa('git', ['checkout', '-b', uniqueBranch], {
-          cwd: context.absolutePath,
-        });
+      // Create and switch to a feature branch
+      await git.checkoutBranch(uniqueBranch, 'HEAD');
 
-        // Initialize without specifying trunk - should not throw
-        await expect(backend.initialize(context.absolutePath)).resolves.not.toThrow();
-      } finally {
-        await context.cleanup();
-      }
+      // Initialize without specifying trunk - should not throw
+      await expect(backend.initialize(testDir)).resolves.not.toThrow();
     });
   });
 
@@ -151,24 +111,13 @@ describe('GitSpiceBackend integration tests', () => {
         return;
       }
 
-      const context = await createTestWorktreeOrSkip('git-spice-no-init-branch-test');
-      if (context === null) {
-        return;
-      }
+      const testDir = getTmpDir();
 
-      try {
-        // Try to create a branch without initializing git-spice first
-        // Should throw some error (GitSpiceError or any error indicating failure)
-        await expect(
-          backend.createBranchWithCommit(
-            context.absolutePath,
-            'test-branch',
-            'test: commit message',
-          ),
-        ).rejects.toThrow(); // Any error is fine - just shouldn't succeed
-      } finally {
-        await context.cleanup();
-      }
+      // Try to create a branch without initializing git-spice first
+      // Should throw some error (GitSpiceError or any error indicating failure)
+      await expect(
+        backend.createBranchWithCommit(testDir, 'test-branch', 'test: commit message'),
+      ).rejects.toThrow(); // Any error is fine - just shouldn't succeed
     });
 
     it('should handle branch creation workflow when git-spice is available', async () => {
@@ -181,28 +130,24 @@ describe('GitSpiceBackend integration tests', () => {
         return;
       }
 
-      const context = await createTestWorktreeOrSkip('git-spice-create-branch-test');
-      if (context === null) {
-        return;
-      }
+      const git = getGit();
+      const testDir = getTmpDir();
 
       try {
         // Initialize git-spice first
-        await backend.initialize(context.absolutePath, 'main');
+        await backend.initialize(testDir, 'main');
 
         // Create some changes to commit
-        await execa('touch', ['test-file.txt'], { cwd: context.absolutePath });
-        await execa('git', ['add', 'test-file.txt'], { cwd: context.absolutePath });
+        const fs = await import('node:fs');
+        const path = await import('node:path');
+        fs.writeFileSync(path.join(testDir, 'test-file.txt'), 'test content');
+        await git.add('test-file.txt');
 
         // Test the createBranchWithCommit method
         // We don't assert specific behavior since git-spice behavior varies
         // but we test that our code handles the workflow appropriately
         await expect(
-          backend.createBranchWithCommit(
-            context.absolutePath,
-            'feature-test',
-            'test: add test file',
-          ),
+          backend.createBranchWithCommit(testDir, 'feature-test', 'test: add test file'),
         ).resolves.toBeTruthy(); // Should return a branch name
       } catch (error) {
         // If git-spice commands fail in test environment, that's OK
@@ -210,8 +155,6 @@ describe('GitSpiceBackend integration tests', () => {
         console.log(
           `⚠️  Git-spice command failed in test environment: ${error instanceof Error ? error.message : String(error)}`,
         );
-      } finally {
-        await context.cleanup();
       }
     });
 
@@ -223,22 +166,22 @@ describe('GitSpiceBackend integration tests', () => {
         return;
       }
 
-      const context = await createTestWorktreeOrSkip('git-spice-auto-branch-name-test');
-      if (context === null) {
-        return;
-      }
+      const git = getGit();
+      const testDir = getTmpDir();
 
       try {
         // Initialize git-spice first
-        await backend.initialize(context.absolutePath, 'main');
+        await backend.initialize(testDir, 'main');
 
         // Create some changes to commit
-        await execa('touch', ['auto-name-file.txt'], { cwd: context.absolutePath });
-        await execa('git', ['add', 'auto-name-file.txt'], { cwd: context.absolutePath });
+        const fs = await import('node:fs');
+        const path = await import('node:path');
+        fs.writeFileSync(path.join(testDir, 'auto-name-file.txt'), 'auto content');
+        await git.add('auto-name-file.txt');
 
         // Test the branch name generation logic
         const result = await backend.createBranchWithCommit(
-          context.absolutePath,
+          testDir,
           '', // Empty name should trigger auto-generation
           'feat: add automatic branch naming',
         );
@@ -251,8 +194,6 @@ describe('GitSpiceBackend integration tests', () => {
           `⚠️  Git-spice auto-branch test failed as expected: ${error instanceof Error ? error.message : String(error)}`,
         );
         expect(error).toBeDefined(); // At least verify error handling works
-      } finally {
-        await context.cleanup();
       }
     });
   });
