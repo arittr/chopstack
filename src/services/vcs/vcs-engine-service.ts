@@ -121,8 +121,8 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
     task: ExecutionTask,
     workdir: string,
     worktreeContext?: WorktreeContext,
-  ): Promise<void> {
-    await this.stackBuildService.addTaskToStack(task, workdir, worktreeContext);
+  ): Promise<string | null> {
+    return this.stackBuildService.addTaskToStack(task, workdir, worktreeContext);
   }
 
   async analyzeWorktreeNeeds(
