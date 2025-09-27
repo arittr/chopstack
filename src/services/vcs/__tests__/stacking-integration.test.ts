@@ -1,10 +1,11 @@
+import type { SimpleGit } from 'simple-git';
+
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { setupGitTest } from '@test/helpers';
 import { execa } from 'execa';
-import simpleGit, { type SimpleGit } from 'simple-git';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecutionContext } from '@/core/execution/interfaces';
 import type { Plan } from '@/types/decomposer';
@@ -18,34 +19,17 @@ import { VcsEngineServiceImpl } from '@/services/vcs/vcs-engine-service';
 import { logger } from '@/utils/global-logger';
 
 describe('Stacked Branches Integration', () => {
-  let testDir: string;
   let git: SimpleGit;
+  let testDir: string;
   let executeModeHandler: ExecuteModeHandlerImpl;
   let vcsEngine: VcsEngineServiceImpl;
   let mockOrchestrator: TaskOrchestrator;
 
-  afterEach(() => {
-    // Clean up test directory
-    if (testDir !== '' && fs.existsSync(testDir)) {
-      fs.rmSync(testDir, { recursive: true, force: true });
-    }
-  });
+  const { getGit, getTmpDir } = setupGitTest('stacking-integration');
 
   beforeEach(async () => {
-    // Create a temporary directory for the test
-    testDir = path.join(os.tmpdir(), `chopstack-stacking-test-${Date.now()}`);
-    fs.mkdirSync(testDir, { recursive: true });
-
-    // Initialize git repository
-    git = simpleGit(testDir);
-    await git.init();
-    await git.addConfig('user.email', 'test@example.com');
-    await git.addConfig('user.name', 'Test User');
-
-    // Create initial commit
-    fs.writeFileSync(path.join(testDir, 'README.md'), '# Test Project\n');
-    await git.add('.');
-    await git.commit('Initial commit');
+    git = getGit();
+    testDir = getTmpDir();
 
     // Initialize git-spice
     try {
@@ -98,28 +82,27 @@ describe('Stacked Branches Integration', () => {
       }
 
       // Simulate different file changes based on task ID
-      let filePath: string;
       switch (request.taskId) {
         case 'task-a': {
-          filePath = path.join(workdir, 'feature-a.ts');
+          const filePath = path.join(workdir, 'feature-a.ts');
           fs.writeFileSync(filePath, 'export const featureA = true;\n');
           logger.info(`Created file: ${filePath}`);
           break;
         }
         case 'task-b': {
-          filePath = path.join(workdir, 'feature-b.ts');
+          const filePath = path.join(workdir, 'feature-b.ts');
           fs.writeFileSync(filePath, 'export const featureB = true;\n');
           logger.info(`Created file: ${filePath}`);
           break;
         }
         case 'task-c': {
-          filePath = path.join(workdir, 'feature-c.ts');
+          const filePath = path.join(workdir, 'feature-c.ts');
           fs.writeFileSync(filePath, 'export const featureC = true;\n');
           logger.info(`Created file: ${filePath}`);
           break;
         }
         case 'task-cleanup': {
-          filePath = path.join(workdir, 'test-file.ts');
+          const filePath = path.join(workdir, 'test-file.ts');
           fs.writeFileSync(filePath, 'export const testFile = true;\n');
           logger.info(`Created file: ${filePath}`);
           break;
@@ -331,7 +314,8 @@ describe('Stacked Branches Integration', () => {
     // 3. Reuse the existing branch after resetting it
     expect(result).toBeDefined();
     expect(result.tasks).toHaveLength(1);
-    expect(result.tasks[0]?.status).toBe('success');
+    const firstTask = result.tasks[0];
+    expect(firstTask?.status).toBe('success');
 
     // Verify the task's changes are committed somewhere
     const branches = await git.branch();
@@ -344,11 +328,13 @@ describe('Stacked Branches Integration', () => {
     // Check that the changes were actually made - use the last branch (most recent/unique one)
     const targetBranch = taskBranches.at(-1);
     expect(targetBranch).toBeDefined();
-    logger.info(`🎯 Testing branch: ${targetBranch}`);
-    await git.checkout(targetBranch!);
-    const files = await git.raw(['ls-tree', '-r', '--name-only', 'HEAD']);
-    logger.info(`📁 Files in branch ${targetBranch}: ${files.trim()}`);
-    expect(files).toContain('feature-a.ts');
+    if (targetBranch !== undefined) {
+      logger.info(`🎯 Testing branch: ${targetBranch}`);
+      await git.checkout(targetBranch);
+      const files = await git.raw(['ls-tree', '-r', '--name-only', 'HEAD']);
+      logger.info(`📁 Files in branch ${targetBranch}: ${files.trim()}`);
+      expect(files).toContain('feature-a.ts');
+    }
   });
 
   it('should properly clean up worktrees after stacking', async () => {

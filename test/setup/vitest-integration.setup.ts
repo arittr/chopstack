@@ -3,6 +3,8 @@ import { vi } from 'vitest';
 
 // Import worktree cleanup to ensure it runs after all tests
 import './worktree-cleanup';
+// Import test infrastructure cleanup for GitTestEnvironment and TestResourceTracker
+import './test-infrastructure-cleanup';
 
 // Integration test setup - for testing real class interactions
 // Mock only truly external dependencies (file system, network, subprocess calls)
