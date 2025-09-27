@@ -128,6 +128,7 @@ vi.mock('node:child_process', async (importOriginal) => {
   const shouldUseRealSubprocess =
     testFile.includes('/vcs/') ||
     testFile.includes('/engine/') ||
+    testFile.includes('/execution/') ||
     testFile.includes('worktree-manager') ||
     testFile.includes('run.integration.test.ts') ||
     testFile.includes('cli-runner.integration.test.ts');

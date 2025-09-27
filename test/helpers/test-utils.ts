@@ -248,9 +248,10 @@ export async function createTestCommits(
  * Helper to simulate git-spice being available.
  */
 export function mockGitSpiceAvailable(isAvailable = true): void {
-  const originalExecSync = execSync;
   vi.mock('node:child_process', async (importOriginal) => {
     const actual = await importOriginal<{ [key: string]: unknown; execSync: typeof execSync }>();
+    const originalExecSync = actual.execSync;
+
     return {
       ...actual,
       execSync: vi.fn().mockImplementation((cmd: unknown, options?: unknown) => {
