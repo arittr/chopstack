@@ -295,6 +295,146 @@ We recently modernized the test suite by:
 
 The result is a clean, focused test suite that tests our actual functionality rather than external dependencies.
 
+## Test Infrastructure
+
+The project includes robust test infrastructure designed to prevent test pollution and ensure proper isolation between tests. This infrastructure was created to solve issues with leftover Git branches, worktrees, and temporary directories that were causing tests to interfere with each other.
+
+### Core Components
+
+#### GitTestEnvironment (`test/helpers/git-test-environment.ts`)
+Creates isolated, temporary Git repositories for testing Git operations:
+
+```typescript
+import { setupGitTest } from '@test/helpers';
+
+describe('My Git Test', () => {
+  const { env, getGit, getTmpDir } = setupGitTest('my-test');
+
+  beforeEach(() => {
+    // Test environment is automatically created and cleaned up
+    git = getGit();
+    testDir = getTmpDir();
+  });
+
+  // Tests automatically get:
+  // - Fresh temporary directory
+  // - Initialized Git repository
+  // - Proper Git configuration
+  // - Automatic cleanup on completion/failure
+});
+```
+
+#### TestResourceTracker (`test/helpers/test-resource-tracker.ts`)
+Global singleton that tracks and cleans up all test resources:
+
+- **Automatic tracking**: Git branches, worktrees, and directories
+- **Process exit handlers**: Guaranteed cleanup even on crashes
+- **Orphaned resource cleanup**: Removes leftover artifacts from previous runs
+- **Statistics**: Track resource usage across test runs
+
+#### Test Utilities (`test/helpers/test-utils.ts`)
+Common utilities for creating test data and managing test lifecycle:
+
+```typescript
+import { createTestTask, createTestPlan, waitFor } from '@test/helpers';
+
+// Type-safe test data generators
+const task = createTestTask({ id: 'my-task', dependencies: ['other-task'] });
+const plan = createTestPlan({ tasks: [task1, task2] });
+
+// Async test utilities
+await waitFor(() => condition(), { timeout: 5000, message: 'Custom error' });
+```
+
+### Usage Patterns
+
+#### For Git Operations (VCS Integration Tests)
+```typescript
+import { setupGitTest } from '@test/helpers';
+
+describe('VCS Integration', () => {
+  const { getGit, getTmpDir } = setupGitTest('vcs-test');
+
+  beforeEach(() => {
+    git = getGit();        // Isolated Git instance
+    testDir = getTmpDir(); // Unique temporary directory
+  });
+
+  // No afterEach needed - automatic cleanup
+});
+```
+
+#### For Complex Test Data
+```typescript
+import { createTestPlan, createTestTask } from '@test/helpers';
+
+const complexPlan = createTestPlan({
+  tasks: [
+    createTestTask({ id: 'task-1', files: ['src/component.tsx'] }),
+    createTestTask({ id: 'task-2', dependencies: ['task-1'] }),
+  ]
+});
+```
+
+### Global Cleanup Hooks
+
+The infrastructure includes global cleanup that runs:
+
+- **Before tests**: Clean up orphaned resources from previous runs
+- **After tests**: Ensure all tracked resources are cleaned up
+- **On process exit**: Emergency cleanup for crashes or interruptions
+
+```typescript
+// Automatically imported in test setup files
+import './test-infrastructure-cleanup';
+```
+
+### Benefits
+
+- ✅ **Zero test pollution**: Each test runs in complete isolation
+- ✅ **Automatic cleanup**: No manual resource management needed
+- ✅ **Crash safety**: Resources cleaned up even on test failures
+- ✅ **Performance**: Parallel tests don't interfere with each other
+- ✅ **Debugging**: Clear error messages when resources leak
+
+### Migration Guide
+
+**Before (manual cleanup)**:
+```typescript
+describe('My Test', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(os.tmpdir(), `test-${Date.now()}`);
+    fs.mkdirSync(testDir, { recursive: true });
+    // ... manual git setup
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(testDir)) {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    }
+    // ... manual git cleanup
+  });
+});
+```
+
+**After (using infrastructure)**:
+```typescript
+import { setupGitTest } from '@test/helpers';
+
+describe('My Test', () => {
+  const { getGit, getTmpDir } = setupGitTest('my-test');
+
+  beforeEach(() => {
+    git = getGit();
+    testDir = getTmpDir();
+  });
+
+  // No afterEach needed!
+});
+```
+
 ## Execution Testing Framework
 
 The project includes a unique execution testing framework that validates Claude's task execution approach without expensive API calls:

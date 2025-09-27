@@ -1,9 +1,8 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { setupGitTest } from '@test/helpers';
 import simpleGit from 'simple-git';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecutionContext } from '@/core/execution/interfaces';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
@@ -25,20 +24,14 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
   let context: ExecutionContext;
   let testDir: string;
 
-  beforeEach(async () => {
+  const { getTmpDir } = setupGitTest('execute-mode-handler');
+
+  beforeEach(() => {
     // Clear all mocks before each test
     vi.clearAllMocks();
-    // Create a real temporary directory for testing
-    testDir = mkdtempSync(join(tmpdir(), 'chopstack-test-'));
 
-    // Initialize it as a git repository
-    const git = simpleGit(testDir);
-    await git.init();
-    await git.addConfig('user.email', 'test@example.com');
-    await git.addConfig('user.name', 'Test User');
-
-    // Create initial commit
-    await git.raw(['commit', '--allow-empty', '-m', 'Initial commit']);
+    // Use the test infrastructure
+    testDir = getTmpDir();
 
     // Create mocks for external dependencies only
     mockOrchestrator = {
@@ -141,13 +134,6 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
       vcsMode: 'simple',
       verbose: false,
     };
-  });
-
-  afterEach(() => {
-    // Clean up the test directory
-    if (testDir.length > 0) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
   });
 
   describe('Real State Transition Tests', () => {

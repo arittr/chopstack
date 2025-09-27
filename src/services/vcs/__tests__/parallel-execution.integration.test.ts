@@ -1,10 +1,11 @@
+import type { SimpleGit } from 'simple-git';
+
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { setupGitTest } from '@test/helpers';
 import { execa } from 'execa';
-import simpleGit, { type SimpleGit } from 'simple-git';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecutionContext } from '@/core/execution/interfaces';
 import type { Plan } from '@/types/decomposer';
@@ -19,102 +20,17 @@ import { logger } from '@/utils/global-logger';
 import { isNonNullish } from '@/validation/guards';
 
 describe('Parallel Execution Integration', () => {
-  let testDir: string;
   let git: SimpleGit;
+  let testDir: string;
   let executeModeHandler: ExecuteModeHandlerImpl;
   let vcsEngine: VcsEngineServiceImpl;
   let mockOrchestrator: TaskOrchestrator;
 
-  afterEach(async () => {
-    // Clean up test directory and any worktrees
-    if (testDir !== '' && fs.existsSync(testDir)) {
-      try {
-        // First try to remove any git worktrees
-        const git = simpleGit(testDir);
-        const worktrees = await git.raw(['worktree', 'list', '--porcelain']);
-        const worktreePaths = worktrees
-          .split('\n')
-          .filter((line) => line.startsWith('worktree '))
-          .map((line) => line.slice('worktree '.length))
-          .filter((path) => path !== testDir); // Don't try to remove main worktree
-
-        for (const worktreePath of worktreePaths) {
-          try {
-            await git.raw(['worktree', 'remove', worktreePath, '--force']);
-          } catch {
-            // Ignore errors, we'll clean up the directory anyway
-          }
-        }
-
-        // Also clean up any test branches
-        try {
-          const branches = await git.branch();
-          const testBranches = branches.all.filter(
-            (b) => b.startsWith('chopstack/') || b.startsWith('tmp-chopstack/'),
-          );
-          for (const branch of testBranches) {
-            try {
-              await git.deleteLocalBranch(branch, true);
-            } catch {
-              // Ignore branch deletion errors
-            }
-          }
-        } catch {
-          // Ignore branch listing errors
-        }
-      } catch {
-        // Ignore git errors if the repo is corrupted
-      }
-
-      // Now remove the entire directory
-      fs.rmSync(testDir, { recursive: true, force: true });
-    }
-    testDir = '';
-
-    // Clean up any leftover test directories from previous runs
-    try {
-      const tmpDir = os.tmpdir();
-      const entries = fs.readdirSync(tmpDir);
-      const oldTestDirs = entries.filter((e) => e.startsWith('chopstack-parallel-test-'));
-      for (const dir of oldTestDirs) {
-        const fullPath = path.join(tmpDir, dir);
-        if (fs.existsSync(fullPath)) {
-          try {
-            fs.rmSync(fullPath, { recursive: true, force: true });
-          } catch {
-            // Ignore cleanup errors
-          }
-        }
-      }
-    } catch {
-      // Ignore errors cleaning old test dirs
-    }
-  });
+  const { getGit, getTmpDir } = setupGitTest('parallel-execution');
 
   beforeEach(async () => {
-    // Create a temporary directory for the test with a unique name
-    testDir = path.join(
-      os.tmpdir(),
-      `chopstack-parallel-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-
-    // Ensure the directory doesn't exist before creating it
-    if (fs.existsSync(testDir)) {
-      fs.rmSync(testDir, { recursive: true, force: true });
-    }
-
-    fs.mkdirSync(testDir, { recursive: true });
-
-    // Initialize git repository
-    git = simpleGit(testDir);
-    await git.init();
-    await git.addConfig('user.email', 'test@example.com');
-    await git.addConfig('user.name', 'Test User');
-
-    // Create initial commit
-    fs.writeFileSync(path.join(testDir, 'README.md'), '# Test Project\n');
-    await git.add('.');
-    await git.commit('Initial commit');
+    git = getGit();
+    testDir = getTmpDir();
 
     // Initialize git-spice
     try {
@@ -167,16 +83,15 @@ describe('Parallel Execution Integration', () => {
       }
 
       // Simulate different file changes based on task ID
-      let filePath: string;
       switch (request.taskId) {
         case 'task-foundation': {
-          filePath = path.join(workdir, 'foundation.ts');
+          const filePath = path.join(workdir, 'foundation.ts');
           fs.writeFileSync(filePath, 'export const foundation = true;\n');
           logger.info(`Created file: ${filePath}`);
           break;
         }
         case 'task-feature-a': {
-          filePath = path.join(workdir, 'feature-a.ts');
+          const filePath = path.join(workdir, 'feature-a.ts');
           fs.writeFileSync(
             filePath,
             'import { foundation } from "./foundation";\nexport const featureA = foundation;\n',
@@ -185,7 +100,7 @@ describe('Parallel Execution Integration', () => {
           break;
         }
         case 'task-feature-b': {
-          filePath = path.join(workdir, 'feature-b.ts');
+          const filePath = path.join(workdir, 'feature-b.ts');
           fs.writeFileSync(
             filePath,
             'import { foundation } from "./foundation";\nexport const featureB = foundation;\n',
@@ -194,7 +109,7 @@ describe('Parallel Execution Integration', () => {
           break;
         }
         case 'task-integration': {
-          filePath = path.join(workdir, 'integration.ts');
+          const filePath = path.join(workdir, 'integration.ts');
           fs.writeFileSync(
             filePath,
             'import { featureA } from "./feature-a";\nimport { featureB } from "./feature-b";\nexport const integration = featureA && featureB;\n',
@@ -204,7 +119,7 @@ describe('Parallel Execution Integration', () => {
         }
         default: {
           // Handle any other tasks
-          filePath = path.join(workdir, `${request.taskId}.ts`);
+          const filePath = path.join(workdir, `${request.taskId}.ts`);
           fs.writeFileSync(filePath, `export const ${request.taskId} = true;\n`);
           logger.info(`Created file: ${filePath}`);
           break;
@@ -559,12 +474,11 @@ describe('Parallel Execution Integration', () => {
         fs.mkdirSync(workdir, { recursive: true });
       }
 
-      let filePath: string;
       if (request.taskId === 'task-foundation') {
-        filePath = path.join(workdir, 'foundation.ts');
+        const filePath = path.join(workdir, 'foundation.ts');
         fs.writeFileSync(filePath, 'export const foundation = true;\n');
       } else {
-        filePath = path.join(workdir, `${request.taskId}.ts`);
+        const filePath = path.join(workdir, `${request.taskId}.ts`);
         fs.writeFileSync(filePath, `export const ${request.taskId} = true;\n`);
       }
 
