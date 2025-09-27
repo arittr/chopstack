@@ -201,6 +201,11 @@ export type StackBuildService = {
   reorderStack(tasks: ExecutionTask[], strategy: StackBuildStrategy): ExecutionTask[];
 
   /**
+   * Restack branches to ensure proper stacking relationships
+   */
+  restack(workdir: string): Promise<void>;
+
+  /**
    * Submit a stack for review (create PRs)
    */
   submitStack(workdir: string): Promise<string[]>;

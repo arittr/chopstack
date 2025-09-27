@@ -292,6 +292,16 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     // Build stack incrementally using git-spice
     const stackInfo = await this._buildStackIncremental(orderedTasks, workdir, options.parentRef);
 
+    // After all branches are tracked, run upstack restack to properly stack them
+    if (stackInfo.branches.length > 0) {
+      try {
+        await this.restack(workdir);
+      } catch (restackError) {
+        logger.warn(`⚠️ Failed to restack branches: ${String(restackError)}`);
+        // Continue anyway - branches are still created and tracked
+      }
+    }
+
     this.emit('stack_built', {
       type: 'stack_built',
       stackInfo,
@@ -819,6 +829,13 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     workdir: string,
   ): Promise<void> {
     await this.gitSpice.createBranchFromCommit(branchName, commitHash, parentBranch, workdir);
+  }
+
+  /**
+   * Restack branches to ensure proper stacking relationships
+   */
+  async restack(workdir: string): Promise<void> {
+    await this.gitSpice.restack(workdir);
   }
 
   /**

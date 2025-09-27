@@ -145,6 +145,14 @@ export class GitSpiceBackend implements VcsBackend {
       const isWorktree = !gitDir.endsWith('.git');
       logger.info(`  📊 Is worktree: ${isWorktree} (git dir: ${gitDir})`);
 
+      // Debug: Check what's in the commit before checkout
+      try {
+        const commitFiles = await git.git.raw(['ls-tree', '-r', '--name-only', commitHash]);
+        logger.info(`  🔍 Commit ${commitHash.slice(0, 7)} contains files: ${commitFiles.trim()}`);
+      } catch (debugError) {
+        logger.warn(`  ⚠️ Failed to list commit files: ${String(debugError)}`);
+      }
+
       // Checkout the commit
       logger.info(`  📍 Checking out commit: ${commitHash}`);
       await git.git.checkout([commitHash]);
@@ -152,7 +160,17 @@ export class GitSpiceBackend implements VcsBackend {
       // Create a regular git branch in the worktree first
       // (git-spice can't initialize in detached HEAD state)
       logger.info(`  🌿 Creating git branch ${branchName} in worktree`);
-      await git.git.checkoutBranch(branchName, commitHash);
+
+      // Check if branch already exists and make it unique if needed
+      let finalBranchName = branchName;
+      const branches = await git.git.branch();
+      if (branches.all.includes(branchName)) {
+        const timestamp = Date.now().toString(36);
+        finalBranchName = `${branchName}-${timestamp}`;
+        logger.warn(`  ⚠️ Branch ${branchName} already exists, using ${finalBranchName} instead`);
+      }
+
+      await git.git.checkoutBranch(finalBranchName, commitHash);
 
       // Verify we're on the new branch
       const currentBranch = await git.git.revparse(['--abbrev-ref', 'HEAD']);
@@ -166,11 +184,20 @@ export class GitSpiceBackend implements VcsBackend {
 
         // Fetch the branch from the worktree to the main repo
         const mainGit = new GitWrapper(mainRepoPath);
+
+        // Check if branch already exists in main repo and make it unique if needed
+        const mainBranches = await mainGit.git.branch();
+        if (mainBranches.all.includes(finalBranchName)) {
+          const timestamp = Date.now().toString(36);
+          finalBranchName = `${finalBranchName}-${timestamp}`;
+          logger.warn(`  ⚠️ Branch ${finalBranchName} exists in main repo, using unique name`);
+        }
+
         logger.info(`  📥 Fetching branch from worktree to main repo`);
-        await mainGit.git.fetch([workdir, `${branchName}:${branchName}`]);
+        await mainGit.git.fetch([workdir, `${finalBranchName}:${finalBranchName}`]);
 
         // Now track it with git-spice in the main repo
-        const trackCommand = ['branch', 'track', branchName, '--from', parentBranch];
+        const trackCommand = ['branch', 'track', finalBranchName, '--base', parentBranch];
         logger.info(`  🔗 Running in main repo: gs ${trackCommand.join(' ')}`);
 
         try {
@@ -181,8 +208,8 @@ export class GitSpiceBackend implements VcsBackend {
           logger.info(`  📤 Track result: ${trackResult.stdout}`);
 
           // Checkout the branch in the main repo so future ops use the right head
-          logger.info(`  🔄 Checking out ${branchName} in main repo`);
-          await mainGit.git.checkout([branchName]);
+          logger.info(`  🔄 Checking out ${finalBranchName} in main repo`);
+          await mainGit.git.checkout([finalBranchName]);
 
           // Remove the worktree since we've moved the branch to the main repo
           logger.info(`  🗑️ Removing worktree: ${workdir}`);
@@ -201,11 +228,20 @@ export class GitSpiceBackend implements VcsBackend {
       }
 
       // Verify the branch was created
-      const branches = await git.git.branch();
-      const branchExists = branches.all.includes(branchName);
-      logger.info(`  🔍 Branch ${branchName} exists: ${branchExists}`);
+      const finalBranches = await git.git.branch();
+      const branchExists = finalBranches.all.includes(finalBranchName);
+      logger.info(`  🔍 Branch ${finalBranchName} exists: ${branchExists}`);
 
-      logger.info(`  ✅ git-spice branch ${branchName} created and tracked successfully`);
+      // Debug: Check what files are in the final branch
+      try {
+        await git.git.checkout([finalBranchName]);
+        const branchFiles = await git.git.raw(['ls-tree', '-r', '--name-only', 'HEAD']);
+        logger.info(`  🔍 Final branch ${finalBranchName} contains files: ${branchFiles.trim()}`);
+      } catch (debugError) {
+        logger.warn(`  ⚠️ Failed to check final branch files: ${String(debugError)}`);
+      }
+
+      logger.info(`  ✅ git-spice branch ${finalBranchName} created and tracked successfully`);
     } catch (error) {
       const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
       const stdout = error instanceof Error && 'stdout' in error ? String(error.stdout) : '';
@@ -454,11 +490,45 @@ export class GitSpiceBackend implements VcsBackend {
       }
     }
 
+    // After all branches are tracked, run upstack restack to properly stack them
+    if (branches.length > 0) {
+      logger.info(`🔄 Running git-spice restack to properly stack ${branches.length} branches...`);
+      try {
+        await execa('gs', ['upstack', 'restack'], {
+          cwd: workdir,
+          timeout: 30_000, // Give more time for restacking
+        });
+        logger.info(`✅ Successfully restacked ${branches.length} branches`);
+      } catch (restackError) {
+        logger.warn(`⚠️ Failed to restack branches: ${String(restackError)}`);
+        // Continue anyway - branches are still created and tracked
+      }
+    }
+
     return {
       branches,
       stackRoot,
       prUrls: [],
     };
+  }
+
+  /**
+   * Restack all tracked branches using git-spice upstack restack
+   */
+  async restack(workdir: string): Promise<void> {
+    logger.info(`🔄 Running git-spice repo restack...`);
+
+    try {
+      await execa('gs', ['repo', 'restack'], {
+        cwd: workdir,
+        timeout: 30_000, // Give more time for restacking
+      });
+      logger.info(`✅ Successfully restacked all branches`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn(`⚠️ Failed to restack branches: ${errorMessage}`);
+      throw new GitSpiceError('Failed to restack branches', 'gs repo restack', errorMessage);
+    }
   }
 
   /**

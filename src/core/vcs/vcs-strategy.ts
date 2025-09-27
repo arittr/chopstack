@@ -62,6 +62,16 @@ export type VcsStrategy = {
   initialize(tasks: Task[], context: VcsStrategyContext): Promise<void>;
 
   /**
+   * Prepare a single task for execution (e.g., create worktree if needed)
+   * Returns the execution context for the task
+   */
+  prepareTaskExecution?(
+    task: Task,
+    executionTask: ExecutionTask,
+    context: VcsStrategyContext,
+  ): Promise<WorktreeContext | null>;
+
+  /**
    * Prepare for task execution (e.g., create worktrees, branches)
    * Returns a map of task IDs to their execution contexts
    */

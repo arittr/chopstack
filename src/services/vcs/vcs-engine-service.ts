@@ -145,7 +145,7 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
     logger.info(`🏗️ Creating worktrees for ${tasks.length} tasks from base ${baseRef}`);
 
     const worktreePromises = tasks.map(async (task) => {
-      const branchName = `${this.config.branchPrefix}${task.id}`;
+      const branchName = `tmp-chopstack/${task.id}`; // Use temporary prefix to avoid conflicts with final stack branches
       const worktreePath = `${this.config.shadowPath}/${task.id}`;
 
       const context = await this.worktreeService.createWorktree({
@@ -248,6 +248,10 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
       parentBranch,
       workdir,
     );
+  }
+
+  async restack(workdir: string): Promise<void> {
+    await this.stackBuildService.restack(workdir);
   }
 
   private _setupEventForwarding(): void {

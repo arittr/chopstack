@@ -60,6 +60,15 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
         executionTasksArray,
         vcsContext,
       );
+
+      // Update execution tasks with worktree directories now that they're available
+      for (const [taskId, worktreeContext] of this._worktreeContexts) {
+        const executionTask = this.executionTasks.get(taskId);
+        if (isNonNullish(executionTask)) {
+          executionTask.worktreeDir = worktreeContext.absolutePath;
+          logger.debug(`Task ${taskId} will execute in worktree: ${worktreeContext.absolutePath}`);
+        }
+      }
     }
 
     // Initialize the transition manager with all tasks
@@ -291,9 +300,38 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     const taskStart = Date.now();
 
     try {
-      // Use worktree directory if available (parallel mode), otherwise use context.cwd
       const executionTask = this.executionTasks.get(task.id);
-      const workdir = executionTask?.worktreeDir ?? context.cwd;
+      if (!isNonNullish(executionTask)) {
+        throw new Error(`ExecutionTask not found for task ${task.id}`);
+      }
+
+      // Prepare task execution context (create worktree if needed for stacked strategy)
+      if (
+        isNonNullish(this._vcsStrategy) &&
+        typeof this._vcsStrategy.prepareTaskExecution === 'function'
+      ) {
+        const vcsContext = {
+          cwd: context.cwd,
+          baseRef: context.parentRef ?? 'HEAD',
+        };
+
+        const worktreeContext = await this._vcsStrategy.prepareTaskExecution(
+          task,
+          executionTask,
+          vcsContext,
+        );
+
+        if (isNonNullish(worktreeContext)) {
+          // Update execution task with worktree directory
+          executionTask.worktreeDir = worktreeContext.absolutePath;
+          // Also update our worktree contexts map
+          this._worktreeContexts.set(task.id, worktreeContext);
+          logger.debug(`Task ${task.id} prepared with worktree: ${worktreeContext.absolutePath}`);
+        }
+      }
+
+      // Use worktree directory if available, otherwise use context.cwd
+      const workdir = executionTask.worktreeDir ?? context.cwd;
 
       logger.debug(
         `[chopstack] Task ${task.id}: Calling orchestrator.executeTask with workdir: ${workdir}`,
@@ -321,11 +359,21 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
           const executionTask = this.executionTasks.get(task.id);
           const worktreeContext = this._worktreeContexts.get(task.id);
 
-          if (isNonNullish(executionTask) && isNonNullish(worktreeContext)) {
+          if (isNonNullish(executionTask)) {
+            // For tasks running in main repo (no worktree), create a dummy worktree context
+            const contextForCommit = worktreeContext ?? {
+              taskId: task.id,
+              branchName: `tmp-chopstack/${task.id}`,
+              worktreePath: context.cwd,
+              absolutePath: context.cwd,
+              baseRef: context.parentRef ?? 'main',
+              created: new Date(),
+            };
+
             const commitResult = await this._vcsStrategy.handleTaskCompletion(
               task,
               executionTask,
-              worktreeContext,
+              contextForCommit,
               result.output,
             );
 
@@ -380,15 +428,6 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
         maxRetries: context.maxRetries,
       };
       this.executionTasks.set(task.id, executionTask);
-    }
-
-    // Update execution tasks with worktree directories if available
-    for (const [taskId, worktreeContext] of this._worktreeContexts) {
-      const executionTask = this.executionTasks.get(taskId);
-      if (isNonNullish(executionTask)) {
-        executionTask.worktreeDir = worktreeContext.absolutePath;
-        logger.debug(`Task ${taskId} will execute in: ${worktreeContext.absolutePath}`);
-      }
     }
   }
 }
