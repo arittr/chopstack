@@ -172,7 +172,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     task: ExecutionTask,
     workdir: string,
     worktreeContext?: WorktreeContext,
-  ): Promise<void> {
+  ): Promise<string | null> {
     // Initialize stack state if needed
     if (this._stackState === null) {
       this.initializeStackState(this.config.parentRef);
@@ -181,13 +181,14 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     // Check if task is already stacked
     if (this.isTaskStacked(task.id)) {
       logger.debug(`📚 Task ${task.id} is already in the stack`);
-      return;
+      // Return the existing branch name
+      return this._stackState?.taskToBranch.get(task.id) ?? null;
     }
 
     // Check if task has a commit
     if (!isNonEmptyString(task.commitHash)) {
       logger.warn(`⚠️ Task ${task.id} has no commit hash, cannot add to stack`);
-      return;
+      return null;
     }
 
     // Check dependencies
@@ -196,7 +197,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       if (this._stackState !== null) {
         this._stackState.pending.set(task.id, task);
       }
-      return;
+      return null;
     }
 
     logger.info(`📚 Adding task ${task.id} to stack...`);
@@ -282,6 +283,8 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
 
       // Process any pending tasks that might now be ready
       await this._processPendingTasks(workdir);
+
+      return branchName;
     } catch (error) {
       logger.error(
         `❌ Failed to add task ${task.id} to stack: ${error instanceof Error ? error.message : String(error)}`,
