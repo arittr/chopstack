@@ -169,12 +169,13 @@ export type StackBranch = {
 export type VcsEngineService = {
   /**
    * Add a single task to the stack incrementally
+   * Returns the branch name that was created
    */
   addTaskToStack(
     task: ExecutionTask,
     workdir: string,
     worktreeContext?: WorktreeContext,
-  ): Promise<void>;
+  ): Promise<string | null>;
 
   /**
    * Analyze worktree needs for parallel execution

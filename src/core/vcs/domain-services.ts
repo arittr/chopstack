@@ -146,12 +146,13 @@ export type ConflictResolutionService = {
 export type StackBuildService = {
   /**
    * Add a single task to the stack incrementally
+   * Returns the branch name that was created
    */
   addTaskToStack(
     task: ExecutionTask,
     workdir: string,
     worktreeContext?: WorktreeContext,
-  ): Promise<void>;
+  ): Promise<string | null>;
 
   /**
    * Build a git-spice stack from completed tasks

@@ -89,32 +89,10 @@ export class StackedVcsStrategy implements VcsStrategy {
   ): Promise<WorktreeContext | null> {
     logger.info(`[StackedVcsStrategy] Preparing execution for task ${task.id}`);
 
-    // For completion-order stacking, all tasks within a dependency layer execute from the same base
-    // The stacking happens later in completion order, not execution order
-    let parentBranch = context.baseRef ?? 'main';
-
-    // If task has dependencies, wait for them to complete and use the current stack tip
-    if (task.requires.length > 0) {
-      // Check if all dependencies are completed
-      const allDependenciesComplete = task.requires.every((depId) =>
-        this.completedTasks.has(depId),
-      );
-
-      if (allDependenciesComplete) {
-        // Use current stack tip (which includes all completed tasks so far)
-        parentBranch = this._currentStackTip;
-        logger.info(`  📍 All dependencies complete, using current stack tip: ${parentBranch}`);
-      } else {
-        // Dependencies not ready yet - task execution should wait
-        const pendingDeps = task.requires.filter((depId) => !this.completedTasks.has(depId));
-        logger.warn(`  ⚠️ Task ${task.id} has pending dependencies: ${pendingDeps.join(', ')}`);
-        logger.warn(`  📍 This indicates a scheduling issue - task should not execute yet`);
-        parentBranch = context.baseRef ?? 'main'; // Fallback to base
-      }
-    } else {
-      // No dependencies - this is a first-layer task, use base branch
-      logger.info(`  📍 No dependencies, using base branch: ${parentBranch}`);
-    }
+    // For completion-order stacking, ALL tasks execute from the base branch
+    // The stacking happens later in completion order during finalize()
+    const parentBranch = this._vcsContext.baseRef ?? 'main';
+    logger.info(`  📍 Using base branch for execution: ${parentBranch}`);
 
     logger.info(`  🏗️ Creating worktree for task ${task.id} from branch ${parentBranch}`);
 
@@ -236,12 +214,20 @@ export class StackedVcsStrategy implements VcsStrategy {
           created: new Date(),
         };
 
-        // Add task to stack
-        await this.vcsEngine.addTaskToStack(executionTask, context.cwd, stackContext);
+        // Add task to stack and get the actual created branch name
+        const createdBranchName = await this.vcsEngine.addTaskToStack(
+          executionTask,
+          context.cwd,
+          stackContext,
+        );
 
-        // Update our tracking
-        this._branchStack.push(newBranchName);
-        this._currentStackTip = newBranchName;
+        // Update our tracking with the actual branch name
+        if (isNonEmptyString(createdBranchName)) {
+          this._branchStack.push(createdBranchName);
+          this._currentStackTip = createdBranchName;
+        } else {
+          logger.error(`  ❌ Failed to get branch name for task ${taskId}`);
+        }
 
         logger.info(`  ✅ Stacked ${newBranchName} on ${stackContext.baseRef}`);
       } catch (error) {
