@@ -78,6 +78,10 @@ export class GitTestEnvironment {
    * Creates a worktree and tracks it for cleanup.
    */
   createWorktree(branchName: string, worktreePath?: string): string {
+    if (!isNonNullish(this._tmpDir)) {
+      throw new Error('Repository not initialized. Call initRepo() first.');
+    }
+
     const path = worktreePath ?? join(this.tmpDir, `worktree-${branchName}`);
 
     // Create the worktree
@@ -110,10 +114,24 @@ export class GitTestEnvironment {
    * Executes a command in the test directory.
    */
   exec(command: string): string {
-    return execSync(command, {
-      cwd: this.tmpDir,
-      encoding: 'utf8',
-    });
+    if (!isNonNullish(this._tmpDir)) {
+      throw new Error('Repository not initialized. Call initRepo() first.');
+    }
+
+    try {
+      const result = execSync(command, {
+        cwd: this.tmpDir,
+        encoding: 'utf8',
+      });
+
+      if (!isNonNullish(result)) {
+        return '';
+      }
+
+      return result.trim();
+    } catch (error) {
+      throw new Error(`Command failed: ${command}. Error: ${String(error)}`);
+    }
   }
 
   /**
