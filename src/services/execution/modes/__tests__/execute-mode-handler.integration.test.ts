@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 
-import { setupGitTest } from '@test/helpers';
+import { createGitTestEnvironment, type GitTestEnvironment } from '@test/helpers';
 import simpleGit from 'simple-git';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,15 +23,16 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
   let mockVcsStrategy: VcsStrategy;
   let context: ExecutionContext;
   let testDir: string;
+  let gitEnv: GitTestEnvironment;
 
-  const { getTmpDir } = setupGitTest('execute-mode-handler');
-
-  beforeEach(() => {
+  beforeEach(async () => {
     // Clear all mocks before each test
     vi.clearAllMocks();
 
-    // Use the test infrastructure
-    testDir = getTmpDir();
+    // Create and initialize git test environment manually
+    gitEnv = createGitTestEnvironment('execute-mode-handler');
+    await gitEnv.initRepo();
+    testDir = gitEnv.tmpDir;
 
     // Create mocks for external dependencies only
     mockOrchestrator = {
@@ -134,6 +135,10 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
       vcsMode: 'simple',
       verbose: false,
     };
+  });
+
+  afterEach(async () => {
+    await gitEnv.cleanup();
   });
 
   describe('Real State Transition Tests', () => {
@@ -631,24 +636,9 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
       // Set up parallel context
       context.vcsMode = 'worktree';
 
-      // Create actual worktree directories and initialize them as git repos
-      const fs = await import('node:fs/promises');
-
-      await fs.mkdir(worktree1Path, { recursive: true });
-      await fs.mkdir(worktree2Path, { recursive: true });
-
-      // Initialize worktrees as git repos using child_process
-      const { execSync } = await import('node:child_process');
-
-      execSync('git init', { cwd: worktree1Path });
-      execSync('git config user.email test@example.com', { cwd: worktree1Path });
-      execSync('git config user.name "Test User"', { cwd: worktree1Path });
-      execSync('git commit --allow-empty -m "Initial commit"', { cwd: worktree1Path });
-
-      execSync('git init', { cwd: worktree2Path });
-      execSync('git config user.email test@example.com', { cwd: worktree2Path });
-      execSync('git config user.name "Test User"', { cwd: worktree2Path });
-      execSync('git commit --allow-empty -m "Initial commit"', { cwd: worktree2Path });
+      // Create actual worktree directories using GitTestEnvironment
+      const _worktree1Path_actual = gitEnv.createWorktree('task1', worktree1Path);
+      const _worktree2Path_actual = gitEnv.createWorktree('task2', worktree2Path);
 
       // The default mock from beforeEach already creates files and stages them
 
