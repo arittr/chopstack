@@ -1,5 +1,4 @@
-import { testWorktreeManager } from '@test/utils/testing-harness-worktree-manager';
-import { execa } from 'execa';
+import { createGitTestEnvironment, type GitTestEnvironment } from '@test/helpers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CommandDependencies } from '@/commands/types';
@@ -18,9 +17,14 @@ describe('StackCommand integration tests', () => {
     info: ReturnType<typeof vi.fn>;
     warn: ReturnType<typeof vi.fn>;
   };
+  let gitEnv: GitTestEnvironment;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Create and initialize git test environment manually
+    gitEnv = createGitTestEnvironment('stack-command-integration');
+    await gitEnv.initRepo();
 
     mockLogger = {
       info: vi.fn(),
@@ -30,7 +34,7 @@ describe('StackCommand integration tests', () => {
 
     mockDependencies = {
       context: {
-        cwd: '/test/workdir',
+        cwd: process.cwd(), // Will be overridden in tests that need specific directory
         logger: mockLogger,
       },
     };
@@ -39,32 +43,31 @@ describe('StackCommand integration tests', () => {
   });
 
   afterEach(async () => {
-    await testWorktreeManager.cleanupAllWorktrees();
+    await gitEnv.cleanup();
   });
 
   describe('end-to-end git operations', () => {
     it('should handle real git repository with changes', async () => {
-      const context = await testWorktreeManager.createTestWorktree({
-        testId: 'stack-command-real-git-test',
-      });
+      const { git, tmpDir: testDir } = gitEnv;
+
+      // Create and stage a test file
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+
+      const testFilePath = path.join(testDir, 'test-file.txt');
+      fs.writeFileSync(testFilePath, 'test content');
+      await git.add('test-file.txt');
+
+      // Mock process.cwd to return our test directory
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(testDir);
 
       try {
-        // Create a test file with changes
-        await execa('touch', ['test-file.txt'], { cwd: context.absolutePath });
-        await execa('git', ['add', 'test-file.txt'], { cwd: context.absolutePath });
-
-        // Mock process.cwd to return our test directory
-        const originalCwd = process.cwd;
-        process.cwd = vi.fn().mockReturnValue(context.absolutePath);
-
         const result = await stackCommand.execute({
           createStack: false,
           autoAdd: false,
           message: 'test: add test file',
         });
-
-        // Restore original cwd
-        process.cwd = originalCwd;
 
         expect(result).toBe(0);
         expect(mockLogger.info).toHaveBeenCalledWith(
@@ -75,65 +78,59 @@ describe('StackCommand integration tests', () => {
         );
 
         // Verify commit was actually created
-        const { stdout: logOutput } = await execa('git', ['log', '--oneline', '-1'], {
-          cwd: context.absolutePath,
-        });
-        expect(logOutput).toContain('test: add test file');
+        const log = await git.log({ maxCount: 1 });
+        expect(log.latest?.message).toContain('test: add test file');
       } finally {
-        await context.cleanup();
+        // Restore original cwd
+        process.cwd = originalCwd;
       }
     });
 
     it('should handle empty repository gracefully', async () => {
-      const context = await testWorktreeManager.createTestWorktree({
-        testId: 'stack-command-empty-repo-test',
-      });
+      const testDir = gitEnv.tmpDir;
+
+      // Mock process.cwd to return our test directory
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(testDir);
 
       try {
-        // Mock process.cwd to return our test directory
-        const originalCwd = process.cwd;
-        process.cwd = vi.fn().mockReturnValue(context.absolutePath);
-
         const result = await stackCommand.execute({
           createStack: false,
           autoAdd: false,
         });
-
-        // Restore original cwd
-        process.cwd = originalCwd;
 
         expect(result).toBe(1);
         expect(mockLogger.info).toHaveBeenCalledWith(
           expect.stringContaining('No changes to commit'),
         );
       } finally {
-        await context.cleanup();
+        // Restore original cwd
+        process.cwd = originalCwd;
       }
     });
 
     it('should handle git-spice availability detection', async () => {
-      const context = await testWorktreeManager.createTestWorktree({
-        testId: 'stack-command-git-spice-test',
-      });
+      const { git, tmpDir: testDir } = gitEnv;
+
+      // Create and stage a test file
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+
+      const testFilePath = path.join(testDir, 'spice-test.txt');
+      fs.writeFileSync(testFilePath, 'spice test content');
+      await git.add('spice-test.txt');
+
+      // Mock process.cwd to return our test directory
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(testDir);
 
       try {
-        // Create some changes
-        await execa('touch', ['spice-test.txt'], { cwd: context.absolutePath });
-        await execa('git', ['add', 'spice-test.txt'], { cwd: context.absolutePath });
-
-        // Mock process.cwd to return our test directory
-        const originalCwd = process.cwd;
-        process.cwd = vi.fn().mockReturnValue(context.absolutePath);
-
         // Test with git-spice stack creation
         const result = await stackCommand.execute({
           createStack: true,
           autoAdd: false,
           message: 'test: git-spice integration',
         });
-
-        // Restore original cwd
-        process.cwd = originalCwd;
 
         // In test environment, git-spice operations may fail due to:
         // - git-spice not being installed
@@ -192,26 +189,28 @@ describe('StackCommand integration tests', () => {
           }
         }
       } finally {
-        await context.cleanup();
+        // Restore original cwd
+        process.cwd = originalCwd;
       }
     });
 
     it('should handle commit message generation workflow', async () => {
-      const context = await testWorktreeManager.createTestWorktree({
-        testId: 'stack-command-commit-generation-test',
-      });
+      const { git, tmpDir: testDir } = gitEnv;
+
+      // Create multiple files with different types
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+
+      fs.writeFileSync(path.join(testDir, 'component.tsx'), 'export const Component = () => {};');
+      fs.writeFileSync(path.join(testDir, 'api.ts'), 'export const api = {};');
+      fs.writeFileSync(path.join(testDir, 'test.spec.ts'), 'describe("test", () => {});');
+      await git.add('.');
+
+      // Mock process.cwd to return our test directory
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(testDir);
 
       try {
-        // Create multiple files with different types
-        await execa('touch', ['component.tsx', 'api.ts', 'test.spec.ts'], {
-          cwd: context.absolutePath,
-        });
-        await execa('git', ['add', '.'], { cwd: context.absolutePath });
-
-        // Mock process.cwd to return our test directory
-        const originalCwd = process.cwd;
-        process.cwd = vi.fn().mockReturnValue(context.absolutePath);
-
         // Test without providing a message (should generate one)
         const result = await stackCommand.execute({
           createStack: false,
@@ -253,35 +252,35 @@ describe('StackCommand integration tests', () => {
         expect(detailedContentCalls.length).toBeGreaterThanOrEqual(1);
 
         // Verify the actual commit was created with a proper commit message
-        const { stdout: logOutput } = await execa('git', ['log', '--oneline', '-1'], {
-          cwd: context.absolutePath,
-        });
+        const log = await git.log({ maxCount: 1 });
+        const commitMessage = log.latest?.message ?? '';
 
         // Should contain a conventional commit format (real Claude response)
-        expect(logOutput).toMatch(/\w+ (feat|fix|docs|style|refactor|test|chore):/i);
+        expect(commitMessage).toMatch(/^(feat|fix|docs|style|refactor|test|chore):/i);
 
         // Should be a substantial commit message (not just a generic title)
-        expect(logOutput.length).toBeGreaterThan(50);
+        expect(commitMessage.length).toBeGreaterThan(50);
       } finally {
-        await context.cleanup();
+        // Restore original cwd
+        process.cwd = originalCwd;
       }
     });
 
     it('should handle autoAdd functionality correctly', async () => {
-      const context = await testWorktreeManager.createTestWorktree({
-        testId: 'stack-command-auto-add-test',
-      });
+      const { git, tmpDir: testDir } = gitEnv;
+
+      // Create untracked files (not added to git yet)
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+
+      fs.writeFileSync(path.join(testDir, 'untracked1.txt'), 'content1');
+      fs.writeFileSync(path.join(testDir, 'untracked2.txt'), 'content2');
+
+      // Mock process.cwd to return our test directory
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(testDir);
 
       try {
-        // Create untracked files (not added to git yet)
-        await execa('touch', ['untracked1.txt', 'untracked2.txt'], {
-          cwd: context.absolutePath,
-        });
-
-        // Mock process.cwd to return our test directory
-        const originalCwd = process.cwd;
-        process.cwd = vi.fn().mockReturnValue(context.absolutePath);
-
         const result = await stackCommand.execute({
           createStack: false,
           autoAdd: true,
@@ -297,46 +296,44 @@ describe('StackCommand integration tests', () => {
         );
 
         // Verify files were added and committed
-        const { stdout: statusOutput } = await execa('git', ['status', '--porcelain'], {
-          cwd: context.absolutePath,
-        });
+        const status = await git.status();
         // Status should be clean after auto-add and commit
-        expect(statusOutput.trim()).toBe('');
+        expect(status.files).toHaveLength(0);
 
         // Verify commit contains the files
-        const { stdout: showOutput } = await execa('git', ['show', '--name-only', '--format='], {
-          cwd: context.absolutePath,
-        });
-        expect(showOutput).toContain('untracked1.txt');
-        expect(showOutput).toContain('untracked2.txt');
+        const log = await git.log({ maxCount: 1 });
+        const diffSummary = await git.diffSummary([
+          `${log.latest?.hash}~1`,
+          log.latest?.hash ?? '',
+        ]);
+        expect(diffSummary.files.some((f) => f.file === 'untracked1.txt')).toBe(true);
+        expect(diffSummary.files.some((f) => f.file === 'untracked2.txt')).toBe(true);
       } finally {
-        await context.cleanup();
+        // Restore original cwd
+        process.cwd = originalCwd;
       }
     });
   });
 
   describe('error handling integration', () => {
     it('should handle git command failures gracefully', async () => {
-      const context = await testWorktreeManager.createTestWorktree({
-        testId: 'stack-command-git-error-test',
-      });
+      const { tmpDir: testDir } = gitEnv;
+
+      // Create changes but don't stage them, then try to commit without autoAdd
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      fs.writeFileSync(path.join(testDir, 'unstaged-file.txt'), 'unstaged content');
+
+      // Mock process.cwd to return our test directory
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(testDir);
 
       try {
-        // Create changes but don't stage them, then try to commit without autoAdd
-        await execa('touch', ['unstaged-file.txt'], { cwd: context.absolutePath });
-
-        // Mock process.cwd to return our test directory
-        const originalCwd = process.cwd;
-        process.cwd = vi.fn().mockReturnValue(context.absolutePath);
-
         const result = await stackCommand.execute({
           createStack: false,
           autoAdd: false,
           message: 'test: should fail',
         });
-
-        // Restore original cwd
-        process.cwd = originalCwd;
 
         // Should fail because untracked files need to be added first
         expect(result).toBe(1);
@@ -356,33 +353,31 @@ describe('StackCommand integration tests', () => {
           expect.stringContaining('💬 Generated commit message:'),
         );
       } finally {
-        await context.cleanup();
+        // Restore original cwd
+        process.cwd = originalCwd;
       }
     });
 
     it('should provide detailed error messages for git failures', async () => {
-      const context = await testWorktreeManager.createTestWorktree({
-        testId: 'stack-command-detailed-error-test',
-      });
+      const { git, tmpDir: testDir } = gitEnv;
+
+      // Create and stage a test file
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      fs.writeFileSync(path.join(testDir, 'test-error.txt'), 'test content');
+      await git.add('test-error.txt');
+
+      // Mock process.cwd to return our test directory
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(testDir);
 
       try {
-        // Create a scenario that might cause git command to fail
-        await execa('touch', ['test-error.txt'], { cwd: context.absolutePath });
-        await execa('git', ['add', 'test-error.txt'], { cwd: context.absolutePath });
-
-        // Mock process.cwd to return our test directory
-        const originalCwd = process.cwd;
-        process.cwd = vi.fn().mockReturnValue(context.absolutePath);
-
         // Empty message should be handled gracefully - AI generation will provide fallback
         const result = await stackCommand.execute({
           createStack: false,
           autoAdd: false,
           message: '', // Empty message triggers AI generation
         });
-
-        // Restore original cwd
-        process.cwd = originalCwd;
 
         // Should succeed because AI generates message for empty input
         expect(result).toBe(0);
@@ -395,65 +390,60 @@ describe('StackCommand integration tests', () => {
           expect.stringContaining('✅ Created commit with message:'),
         );
       } finally {
-        await context.cleanup();
+        // Restore original cwd
+        process.cwd = originalCwd;
       }
     });
   });
 
   describe('real git-spice integration', () => {
     it('should handle real git-spice backend interactions', async () => {
-      const context = await testWorktreeManager.createTestWorktree({
-        testId: 'stack-command-real-git-spice-test',
-      });
+      const { git, tmpDir: testDir } = gitEnv;
+
+      // Create real GitSpiceBackend instance (not mocked)
+      const gitSpiceBackend = new GitSpiceBackend();
+      const isGitSpiceAvailable = await gitSpiceBackend.isAvailable();
+
+      if (!isGitSpiceAvailable) {
+        console.log('⏭️  Skipping real git-spice test - gs command not available');
+        return;
+      }
+
+      // Create and stage some changes
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      fs.writeFileSync(path.join(testDir, 'real-spice-test.txt'), 'real spice content');
+      await git.add('real-spice-test.txt');
+
+      // Mock process.cwd to return our test directory
+      const originalCwd = process.cwd;
+      process.cwd = vi.fn().mockReturnValue(testDir);
 
       try {
-        // Create real GitSpiceBackend instance (not mocked)
-        const gitSpiceBackend = new GitSpiceBackend();
-        const isGitSpiceAvailable = await gitSpiceBackend.isAvailable();
+        const result = await stackCommand.execute({
+          createStack: true,
+          autoAdd: false,
+          message: 'test: real git-spice integration',
+        });
 
-        if (!isGitSpiceAvailable) {
-          console.log('⏭️  Skipping real git-spice test - gs command not available');
-          return;
-        }
-
-        // Create some changes
-        await execa('touch', ['real-spice-test.txt'], { cwd: context.absolutePath });
-        await execa('git', ['add', 'real-spice-test.txt'], { cwd: context.absolutePath });
-
-        // Mock process.cwd to return our test directory
-        const originalCwd = process.cwd;
-        process.cwd = vi.fn().mockReturnValue(context.absolutePath);
-
-        try {
-          const result = await stackCommand.execute({
-            createStack: true,
-            autoAdd: false,
-            message: 'test: real git-spice integration',
-          });
-
-          // Restore original cwd
-          process.cwd = originalCwd;
-
-          // Should either succeed with git-spice or fail gracefully with detailed errors
-          if (result === 0) {
-            expect(mockLogger.info).toHaveBeenCalledWith(
-              expect.stringContaining('Created git-spice branch:'),
-            );
-          } else {
-            // If it failed, should have detailed error output
-            expect(mockLogger.error).toHaveBeenCalledWith(
-              expect.stringContaining('Failed to create stack'),
-            );
-          }
-        } catch (error) {
-          // If git-spice fails in test environment, ensure we handle it gracefully
-          console.log(
-            `⚠️  Git-spice test failed as expected in test environment: ${String(error)}`,
+        // Should either succeed with git-spice or fail gracefully with detailed errors
+        if (result === 0) {
+          expect(mockLogger.info).toHaveBeenCalledWith(
+            expect.stringContaining('Created git-spice branch:'),
           );
-          expect(error).toBeDefined();
+        } else {
+          // If it failed, should have detailed error output
+          expect(mockLogger.error).toHaveBeenCalledWith(
+            expect.stringContaining('Failed to create stack'),
+          );
         }
+      } catch (error) {
+        // If git-spice fails in test environment, ensure we handle it gracefully
+        console.log(`⚠️  Git-spice test failed as expected in test environment: ${String(error)}`);
+        expect(error).toBeDefined();
       } finally {
-        await context.cleanup();
+        // Restore original cwd
+        process.cwd = originalCwd;
       }
     });
   });
