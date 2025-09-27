@@ -17,7 +17,7 @@ import type { VcsStrategyFactory } from '@/services/vcs/strategies/vcs-strategy-
 import type { Task } from '@/types/decomposer';
 
 import { logger } from '@/utils/global-logger';
-import { isNonEmptyString, isNonNullish } from '@/validation/guards';
+import { isDefined, isNonEmptyString, isNonNullish } from '@/validation/guards';
 
 export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
   private _worktreeContexts: Map<string, WorktreeContext> = new Map();
@@ -87,6 +87,21 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
         logger.debug(`[chopstack] Task stats: ${JSON.stringify(stats)}`);
         if (stats.blocked > 0) {
           logger.error('Execution deadlocked: tasks are blocked but none are ready');
+          // Add blocked tasks as skipped to results
+          for (const task of tasks) {
+            const state = this._transitionManager.getTaskState(task.id);
+            if (state === 'blocked') {
+              const existingResult = results.find((r) => r.taskId === task.id);
+              if (!isDefined(existingResult)) {
+                results.push({
+                  taskId: task.id,
+                  status: 'skipped',
+                  duration: 0,
+                  error: 'Task blocked due to failed dependencies',
+                });
+              }
+            }
+          }
           break;
         }
         if (stats.running === 0) {
@@ -111,14 +126,41 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
 
       // Stop if any task failed and continueOnError is false
       if (!context.continueOnError && layerResults.some((r) => r.status === 'failure')) {
-        // Mark remaining tasks as skipped
+        // Mark remaining tasks as skipped and add them to results
         for (const task of tasks) {
           const state = this._transitionManager.getTaskState(task.id);
-          if (state !== undefined && !['completed', 'failed', 'skipped'].includes(state)) {
+          if (isDefined(state) && !['completed', 'failed', 'skipped'].includes(state)) {
             this._transitionManager.skipTask(task.id, 'Execution halted due to previous failure');
+            // Add skipped task to results
+            results.push({
+              taskId: task.id,
+              status: 'skipped',
+              duration: 0,
+              error: 'Execution halted due to previous failure',
+            });
           }
         }
         break;
+      }
+    }
+
+    // After the loop, add any remaining tasks that weren't executed as skipped
+    for (const task of tasks) {
+      const existingResult = results.find((r) => r.taskId === task.id);
+      if (existingResult === undefined) {
+        const state = this._transitionManager.getTaskState(task.id);
+        // Only add if the task was in a non-terminal state
+        if (isDefined(state) && !['completed', 'failed', 'skipped'].includes(state)) {
+          results.push({
+            taskId: task.id,
+            status: 'skipped',
+            duration: 0,
+            error:
+              state === 'blocked'
+                ? 'Task blocked due to failed dependencies'
+                : 'Execution halted before task could run',
+          });
+        }
       }
     }
 
@@ -139,6 +181,9 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
             const result: TaskCommitResult = { taskId: task.id };
             if (isNonEmptyString(executionTask?.commitHash)) {
               result.commitHash = executionTask.commitHash;
+            }
+            if (isNonEmptyString(executionTask?.branchName)) {
+              result.branchName = executionTask.branchName;
             }
             return result;
           }),
@@ -380,6 +425,9 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
             if (isNonEmptyString(commitResult.commitHash)) {
               executionTask.commitHash = commitResult.commitHash;
               logger.info(`Task ${task.id} committed: ${commitResult.commitHash.slice(0, 7)}`);
+            }
+            if (isNonEmptyString(commitResult.branchName)) {
+              executionTask.branchName = commitResult.branchName;
             }
             if (isNonEmptyString(commitResult.error)) {
               logger.warn(`Failed to commit task ${task.id}: ${commitResult.error}`);

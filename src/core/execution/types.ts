@@ -39,6 +39,7 @@ export const TaskStateTransitionSchema = z.object({
 export type TaskStateTransition = z.infer<typeof TaskStateTransitionSchema>;
 
 export const ExecutionTaskSchema = TaskSchema.extend({
+  branchName: z.string().optional(),
   commitHash: z.string().optional(),
   duration: z.number().min(0).optional(),
   endTime: z.date().optional(),

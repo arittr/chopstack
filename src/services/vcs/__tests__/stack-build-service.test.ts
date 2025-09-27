@@ -70,6 +70,7 @@ vi.mock('@/adapters/vcs/git-spice/backend', () => ({
     createBranchFromCommit: createBranchFromCommitMock,
     getStackInfo: vi.fn().mockResolvedValue(null),
     submitStack: vi.fn().mockResolvedValue([]),
+    restack: vi.fn().mockResolvedValue(undefined),
   })),
 }));
 
