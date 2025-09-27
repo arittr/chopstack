@@ -155,6 +155,19 @@ export class WorktreeServiceImpl extends EventEmitter implements WorktreeService
   async cleanupWorktrees(taskIds: string[]): Promise<void> {
     logger.info(`🧹 Cleaning up ${taskIds.length} worktrees...`);
 
+    // Capture working directory before removing worktrees
+    let workingDir: string | undefined;
+    if (taskIds.length > 0) {
+      const firstTaskId = taskIds[0];
+      if (firstTaskId !== undefined) {
+        const firstTaskContext = this.activeWorktrees.get(firstTaskId);
+        if (firstTaskContext !== undefined) {
+          // Extract working directory from absolute path
+          workingDir = firstTaskContext.absolutePath.replace(/\/\.chopstack\/.*$/, '');
+        }
+      }
+    }
+
     const cleanupPromises = taskIds.map(async (taskId) => {
       try {
         await this.removeWorktree(taskId);
@@ -175,6 +188,23 @@ export class WorktreeServiceImpl extends EventEmitter implements WorktreeService
       logger.warn(`⚠️ Cleanup completed: ${successful} successful, ${failed} failed`);
     } else {
       logger.info(`✅ Cleanup complete: ${successful} worktrees removed`);
+    }
+
+    // Clean up empty chopstack directory if all worktrees removed successfully
+    if (
+      successful === taskIds.length &&
+      this.activeWorktrees.size === 0 &&
+      workingDir !== undefined
+    ) {
+      try {
+        // Use child_process to remove directory, avoiding FS mock issues
+        const { execSync } = await import('node:child_process');
+        const chopstackPath = path.join(workingDir, '.chopstack');
+        execSync(`rm -rf "${chopstackPath}"`, { cwd: workingDir });
+        logger.info(`🧹 Cleaned up .chopstack directory`);
+      } catch (error) {
+        logger.warn(`⚠️ Failed to clean up .chopstack directory: ${String(error)}`);
+      }
     }
   }
 
