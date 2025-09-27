@@ -100,8 +100,8 @@ Create main entry point that uses utilities.
           'tasks.md',
           '--agent',
           'mock',
-          '--strategy',
-          'parallel', // This triggers incremental stacking
+          '--vcs-mode',
+          'stacked', // This triggers incremental stacking
           '--mode',
           'dry-run', // Avoid actual execution, just test planning and stack logic
         ],
@@ -189,8 +189,8 @@ Main application integrating API and frontend.
           'complex-tasks.md',
           '--agent',
           'mock',
-          '--strategy',
-          'parallel',
+          '--vcs-mode',
+          'stacked',
           '--mode',
           'dry-run',
         ],

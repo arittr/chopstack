@@ -46,6 +46,13 @@ export class TestingHarnessWorktreeManager {
     const git = new GitWrapper(process.cwd());
 
     try {
+      // First, try to cleanup any existing worktree with this name
+      try {
+        await this.cleanupWorktree(worktreePath, false);
+      } catch {
+        // Ignore cleanup errors, we'll try to create anyway
+      }
+
       // Try to create worktree with new branch first
       try {
         await git.createWorktree(worktreePath, baseRef, `test/${testId}`);
@@ -83,8 +90,8 @@ export class TestingHarnessWorktreeManager {
    */
   async cleanupWorktree(worktreePath: string, preserveOnFailure = false): Promise<boolean> {
     if (!this.activeWorktrees.has(worktreePath)) {
-      console.log(`⚠️ Test worktree not tracked: ${worktreePath}`);
-      return false;
+      console.log(`⚠️ Test worktree not tracked: ${worktreePath}, attempting cleanup anyway`);
+      // Don't return false, try to clean up anyway
     }
 
     try {
@@ -166,7 +173,43 @@ export class TestingHarnessWorktreeManager {
       `✅ Test cleanup complete: ${results.removed.length} removed, ${results.failed.length} failed`,
     );
 
+    // Also try to cleanup any orphaned test worktrees that git might know about
+    await this.cleanupOrphanedWorktrees();
+
     return results;
+  }
+
+  /**
+   * Clean up any orphaned test worktrees that git knows about but we're not tracking
+   */
+  private async cleanupOrphanedWorktrees(): Promise<void> {
+    try {
+      const git = new GitWrapper(process.cwd());
+      const worktreeList = await git.git.raw(['worktree', 'list', '--porcelain']);
+
+      const testWorktrees = worktreeList
+        .split('\n')
+        .filter((line) => line.startsWith('worktree '))
+        .map((line) => line.slice('worktree '.length))
+        .filter(
+          (path) => path.includes('test/tmp') && (path.includes('-test') || path.includes('test-')),
+        );
+
+      for (const worktreePath of testWorktrees) {
+        if (!this.activeWorktrees.has(worktreePath)) {
+          console.log(`🧹 Cleaning up orphaned test worktree: ${worktreePath}`);
+          try {
+            await git.removeWorktree(worktreePath, true);
+          } catch (error) {
+            console.log(
+              `⚠️ Failed to cleanup orphaned worktree: ${worktreePath} - ${String(error)}`,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.log(`⚠️ Failed to cleanup orphaned worktrees: ${String(error)}`);
+    }
   }
 
   /**

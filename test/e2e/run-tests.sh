@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Chopstack E2E Test Runner
-# Usage: ./run-tests.sh [test-name] [mode] [strategy]
+# Usage: ./run-tests.sh [test-name] [mode] [vcs-mode]
 # Examples:
-#   ./run-tests.sh simple-single-task dry-run parallel
-#   ./run-tests.sh parallel-tasks execute parallel
-#   ./run-tests.sh all validate parallel
+#   ./run-tests.sh simple-single-task dry-run stacked
+#   ./run-tests.sh parallel-tasks execute stacked
+#   ./run-tests.sh all validate stacked
 
 set -e
 
@@ -28,7 +28,7 @@ NC='\033[0m' # No Color
 
 # Default values
 MODE="${2:-dry-run}"
-STRATEGY="${3:-parallel}"
+VCS_MODE="${3:-stacked}"
 
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -55,14 +55,14 @@ run_test() {
         return 1
     fi
 
-    log_info "Running test: $test_name (mode: $MODE, strategy: $STRATEGY)"
+    log_info "Running test: $test_name (mode: $MODE, vcs-mode: $VCS_MODE)"
     echo "════════════════════════════════════════════════════════════════"
 
     ensure_worktree
     cd "$TEST_WORKSPACE"
 
     # Run the chopstack command
-    if "$SCRIPT_DIR/$CHOPSTACK_BIN" run --plan "$test_file" --mode "$MODE" --strategy "$STRATEGY" --verbose; then
+    if "$SCRIPT_DIR/$CHOPSTACK_BIN" run --plan "$test_file" --mode "$MODE" --vcs-mode "$VCS_MODE" --verbose; then
         log_success "Test $test_name completed successfully"
     else
         log_error "Test $test_name failed"
@@ -114,7 +114,7 @@ AVAILABLE_TESTS=(
 show_usage() {
     echo "Chopstack E2E Test Runner"
     echo ""
-    echo "Usage: $0 [test-name|all] [mode] [strategy]"
+    echo "Usage: $0 [test-name|all] [mode] [vcs-mode]"
     echo ""
     echo "Available tests:"
     for test in "${AVAILABLE_TESTS[@]}"; do
@@ -123,12 +123,12 @@ show_usage() {
     echo "  - all (runs all tests)"
     echo ""
     echo "Modes: plan, dry-run, execute, validate (default: dry-run)"
-    echo "Strategies: parallel, serial (default: parallel)"
+    echo "VCS Modes: simple, worktree, stacked (default: stacked)"
     echo ""
     echo "Examples:"
-    echo "  $0 simple-single-task dry-run parallel"
-    echo "  $0 parallel-tasks execute parallel"
-    echo "  $0 all validate parallel"
+    echo "  $0 simple-single-task dry-run stacked"
+    echo "  $0 parallel-tasks execute stacked"
+    echo "  $0 all validate stacked"
     echo "  $0 cleanup  # Clean up test artifacts"
 }
 
@@ -143,7 +143,7 @@ case "${1:-help}" in
         exit 0
         ;;
     "all")
-        log_info "Running all tests with mode: $MODE, strategy: $STRATEGY"
+        log_info "Running all tests with mode: $MODE, vcs-mode: $VCS_MODE"
         failed_tests=()
 
         for test in "${AVAILABLE_TESTS[@]}"; do
