@@ -231,7 +231,15 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
       expect(['pending', 'blocked']).toContain(task1State);
       expect(['pending', 'blocked']).toContain(task2State);
 
-      expect(result.tasks).toHaveLength(0);
+      // Blocked tasks should be reported as skipped in results
+      expect(result.tasks).toHaveLength(2);
+      expect(result.tasks.every((t) => t.status === 'skipped')).toBe(true);
+      // Circular dependency creates a deadlock, tasks are blocked
+      expect(
+        result.tasks.some(
+          (t) => t.error?.includes('blocked') ?? t.error?.includes('halted') ?? false,
+        ),
+      ).toBe(true);
     });
 
     it('should skip dependent tasks when parent fails', async () => {

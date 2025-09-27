@@ -237,8 +237,8 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
       // Update task state based on result
       switch (result.status) {
         case 'success': {
-          this._transitionManager.completeTask(task.id);
-
+          // Task completion now happens inside _executeTask after VCS commit
+          // No need to call completeTask here
           break;
         }
         case 'failure': {
@@ -248,9 +248,8 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
             // Re-execute the task
             const retryResult = await this._executeTask(task, context);
             results[results.length - 1] = retryResult;
-            if (retryResult.status === 'success') {
-              this._transitionManager.completeTask(task.id);
-            } else {
+            // Task completion for retry also happens inside _executeTask
+            if (retryResult.status !== 'success') {
               this._transitionManager.failTask(
                 task.id,
                 retryResult.error ?? 'Task failed after retry',
@@ -395,6 +394,7 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
       logger.debug(`[chopstack] Task ${task.id}: Orchestrator returned status: ${result.status}`);
 
       // Trigger VCS commit if task completed successfully
+      let vcsCommitSuccessful = true;
       if (
         result.status === 'completed' &&
         result.output !== undefined &&
@@ -425,12 +425,17 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
             if (isNonEmptyString(commitResult.commitHash)) {
               executionTask.commitHash = commitResult.commitHash;
               logger.info(`Task ${task.id} committed: ${commitResult.commitHash.slice(0, 7)}`);
+
+              // Now that VCS operations are complete, mark task as completed
+              this._transitionManager.completeTask(task.id);
+              logger.debug(`Task ${task.id} marked as completed after VCS commit`);
+            } else if (isNonEmptyString(commitResult.error)) {
+              logger.warn(`Failed to commit task ${task.id}: ${commitResult.error}`);
+              this._transitionManager.failTask(task.id, `VCS commit failed: ${commitResult.error}`);
+              vcsCommitSuccessful = false;
             }
             if (isNonEmptyString(commitResult.branchName)) {
               executionTask.branchName = commitResult.branchName;
-            }
-            if (isNonEmptyString(commitResult.error)) {
-              logger.warn(`Failed to commit task ${task.id}: ${commitResult.error}`);
             }
           }
         } catch (vcsError) {
@@ -438,12 +443,22 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
             `Failed to commit changes for task ${task.id}:`,
             vcsError as Record<string, unknown>,
           );
+          this._transitionManager.failTask(task.id, `VCS commit error: ${String(vcsError)}`);
+          vcsCommitSuccessful = false;
         }
+      } else if (result.status === 'completed') {
+        // For tasks without VCS strategy, mark as completed immediately
+        this._transitionManager.completeTask(task.id);
+        logger.debug(`Task ${task.id} marked as completed (no VCS strategy)`);
       }
+
+      // Determine final status - task is only successful if both execution AND VCS operations succeed
+      const finalStatus =
+        result.status === 'completed' && vcsCommitSuccessful ? 'success' : 'failure';
 
       return {
         taskId: task.id,
-        status: result.status === 'completed' ? 'success' : 'failure',
+        status: finalStatus,
         duration: Date.now() - taskStart,
         ...(result.output !== undefined && { output: result.output }),
       };

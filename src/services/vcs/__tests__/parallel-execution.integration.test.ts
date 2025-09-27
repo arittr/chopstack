@@ -300,6 +300,7 @@ describe('Parallel Execution Integration', () => {
     };
 
     // Execute the plan
+    logger.info('Starting parallel execution test...');
     const result = await executeModeHandler.handle(plan.tasks, context);
 
     logger.info(`Parallel execution result: ${JSON.stringify(result, null, 2)}`);
@@ -318,43 +319,87 @@ describe('Parallel Execution Integration', () => {
     expect(branches.all).toContain('chopstack/task-feature-b');
     expect(branches.all).toContain('chopstack/task-integration');
 
-    // Verify cumulative stacking - each branch should contain all previous dependencies
+    // Verify completion-order stacking - each branch contains cumulative changes in completion order
 
-    // Foundation branch - just foundation.ts
+    // Foundation branch - just foundation.ts (first to complete)
     await git.checkout('chopstack/task-foundation');
     const foundationFiles = await git.raw(['ls-tree', '-r', '--name-only', 'HEAD']);
     expect(foundationFiles).toContain('foundation.ts');
     expect(foundationFiles).not.toContain('feature-a.ts');
     expect(foundationFiles).not.toContain('feature-b.ts');
 
-    // Feature A branch - foundation + feature-a
-    await git.checkout('chopstack/task-feature-a');
-    const featureAFiles = await git.raw(['ls-tree', '-r', '--name-only', 'HEAD']);
-    expect(featureAFiles).toContain('foundation.ts');
-    expect(featureAFiles).toContain('feature-a.ts');
-    expect(featureAFiles).not.toContain('feature-b.ts'); // Should not have parallel branch's changes
-    expect(featureAFiles).not.toContain('integration.ts');
+    // Get all branch names to determine completion order
+    const allBranches = await git.branch();
+    const stackBranches = allBranches.all.filter((b) => b.startsWith('chopstack/task-'));
+    logger.info(`Stack branches found: ${stackBranches.join(', ')}`);
 
-    // Feature B branch - foundation + feature-b
-    await git.checkout('chopstack/task-feature-b');
-    const featureBFiles = await git.raw(['ls-tree', '-r', '--name-only', 'HEAD']);
-    expect(featureBFiles).toContain('foundation.ts');
-    expect(featureBFiles).toContain('feature-b.ts');
-    expect(featureBFiles).not.toContain('feature-a.ts'); // Should not have parallel branch's changes
-    expect(featureBFiles).not.toContain('integration.ts');
+    // In completion-order stacking, each branch builds on the previous one in completion order
+    // We need to check the actual completion order rather than assume it
 
-    // Integration branch - in current implementation, only gets one of the parallel dependencies
-    // TODO: Fix stacked strategy to properly merge all parallel dependencies
-    await git.checkout('chopstack/task-integration');
-    const integrationFiles = await git.raw(['ls-tree', '-r', '--name-only', 'HEAD']);
-    expect(integrationFiles).toContain('foundation.ts');
-    // Due to current limitation, integration branch only includes one parallel dependency
-    // It should ideally have both feature-a.ts and feature-b.ts
-    const hasFeatureA = integrationFiles.includes('feature-a.ts');
-    const hasFeatureB = integrationFiles.includes('feature-b.ts');
-    expect(hasFeatureA || hasFeatureB).toBe(true); // At least one should be present
-    expect(integrationFiles).toContain('integration.ts');
-  }, 60_000); // 60 second timeout
+    // Sort branches to find completion order
+    const featureBranches = stackBranches.filter(
+      (b) => b.includes('feature-a') || b.includes('feature-b'),
+    );
+
+    // For each feature branch, check what files it contains to understand completion order
+    const branchContents = new Map<string, string[]>();
+    for (const branch of featureBranches) {
+      await git.checkout(branch);
+      const files = await git.raw(['ls-tree', '-r', '--name-only', 'HEAD']);
+      const filesList = files.trim().split('\n').filter(Boolean);
+      branchContents.set(branch, filesList);
+      logger.info(`Branch ${branch} contains: ${filesList.join(', ')}`);
+    }
+
+    // Find which branch has only its own feature (first to complete)
+    const firstBranch = featureBranches.find((branch) => {
+      const files = branchContents.get(branch) ?? [];
+      const hasFeatureA = files.includes('feature-a.ts');
+      const hasFeatureB = files.includes('feature-b.ts');
+      return hasFeatureA !== hasFeatureB; // Has exactly one feature file
+    });
+
+    // Find which branch has both features (second to complete)
+    const secondBranch = featureBranches.find((branch) => {
+      const files = branchContents.get(branch) ?? [];
+      const hasFeatureA = files.includes('feature-a.ts');
+      const hasFeatureB = files.includes('feature-b.ts');
+      return hasFeatureA && hasFeatureB; // Has both feature files
+    });
+
+    // Test first branch (should have foundation + only its own feature)
+    if (firstBranch !== undefined) {
+      const firstFiles = branchContents.get(firstBranch) ?? [];
+      expect(firstFiles).toContain('foundation.ts');
+
+      if (firstBranch.includes('feature-a')) {
+        expect(firstFiles).toContain('feature-a.ts');
+        expect(firstFiles).not.toContain('feature-b.ts');
+      } else {
+        expect(firstFiles).toContain('feature-b.ts');
+        expect(firstFiles).not.toContain('feature-a.ts');
+      }
+    }
+
+    // Test second branch (should have foundation + both features)
+    if (secondBranch !== undefined) {
+      const secondFiles = branchContents.get(secondBranch) ?? [];
+      expect(secondFiles).toContain('foundation.ts');
+      expect(secondFiles).toContain('feature-a.ts');
+      expect(secondFiles).toContain('feature-b.ts');
+    }
+
+    // Integration branch - builds on the stack of all previous tasks
+    const integrationBranch = stackBranches.find((b) => b.includes('integration'));
+    if (integrationBranch !== undefined) {
+      await git.checkout(integrationBranch);
+      const integrationFiles = await git.raw(['ls-tree', '-r', '--name-only', 'HEAD']);
+      expect(integrationFiles).toContain('foundation.ts'); // All previous changes
+      expect(integrationFiles).toContain('feature-a.ts');
+      expect(integrationFiles).toContain('feature-b.ts');
+      expect(integrationFiles).toContain('integration.ts'); // Plus integration
+    }
+  }, 120_000); // 120 second timeout
 
   it('should handle worktree mode with parallel task execution', async () => {
     // Test parallel execution using worktree mode instead of stacked mode

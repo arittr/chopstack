@@ -21,7 +21,7 @@ import {
 } from '@/adapters/vcs/git-spice/worktree-sync';
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/global-logger';
-import { isNonEmptyString } from '@/validation/guards';
+import { isDefined, isNonEmptyString } from '@/validation/guards';
 
 export type StackEvent = {
   branchName?: string;
@@ -207,7 +207,41 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
 
       // Create branch for this task
       const branchName = `${this.config.branchPrefix}${task.id}`;
-      const parentBranch = this.getStackTip();
+
+      // Determine the correct parent branch
+      let parentBranch = this.config.parentRef;
+
+      // Priority 1: Use baseRef from WorktreeContext if provided (for completion-order stacking)
+      if (isNonEmptyString(worktreeContext?.baseRef)) {
+        parentBranch = worktreeContext.baseRef;
+        logger.info(`  📍 Using WorktreeContext baseRef as parent: ${parentBranch}`);
+      } else if (task.requires.length > 0 && isDefined(this._stackState)) {
+        // Priority 2: Calculate parent based on task dependencies (for dependency-order stacking)
+        const dependencyBranches: string[] = [];
+        for (const depId of task.requires) {
+          const depBranch = this._stackState?.taskToBranch.get(depId);
+          if (isNonEmptyString(depBranch)) {
+            dependencyBranches.push(depBranch);
+          }
+        }
+
+        // If task has multiple dependencies, use the last one (they should be cumulative)
+        // If task has one dependency, use that dependency's branch
+        if (dependencyBranches.length > 0) {
+          const lastDependencyBranch = dependencyBranches.at(-1);
+          if (isDefined(lastDependencyBranch)) {
+            parentBranch = lastDependencyBranch;
+            logger.info(`  📍 Using dependency branch as parent: ${parentBranch}`);
+          }
+        } else {
+          // No dependency branches found, use the base
+          parentBranch = this.config.parentRef;
+          logger.info(`  📍 No dependency branches found, using base: ${parentBranch}`);
+        }
+      } else {
+        // No dependencies, build from the base
+        logger.info(`  📍 Task has no dependencies, using base: ${parentBranch}`);
+      }
 
       // Try to create branch using git-spice with retries
       logger.info(

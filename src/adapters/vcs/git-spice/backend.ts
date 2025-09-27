@@ -153,13 +153,8 @@ export class GitSpiceBackend implements VcsBackend {
         logger.warn(`  ⚠️ Failed to list commit files: ${String(debugError)}`);
       }
 
-      // Checkout the commit
-      logger.info(`  📍 Checking out commit: ${commitHash}`);
-      await git.git.checkout([commitHash]);
-
-      // Create a regular git branch in the worktree first
-      // (git-spice can't initialize in detached HEAD state)
-      logger.info(`  🌿 Creating git branch ${branchName} in worktree`);
+      // Create branch directly from the commit
+      logger.info(`  🌿 Creating git branch ${branchName} from commit ${commitHash.slice(0, 7)}`);
 
       // Check if branch already exists and make it unique if needed
       let finalBranchName = branchName;
@@ -170,7 +165,26 @@ export class GitSpiceBackend implements VcsBackend {
         logger.warn(`  ⚠️ Branch ${branchName} already exists, using ${finalBranchName} instead`);
       }
 
-      await git.git.checkoutBranch(finalBranchName, commitHash);
+      // Create the branch from the parent branch + commit (cumulative stacking)
+      logger.info(`  🔗 Checking out parent branch: ${parentBranch}`);
+      await git.git.checkout([parentBranch]);
+
+      // Create new branch from the parent
+      await git.git.checkoutBranch(finalBranchName, parentBranch);
+
+      // Apply the specific commit on top of the parent branch
+      logger.info(`  🍒 Cherry-picking commit ${commitHash.slice(0, 7)} onto ${parentBranch}`);
+      try {
+        await git.git.raw(['cherry-pick', commitHash]);
+        logger.info(`  ✅ Successfully cherry-picked commit onto ${finalBranchName}`);
+      } catch (cherryPickError) {
+        logger.warn(
+          `  ⚠️ Cherry-pick failed, trying alternative approach: ${String(cherryPickError)}`,
+        );
+        // Alternative: reset to the commit directly (fallback to original behavior)
+        await git.git.reset(['--hard', commitHash]);
+        logger.info(`  🔄 Used hard reset to commit as fallback`);
+      }
 
       // Verify we're on the new branch
       const currentBranch = await git.git.revparse(['--abbrev-ref', 'HEAD']);
@@ -211,16 +225,7 @@ export class GitSpiceBackend implements VcsBackend {
           logger.info(`  🔄 Checking out ${finalBranchName} in main repo`);
           await mainGit.git.checkout([finalBranchName]);
 
-          // Remove the worktree since we've moved the branch to the main repo
-          logger.info(`  🗑️ Removing worktree: ${workdir}`);
-          try {
-            await execa('git', ['worktree', 'remove', workdir, '--force'], {
-              cwd: mainRepoPath,
-            });
-            logger.info(`  ✅ Worktree removed successfully`);
-          } catch (removeError) {
-            logger.warn(`  ⚠️ Failed to remove worktree: ${String(removeError)}`);
-          }
+          // Note: Don't remove the worktree here - it may still be needed for other operations
         } catch (trackError) {
           logger.warn(`  ⚠️ Failed to track branch with git-spice: ${String(trackError)}`);
           // Branch still exists as regular git branch even if git-spice tracking fails
