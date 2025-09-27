@@ -64,6 +64,25 @@ export class SimpleVcsStrategy implements VcsStrategy {
     return contexts;
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async prepareTaskExecution(
+    task: Task,
+    _executionTask: ExecutionTask,
+    _context: VcsStrategyContext,
+  ): Promise<WorktreeContext | null> {
+    logger.info(`[SimpleVcsStrategy] Preparing execution for task ${task.id}`);
+
+    // Return the main context for all tasks
+    if (isNonNullish(this._mainContext)) {
+      return {
+        ...this._mainContext,
+        taskId: task.id,
+      };
+    }
+
+    return null;
+  }
+
   async handleTaskCompletion(
     task: Task,
     executionTask: ExecutionTask,
