@@ -26,6 +26,7 @@ export class StackedVcsStrategy implements VcsStrategy {
   private readonly vcsEngine: VcsEngineService;
   private _taskOrder: string[] = [];
   private _branchStack: string[] = [];
+  private _vcsContext!: VcsStrategyContext;
 
   constructor(vcsEngine: VcsEngineService) {
     this.vcsEngine = vcsEngine;
@@ -36,6 +37,9 @@ export class StackedVcsStrategy implements VcsStrategy {
     logger.info(`[StackedVcsStrategy] Initializing for ${tasks.length} tasks`);
     logger.info(`  Working directory: ${context.cwd}`);
     logger.info(`  Base ref: ${context.baseRef ?? 'HEAD'}`);
+
+    // Store VCS context for later use
+    this._vcsContext = context;
 
     // Initialize VCS engine
     await this.vcsEngine.initialize(context.cwd);
@@ -52,27 +56,78 @@ export class StackedVcsStrategy implements VcsStrategy {
 
   async prepareTaskExecutionContexts(
     tasks: ExecutionTask[],
-    context: VcsStrategyContext,
+    _context: VcsStrategyContext,
   ): Promise<Map<string, WorktreeContext>> {
-    logger.info(`[StackedVcsStrategy] Creating worktrees for ${tasks.length} tasks`);
-
-    // Create worktrees for all tasks
-    const worktreeContextsList = await this.vcsEngine.createWorktreesForTasks(
-      tasks,
-      context.baseRef ?? 'HEAD',
-      context.cwd,
+    logger.info(
+      `[StackedVcsStrategy] Preparing for dynamic worktree creation for ${tasks.length} tasks`,
     );
 
-    logger.info(`  ✅ Created ${worktreeContextsList.length} worktrees`);
+    // For stacked strategy, we don't create worktrees upfront
+    // Instead, we create them dynamically when each task becomes ready to execute
+    // This allows each task to build on the previous task's completed state
 
-    // Build map of task IDs to contexts
     this.worktreeContexts.clear();
-    for (const worktreeContext of worktreeContextsList) {
-      this.worktreeContexts.set(worktreeContext.taskId, worktreeContext);
-      logger.info(`  📁 Worktree for ${worktreeContext.taskId}: ${worktreeContext.worktreePath}`);
-    }
+    logger.info(`  ⏱️ Worktrees will be created just-in-time based on dependency completion`);
+
+    // Ensure this is truly async
+    await Promise.resolve();
 
     return this.worktreeContexts;
+  }
+
+  async prepareTaskExecution(
+    task: Task,
+    executionTask: ExecutionTask,
+    context: VcsStrategyContext,
+  ): Promise<WorktreeContext | null> {
+    logger.info(`[StackedVcsStrategy] Preparing execution for task ${task.id}`);
+
+    // Check if this is the first task in the dependency order
+    const taskIndex = this._taskOrder.indexOf(task.id);
+    const isFirstTask = taskIndex === 0;
+
+    if (isFirstTask) {
+      logger.info(`  📁 First task in stack - using main repository: ${context.cwd}`);
+      return null; // null means use main repository
+    }
+
+    // For subsequent tasks, create a worktree from the previous task's completed branch
+    // Find the most recent completed branch to use as parent
+    let parentBranch = context.baseRef ?? 'main';
+
+    // Look for the latest completed branch in our stack
+    for (let index = taskIndex - 1; index >= 0; index--) {
+      const previousTaskId = this._taskOrder[index];
+      const previousBranchName = `chopstack/${previousTaskId}`;
+      if (this._branchStack.includes(previousBranchName)) {
+        parentBranch = previousBranchName;
+        break;
+      }
+    }
+
+    logger.info(`  🏗️ Creating worktree for task ${task.id} from branch ${parentBranch}`);
+
+    try {
+      const worktreeContext = await this.vcsEngine.createWorktreesForTasks(
+        [executionTask],
+        parentBranch,
+        context.cwd,
+      );
+
+      if (worktreeContext.length > 0) {
+        const worktreeCtx = worktreeContext[0];
+        if (isNonNullish(worktreeCtx)) {
+          this.worktreeContexts.set(task.id, worktreeCtx);
+          logger.info(`  ✅ Created worktree: ${worktreeCtx.worktreePath}`);
+          return worktreeCtx;
+        }
+      }
+    } catch (error) {
+      logger.warn(`  ⚠️ Failed to create worktree for task ${task.id}: ${String(error)}`);
+    }
+
+    logger.info(`  📁 Fallback - using main repository: ${context.cwd}`);
+    return null; // Fallback to main repository
   }
 
   async handleTaskCompletion(
@@ -85,21 +140,13 @@ export class StackedVcsStrategy implements VcsStrategy {
     logger.info(`  Worktree: ${context.worktreePath}`);
 
     try {
-      // Check if there's already a commit in the worktree
-      const existingCommit = await this._getWorktreeCommitHash(context);
-
-      let commitHash: string;
-      if (isNonEmptyString(existingCommit)) {
-        logger.info(`  ✅ Using existing commit: ${existingCommit.slice(0, 7)}`);
-        commitHash = existingCommit;
-      } else {
-        // Create new commit
-        commitHash = await this.commitService.commitChanges(executionTask, context, {
-          generateMessage: true,
-          includeAll: true,
-        });
-        logger.info(`  ✅ Created new commit: ${commitHash.slice(0, 7)}`);
-      }
+      // Always create a new commit for stacked strategy to include task changes
+      logger.info(`  💾 Creating commit for task changes in ${context.worktreePath}`);
+      const commitHash = await this.commitService.commitChanges(executionTask, context, {
+        generateMessage: true,
+        includeAll: true,
+      });
+      logger.info(`  ✅ Created new commit: ${commitHash.slice(0, 7)}`);
 
       // Store commit hash in execution task
       executionTask.commitHash = commitHash;
@@ -110,13 +157,24 @@ export class StackedVcsStrategy implements VcsStrategy {
 
       logger.info(`  🌿 Creating stacked branch ${newBranchName} on ${parentBranch}`);
 
-      // Add task to the stack - this creates the branch and sets it up
-      await this.vcsEngine.addTaskToStack(executionTask, context.worktreePath, context);
+      // Add task to the stack - this creates the branch and sets it up in the main repo
+      await this.vcsEngine.addTaskToStack(executionTask, this._vcsContext.cwd, context);
 
       // Track branch in our stack
       this._branchStack.push(newBranchName);
 
       logger.info(`  ✅ Added to stack: ${newBranchName} → ${parentBranch}`);
+
+      // Run restack after each task to ensure cumulative stacking
+      try {
+        await this.vcsEngine.restack(this._vcsContext.cwd);
+        logger.info(`  🔄 Restacked after adding ${newBranchName}`);
+      } catch (restackError) {
+        logger.warn(
+          `  ⚠️ Failed to restack after adding ${newBranchName}: ${String(restackError)}`,
+        );
+        // Continue anyway - we'll try again later
+      }
 
       return {
         taskId: task.id,
@@ -134,10 +192,9 @@ export class StackedVcsStrategy implements VcsStrategy {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async finalize(
     results: TaskCommitResult[],
-    _context: VcsStrategyContext,
+    context: VcsStrategyContext,
   ): Promise<{ branches: string[]; commits: string[] }> {
     logger.info(`[StackedVcsStrategy] Finalizing with ${results.length} results`);
 
@@ -151,6 +208,16 @@ export class StackedVcsStrategy implements VcsStrategy {
     logger.info(`  📊 Stack created: ${this._branchStack.join(' → ')}`);
     logger.info(`  🌳 Branches: ${branches.length}`);
     logger.info(`  💾 Commits: ${commits.length}`);
+
+    // After all branches are tracked, run upstack restack to properly stack them
+    if (branches.length > 0) {
+      try {
+        await this.vcsEngine.restack(context.cwd);
+      } catch (restackError) {
+        logger.warn(`⚠️ Failed to restack branches: ${String(restackError)}`);
+        // Continue anyway - branches are still created and tracked
+      }
+    }
 
     return {
       branches,

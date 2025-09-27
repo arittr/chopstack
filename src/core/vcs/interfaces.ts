@@ -248,4 +248,9 @@ export type VcsEngineService = {
    * Initialize stack state for incremental building
    */
   initializeStackState(parentRef: string): void;
+
+  /**
+   * Restack branches to ensure proper stacking relationships
+   */
+  restack(workdir: string): Promise<void>;
 };
