@@ -177,6 +177,11 @@ export type StackBuildService = {
   ): Promise<void>;
 
   /**
+   * Get the configured base branch for stacks
+   */
+  getDefaultParentRef(): string;
+
+  /**
    * Get stack information
    */
   getStackInfo(workdir: string): Promise<StackInfo | null>;
