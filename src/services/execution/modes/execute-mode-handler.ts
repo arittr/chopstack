@@ -42,9 +42,15 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     this._vcsStrategy = this._vcsStrategyFactory.create(context.vcsMode);
 
     // Create VCS strategy context
+    const defaultBaseRef = this._vcsStrategyFactory.getDefaultParentRef();
+    const selectedBaseRef =
+      context.parentRef === undefined || context.parentRef === 'HEAD'
+        ? defaultBaseRef
+        : context.parentRef;
+
     const vcsContext: VcsStrategyContext = {
       cwd: context.cwd,
-      baseRef: context.parentRef ?? 'HEAD',
+      baseRef: selectedBaseRef,
     };
 
     // Initialize VCS strategy
