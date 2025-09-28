@@ -130,6 +130,10 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     return this._stackState?.stacked.has(taskId) ?? false;
   }
 
+  getDefaultParentRef(): string {
+    return this.config.parentRef;
+  }
+
   /**
    * Check if all task dependencies are satisfied (stacked)
    */

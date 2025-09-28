@@ -38,4 +38,11 @@ export class VcsStrategyFactory {
       }
     }
   }
+
+  getDefaultParentRef(): string {
+    if (typeof this._vcsEngine.getDefaultParentRef === 'function') {
+      return this._vcsEngine.getDefaultParentRef();
+    }
+    return 'main';
+  }
 }

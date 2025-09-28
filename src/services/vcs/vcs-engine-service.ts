@@ -99,6 +99,10 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
     this._setupEventForwarding();
   }
 
+  getDefaultParentRef(): string {
+    return this.stackBuildService.getDefaultParentRef();
+  }
+
   async initialize(workdir: string): Promise<void> {
     logger.info(`🔧 Initializing VCS engine for ${workdir}`);
 

@@ -241,6 +241,11 @@ export type VcsEngineService = {
   ): Promise<WorktreeContext[]>;
 
   /**
+   * Retrieve the configured default parent branch used for stacks
+   */
+  getDefaultParentRef(): string;
+
+  /**
    * Initialize the VCS engine with a working directory
    */
   initialize(workdir: string): Promise<void>;
