@@ -191,6 +191,8 @@ export class GitSpiceBackend implements VcsBackend {
       logger.info(`  ✅ Created and checked out branch: ${currentBranch}`);
 
       // If we're in a worktree, we need to set up git-spice tracking in the main repo
+      let branchTracked = false;
+
       if (isWorktree) {
         // Get the main repository path
         const mainRepoPath = workdir.replace(/\/\.chopstack(?:\/[^/]+){2}$/, '');
@@ -225,10 +227,38 @@ export class GitSpiceBackend implements VcsBackend {
           logger.info(`  🔄 Checking out ${finalBranchName} in main repo`);
           await mainGit.git.checkout([finalBranchName]);
 
+          branchTracked = true;
+
           // Note: Don't remove the worktree here - it may still be needed for other operations
         } catch (trackError) {
           logger.warn(`  ⚠️ Failed to track branch with git-spice: ${String(trackError)}`);
           // Branch still exists as regular git branch even if git-spice tracking fails
+        }
+      }
+
+      if (!branchTracked) {
+        const trackCommand = ['branch', 'track', finalBranchName, '--base', parentBranch];
+        logger.info(
+          `  🔗 Tracking branch with git-spice from ${workdir}: gs ${trackCommand.join(' ')}`,
+        );
+
+        try {
+          const trackResult = await execa('gs', trackCommand, {
+            cwd: workdir,
+            timeout: GIT_SPICE_BRANCH_TIMEOUT_MS,
+          });
+          logger.info(`  📤 Track result: ${trackResult.stdout}`);
+        } catch (trackError) {
+          const errorMessage =
+            trackError instanceof Error ? trackError.message : String(trackError);
+          logger.warn(
+            `  ⚠️ Failed to track branch with git-spice from ${workdir}: ${errorMessage}`,
+          );
+          throw new GitSpiceError(
+            `Failed to track branch ${finalBranchName} with git-spice`,
+            'gs branch track',
+            errorMessage,
+          );
         }
       }
 
