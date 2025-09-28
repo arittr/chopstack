@@ -66,4 +66,16 @@ describe('GitSpiceBackend.createBranchFromCommit', () => {
       expect.objectContaining({ cwd: '/repo' }),
     );
   });
+
+  it('restacks using gs upstack restack', async () => {
+    const backend = new GitSpiceBackend();
+
+    await backend.restack('/repo');
+
+    expect(execaMock).toHaveBeenCalledWith(
+      'gs',
+      ['upstack', 'restack'],
+      expect.objectContaining({ cwd: '/repo' }),
+    );
+  });
 });
