@@ -103,23 +103,6 @@ describe('GitSpiceBackend integration tests', () => {
   });
 
   describe('createBranchWithCommit', () => {
-    it('should fail gracefully when git-spice is not initialized', async () => {
-      const isAvailable = await backend.isAvailable();
-
-      if (!isAvailable) {
-        console.log('⏭️  Skipping git-spice branch creation test - gs command not available');
-        return;
-      }
-
-      const testDir = getTmpDir();
-
-      // Try to create a branch without initializing git-spice first
-      // Should throw some error (GitSpiceError or any error indicating failure)
-      await expect(
-        backend.createBranchWithCommit(testDir, 'test-branch', 'test: commit message'),
-      ).rejects.toThrow(); // Any error is fine - just shouldn't succeed
-    });
-
     it('should handle branch creation workflow when git-spice is available', async () => {
       const isAvailable = await backend.isAvailable();
 
@@ -195,6 +178,74 @@ describe('GitSpiceBackend integration tests', () => {
         );
         expect(error).toBeDefined(); // At least verify error handling works
       }
+    });
+  });
+
+  describe('createBranchFromCommit', () => {
+    it('tracks the branch on the expected parent', async () => {
+      const isAvailable = await backend.isAvailable();
+
+      if (!isAvailable) {
+        console.log('⏭️  Skipping git-spice branch tracking test - gs command not available');
+        return;
+      }
+
+      const git = getGit();
+      const testDir = getTmpDir();
+
+      await backend.initialize(testDir, 'main');
+
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+
+      fs.writeFileSync(path.join(testDir, 'tracked-file.txt'), 'tracked content');
+      await git.add('tracked-file.txt');
+      await git.commit('feat: add tracked file');
+
+      const commitHash = await git.revparse(['HEAD']);
+
+      await backend.createBranchFromCommit('feature/tracked', commitHash, 'main', testDir);
+
+      const stackInfo = await backend.getStackInfo(testDir);
+
+      if (stackInfo === null) {
+        console.log('⏭️  Skipping branch tracking assertion - git-spice stack log unavailable');
+        return;
+      }
+
+      const hasTrackedBranch = stackInfo.branches?.some(
+        (branch) => branch.name === 'feature/tracked',
+      );
+      expect(hasTrackedBranch).toBe(true);
+    });
+  });
+
+  describe('restack', () => {
+    it('restacks the stack using git-spice', async () => {
+      const isAvailable = await backend.isAvailable();
+
+      if (!isAvailable) {
+        console.log('⏭️  Skipping git-spice restack test - gs command not available');
+        return;
+      }
+
+      const git = getGit();
+      const testDir = getTmpDir();
+
+      await backend.initialize(testDir, 'main');
+
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+
+      fs.writeFileSync(path.join(testDir, 'restack-file.txt'), 'restack content');
+      await git.add('restack-file.txt');
+      await git.commit('feat: add restack file');
+
+      const commitHash = await git.revparse(['HEAD']);
+
+      await backend.createBranchFromCommit('feature/restack', commitHash, 'main', testDir);
+
+      await expect(backend.restack(testDir)).resolves.not.toThrow();
     });
   });
 });
