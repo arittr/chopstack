@@ -551,18 +551,18 @@ export class GitSpiceBackend implements VcsBackend {
    * Restack all tracked branches using git-spice upstack restack
    */
   async restack(workdir: string): Promise<void> {
-    logger.info(`🔄 Running git-spice repo restack...`);
+    logger.info(`🔄 Running git-spice upstack restack...`);
 
     try {
-      await execa('gs', ['repo', 'restack'], {
+      await execa('gs', ['upstack', 'restack'], {
         cwd: workdir,
         timeout: 30_000, // Give more time for restacking
       });
-      logger.info(`✅ Successfully restacked all branches`);
+      logger.info(`✅ Successfully restacked stack branches`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.warn(`⚠️ Failed to restack branches: ${errorMessage}`);
-      throw new GitSpiceError('Failed to restack branches', 'gs repo restack', errorMessage);
+      throw new GitSpiceError('Failed to restack branches', 'gs upstack restack', errorMessage);
     }
   }
 
