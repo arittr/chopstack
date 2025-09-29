@@ -5,6 +5,7 @@ import { execa } from 'execa';
 
 import type { ExecutionTask } from '@/core/execution/types';
 import type {
+  CommitOptions,
   ConflictInfo,
   ConflictResolutionService,
   ConflictResolutionStrategy,
@@ -248,24 +249,21 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
         logger.info(`  📍 Task has no dependencies, using base: ${parentBranch}`);
       }
 
-      // Try to create branch using git-spice with retries
-      logger.info(
-        `  🔨 Creating branch ${branchName} from commit ${task.commitHash.slice(0, 7)}...`,
-      );
-      const actualBranchName = await this._createBranchWithRetry({
+      // Try to create branch using native git-spice workflow
+      logger.info(`  🌿 Creating git-spice branch ${branchName} with parent ${parentBranch}...`);
+
+      // For tasks with commits, we need to use the new workflow:
+      // 1. Create branch with git-spice
+      // 2. Worktree will be created from this branch
+      // 3. Commit will happen in the worktree
+      const actualBranchName = await this._createBranchSpiceFirst({
         branchName,
-        commitHash: task.commitHash,
         parentBranch,
         workdir,
-        task,
       });
 
-      if (actualBranchName === null) {
-        logger.error(`  ❌ Failed to create branch ${branchName} after ${this.maxRetries} retries`);
-        throw new Error(
-          `Failed to create branch for task ${task.id} after ${this.maxRetries} retries`,
-        );
-      }
+      // Note: The actual commit will be applied when the task executes in its worktree
+      // using gs commit, which automatically handles restacking
 
       logger.info(`  ✅ Branch ${actualBranchName} created successfully`);
       if (actualBranchName !== branchName) {
@@ -776,7 +774,41 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
   }
 
   /**
-   * Create branch with retry logic for transient failures
+   * Create branch using the new Spice-first workflow
+   * This avoids cherry-picking by creating branches first with git-spice,
+   * then worktrees, then committing
+   */
+  private async _createBranchSpiceFirst({
+    branchName,
+    parentBranch,
+    workdir,
+  }: {
+    branchName: string;
+    parentBranch: string;
+    workdir: string;
+  }): Promise<string> {
+    try {
+      // Use the new createStackBranch method for native git-spice stacking
+      await this.gitSpice.createStackBranch(branchName, parentBranch, workdir);
+      return branchName;
+    } catch (error) {
+      // Check if branch already exists and generate unique name
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('already exists')) {
+        const timestamp = Date.now().toString(36);
+        const uniqueBranchName = `${branchName}-${timestamp}`;
+        logger.info(`  ⚠️ Branch ${branchName} already exists, trying ${uniqueBranchName}`);
+        await this.gitSpice.createStackBranch(uniqueBranchName, parentBranch, workdir);
+        return uniqueBranchName;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * DEPRECATED: Create branch with retry logic for transient failures
+   * This uses the old cherry-pick approach and should be replaced.
+   * @deprecated Use _createBranchSpiceFirst instead
    */
   private async _createBranchWithRetry({
     branchName,
@@ -898,6 +930,41 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
    */
   async restack(workdir: string): Promise<void> {
     await this.gitSpice.restack(workdir);
+  }
+
+  async createStackBranch(
+    branchName: string,
+    parentBranch: string,
+    workdir: string,
+  ): Promise<void> {
+    await this.gitSpice.createStackBranch(branchName, parentBranch, workdir);
+  }
+
+  async commitInStack(
+    task: ExecutionTask,
+    context: WorktreeContext,
+    options: CommitOptions = {},
+  ): Promise<string> {
+    // Generate commit message
+    const message =
+      options.message ?? `Complete task ${task.id}: ${task.title}\n\n${task.description}`;
+
+    // Use git-spice commit for proper stacking
+    const commitOptions: { files?: string[]; noRestack?: boolean } = {
+      noRestack: false, // Allow auto-restacking
+    };
+
+    if (options.files !== undefined) {
+      commitOptions.files = options.files;
+    }
+
+    const commitHash = await this.gitSpice.commitInStack(
+      message,
+      context.worktreePath,
+      commitOptions,
+    );
+
+    return commitHash;
   }
 
   /**

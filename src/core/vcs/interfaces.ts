@@ -6,6 +6,25 @@ import type { CommitOptions, WorktreeContext } from '@/core/vcs/domain-services'
  */
 export type VcsBackend = {
   /**
+   * Commit changes in a stack-aware way
+   * This should use native VCS backend commands (e.g., gs commit)
+   */
+  commitInStack(
+    message: string,
+    workdir: string,
+    options?: {
+      files?: string[];
+      noRestack?: boolean;
+    },
+  ): Promise<string>;
+
+  /**
+   * Create a branch in the stack with proper parent tracking
+   * This should use native VCS backend commands (e.g., gs branch create)
+   */
+  createStackBranch(branchName: string, parentBranch: string, workdir: string): Promise<void>;
+
+  /**
    * Get stack information
    */
   getStackInfo(workdir: string): Promise<GitSpiceStackInfo | null>;
@@ -21,6 +40,11 @@ export type VcsBackend = {
   isAvailable(): Promise<boolean>;
 
   /**
+   * Restack branches to maintain proper parent relationships
+   */
+  restack(workdir: string): Promise<void>;
+
+  /**
    * Submit a stack for review
    */
   submitStack(
@@ -31,6 +55,11 @@ export type VcsBackend = {
       extraArgs?: string[];
     },
   ): Promise<string[]>;
+
+  /**
+   * Track a branch with the VCS backend (for existing branches)
+   */
+  trackBranch(branchName: string, parentBranch: string, workdir: string): Promise<void>;
 };
 
 /**
@@ -213,6 +242,16 @@ export type VcsEngineService = {
   cleanupWorktrees(contexts: WorktreeContext[]): Promise<void>;
 
   /**
+   * Commit changes in a stack-aware way using native VCS backend
+   * This should use backend-specific commands (e.g., gs commit) for proper stacking
+   */
+  commitInStack(
+    task: ExecutionTask,
+    context: WorktreeContext,
+    options?: CommitOptions,
+  ): Promise<string>;
+
+  /**
    * Commit changes for a completed task
    */
   commitTaskChanges(
@@ -230,6 +269,12 @@ export type VcsEngineService = {
     parentBranch: string,
     workdir: string,
   ): Promise<void>;
+
+  /**
+   * Create a stack branch using native VCS backend (e.g., git-spice)
+   * This creates branches with proper parent tracking for stacking
+   */
+  createStackBranch(branchName: string, parentBranch: string, workdir: string): Promise<void>;
 
   /**
    * Create worktrees for parallel task execution

@@ -16,12 +16,10 @@ import type {
 } from '@/core/vcs/vcs-strategy';
 import type { Task } from '@/types/decomposer';
 
-import { CommitServiceImpl } from '@/services/vcs/commit-service';
 import { logger } from '@/utils/global-logger';
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
 
 export class StackedVcsStrategy implements VcsStrategy {
-  private readonly commitService: CommitServiceImpl;
   private readonly worktreeContexts: Map<string, WorktreeContext> = new Map();
   private readonly vcsEngine: VcsEngineService;
   private _taskOrder: string[] = [];
@@ -34,7 +32,6 @@ export class StackedVcsStrategy implements VcsStrategy {
 
   constructor(vcsEngine: VcsEngineService) {
     this.vcsEngine = vcsEngine;
-    this.commitService = new CommitServiceImpl();
   }
 
   async initialize(tasks: Task[], context: VcsStrategyContext): Promise<void> {
@@ -118,18 +115,44 @@ export class StackedVcsStrategy implements VcsStrategy {
       logger.info(`  📍 No dependencies, using base branch: ${parentBranch}`);
     }
 
-    logger.info(`  🏗️ Creating worktree for task ${task.id} from branch ${parentBranch}`);
+    // SPICE-FIRST WORKFLOW: Create the git-spice branch FIRST
+    const branchName = `chopstack/${task.id}`;
+    logger.info(`  🌿 Creating git-spice branch ${branchName} with parent ${parentBranch}`);
 
     try {
+      // Step 1: Create branch with git-spice (this tracks parent relationships)
+      await this.vcsEngine.createStackBranch(branchName, parentBranch, context.cwd);
+
+      // Track the branch in our stack
+      this._branchStack.push(branchName);
+      this._currentStackTip = branchName;
+
+      logger.info(`  ✅ Created git-spice branch: ${branchName}`);
+    } catch (error) {
+      logger.error(`  ❌ Failed to create git-spice branch: ${String(error)}`);
+      // Continue anyway - worktree creation might still work
+    }
+
+    // Step 2: Create worktree FROM THE NEWLY CREATED BRANCH
+    logger.info(`  🏗️ Creating worktree for task ${task.id} from branch ${branchName}`);
+
+    try {
+      // Override the executionTask to use our new branch name
+      const worktreeTask = { ...executionTask, branchName };
+
       const worktreeContext = await this.vcsEngine.createWorktreesForTasks(
-        [executionTask],
-        parentBranch,
+        [worktreeTask],
+        branchName, // Use the newly created branch as the base
         context.cwd,
       );
 
       if (worktreeContext.length > 0) {
         const worktreeCtx = worktreeContext[0];
         if (isNonNullish(worktreeCtx)) {
+          // Update the context with the correct branch name
+          worktreeCtx.branchName = branchName;
+          worktreeCtx.baseRef = parentBranch;
+
           this.worktreeContexts.set(task.id, worktreeCtx);
           logger.info(`  ✅ Created worktree: ${worktreeCtx.worktreePath}`);
           return worktreeCtx;
@@ -143,7 +166,7 @@ export class StackedVcsStrategy implements VcsStrategy {
     logger.info(`  📁 Fallback - using main repository: ${context.cwd}`);
     const fallbackContext: WorktreeContext = {
       taskId: task.id,
-      branchName: `chopstack/${task.id}`,
+      branchName,
       worktreePath: context.cwd,
       absolutePath: context.cwd,
       baseRef: parentBranch,
@@ -163,61 +186,34 @@ export class StackedVcsStrategy implements VcsStrategy {
     logger.info(`  Worktree: ${context.worktreePath}`);
 
     try {
-      // Step 1: Create commit for task changes
-      logger.info(`  💾 Creating commit for task changes in ${context.worktreePath}`);
-      const commitHash = await this.commitService.commitChanges(executionTask, context, {
+      // SPICE-FIRST WORKFLOW: Use git-spice for commits
+      // The branch was already created in prepareTaskExecution,
+      // now we just need to commit the changes using git-spice
+
+      logger.info(`  🌿 Committing task changes using git-spice in ${context.worktreePath}`);
+
+      // Use git-spice commit for proper stacking
+      // This automatically handles restacking and maintains parent relationships
+      const commitHash = await this.vcsEngine.commitInStack(executionTask, context, {
         generateMessage: true,
         includeAll: true,
       });
-      logger.info(`  ✅ Created new commit: ${commitHash.slice(0, 7)}`);
+
+      logger.info(`  ✅ Created git-spice commit: ${commitHash.slice(0, 7)}`);
 
       // Store commit hash in execution task
       executionTask.commitHash = commitHash;
 
-      // Step 2: Stack the task immediately (not deferred)
-      const branchName = `chopstack/${task.id}`;
-      let createdBranchName: string | null = null;
-      logger.info(`  🔗 Stacking task ${task.id} on current tip: ${this._currentStackTip}`);
-
-      try {
-        // Create dummy execution task for stack operation
-        const stackExecutionTask: ExecutionTask = {
-          ...executionTask,
-          commitHash,
-        };
-
-        // Create stack context with proper parent
-        const stackContext: WorktreeContext = {
-          ...context,
-          branchName,
-          baseRef: this._currentStackTip,
-        };
-
-        // Add task to stack and get the actual created branch name
-        createdBranchName = await this.vcsEngine.addTaskToStack(
-          stackExecutionTask,
-          this._vcsContext.cwd,
-          stackContext,
-        );
-
-        // Update our tracking with the actual branch name
-        if (isNonEmptyString(createdBranchName)) {
-          this._branchStack.push(createdBranchName);
-          this._currentStackTip = createdBranchName;
-          logger.info(`  ✅ Stacked ${createdBranchName} on ${stackContext.baseRef}`);
-        } else {
-          logger.error(`  ❌ Failed to get branch name for task ${task.id}`);
-        }
-      } catch (stackError) {
-        logger.error(`  ❌ Failed to stack task ${task.id}: ${String(stackError)}`);
-      }
-
+      // Mark task as completed
       this.completedTasks.add(task.id);
+
+      // The branch name was already set in prepareTaskExecution
+      const { branchName } = context;
 
       return {
         taskId: task.id,
         commitHash,
-        branchName: createdBranchName ?? branchName, // Use actual created branch name if available
+        branchName,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

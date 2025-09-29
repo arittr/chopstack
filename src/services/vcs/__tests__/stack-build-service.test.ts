@@ -64,6 +64,7 @@ vi.mock('execa', () => ({
 }));
 
 const createBranchFromCommitMock = vi.fn();
+const createStackBranchMock = vi.fn();
 
 vi.mock('@/adapters/vcs/git-spice/backend', () => ({
   GitSpiceBackend: vi.fn().mockImplementation(() => ({
@@ -71,6 +72,9 @@ vi.mock('@/adapters/vcs/git-spice/backend', () => ({
     getStackInfo: vi.fn().mockResolvedValue(null),
     submitStack: vi.fn().mockResolvedValue([]),
     restack: vi.fn().mockResolvedValue(undefined),
+    createStackBranch: createStackBranchMock,
+    commitInStack: vi.fn().mockResolvedValue('abc123'),
+    trackBranch: vi.fn().mockResolvedValue(undefined),
   })),
 }));
 
@@ -112,6 +116,9 @@ describe('StackBuildServiceImpl', () => {
     createBranchFromCommitMock.mockReset();
     // createBranchFromCommit now returns the actual branch name
     createBranchFromCommitMock.mockImplementation((branchName: string) => branchName);
+    createStackBranchMock.mockReset();
+    // createStackBranch succeeds silently (returns void)
+    createStackBranchMock.mockResolvedValue(undefined);
     gitWrapperInstances.length = 0;
     nextGitWrapperFactory = createGitWrapperStub;
   });
@@ -287,25 +294,20 @@ describe('StackBuildServiceImpl', () => {
 
       expect(fetchSingleWorktreeCommitMock).toHaveBeenCalledTimes(1);
       expect(fetchSingleWorktreeCommitMock).toHaveBeenCalledWith(baseTask, undefined, '/repo');
-      expect(createBranchFromCommitMock).toHaveBeenCalledWith(
-        'chopstack/task-1',
-        'abc1234',
-        'main',
-        '/repo',
-      );
+      expect(createStackBranchMock).toHaveBeenCalledWith('chopstack/task-1', 'main', '/repo');
     });
 
     it('skips tasks that are already stacked', async () => {
       const service = new StackBuildServiceImpl(defaultConfig);
 
       await service.addTaskToStack(baseTask, '/repo');
-      expect(createBranchFromCommitMock).toHaveBeenCalledTimes(1);
+      expect(createStackBranchMock).toHaveBeenCalledTimes(1);
 
       // Try to add the same task again
       await service.addTaskToStack(baseTask, '/repo');
 
       // Should not create branch again
-      expect(createBranchFromCommitMock).toHaveBeenCalledTimes(1);
+      expect(createStackBranchMock).toHaveBeenCalledTimes(1);
     });
 
     it('skips tasks without commit hash', async () => {
@@ -315,7 +317,7 @@ describe('StackBuildServiceImpl', () => {
       await service.addTaskToStack(taskWithoutCommit, '/repo');
 
       expect(fetchSingleWorktreeCommitMock).not.toHaveBeenCalled();
-      expect(createBranchFromCommitMock).not.toHaveBeenCalled();
+      expect(createStackBranchMock).not.toHaveBeenCalled();
       expect(service.isTaskStacked('task-1')).toBe(false);
     });
 
@@ -337,7 +339,7 @@ describe('StackBuildServiceImpl', () => {
       );
     });
 
-    it('retries on transient failures', async () => {
+    it('handles branch creation failures gracefully', async () => {
       const service = new StackBuildServiceImpl({
         ...defaultConfig,
         retryConfig: {
@@ -346,19 +348,21 @@ describe('StackBuildServiceImpl', () => {
         },
       });
 
-      // First two attempts fail with retryable error, third succeeds
-      createBranchFromCommitMock
-        .mockRejectedValueOnce(new Error('timeout'))
-        .mockRejectedValueOnce(new Error('resource temporarily unavailable'))
-        .mockResolvedValueOnce('chopstack/task-1');
+      // Branch creation fails
+      createStackBranchMock.mockRejectedValueOnce(new Error('branch creation failed'));
 
-      await service.addTaskToStack(baseTask, '/repo');
+      // Should throw the error
+      await expect(service.addTaskToStack(baseTask, '/repo')).rejects.toThrow(
+        'branch creation failed',
+      );
 
-      expect(createBranchFromCommitMock).toHaveBeenCalledTimes(3);
-      expect(service.isTaskStacked('task-1')).toBe(true);
+      // Should have attempted to create branch
+      expect(createStackBranchMock).toHaveBeenCalledTimes(1);
+      // Task should not be stacked since branch creation failed
+      expect(service.isTaskStacked('task-1')).toBe(false);
     });
 
-    it('falls back to cherry-pick after max retries', async () => {
+    it('handles branch name collisions', async () => {
       const service = new StackBuildServiceImpl({
         ...defaultConfig,
         retryConfig: {
@@ -367,17 +371,26 @@ describe('StackBuildServiceImpl', () => {
         },
       });
 
-      // All attempts fail with retryable error
-      createBranchFromCommitMock.mockRejectedValue(new Error('timeout'));
+      // First attempt fails with "already exists", second succeeds with suffix
+      createStackBranchMock
+        .mockRejectedValueOnce(new Error('branch already exists'))
+        .mockResolvedValueOnce(undefined);
 
       await service.addTaskToStack(baseTask, '/repo');
 
-      expect(createBranchFromCommitMock).toHaveBeenCalledTimes(2);
-      expect(execaMock).toHaveBeenCalled(); // Fallback to cherry-pick
+      // Should have attempted twice (original + suffixed)
+      expect(createStackBranchMock).toHaveBeenCalledTimes(2);
+      // Second call should have suffix
+      expect(createStackBranchMock).toHaveBeenNthCalledWith(
+        2,
+        expect.stringMatching(/^chopstack\/task-1-\w+$/),
+        'main',
+        '/repo',
+      );
       expect(service.isTaskStacked('task-1')).toBe(true);
     });
 
-    it('does not retry non-retryable errors', async () => {
+    it('does not retry non-branch-exists errors', async () => {
       const service = new StackBuildServiceImpl({
         ...defaultConfig,
         retryConfig: {
@@ -386,14 +399,14 @@ describe('StackBuildServiceImpl', () => {
         },
       });
 
-      // Non-retryable error
-      createBranchFromCommitMock.mockRejectedValueOnce(new Error('conflict detected'));
+      // Non-retryable error (not "already exists")
+      createStackBranchMock.mockRejectedValueOnce(new Error('fatal error'));
 
-      await service.addTaskToStack(baseTask, '/repo');
+      // Should throw the error
+      await expect(service.addTaskToStack(baseTask, '/repo')).rejects.toThrow('fatal error');
 
-      expect(createBranchFromCommitMock).toHaveBeenCalledTimes(1); // No retries
-      expect(execaMock).toHaveBeenCalled(); // Immediate fallback
-      expect(service.isTaskStacked('task-1')).toBe(true);
+      expect(createStackBranchMock).toHaveBeenCalledTimes(1); // No retries
+      expect(service.isTaskStacked('task-1')).toBe(false);
     });
 
     it('maintains correct stack order with multiple tasks', async () => {
@@ -415,24 +428,16 @@ describe('StackBuildServiceImpl', () => {
       expect(service.getStackTip()).toBe('chopstack/task-3');
 
       // Verify branches were created with correct parents
-      expect(createBranchFromCommitMock).toHaveBeenNthCalledWith(
-        1,
-        'chopstack/task-1',
-        'aaa111',
-        'main',
-        '/repo',
-      );
-      expect(createBranchFromCommitMock).toHaveBeenNthCalledWith(
+      expect(createStackBranchMock).toHaveBeenNthCalledWith(1, 'chopstack/task-1', 'main', '/repo');
+      expect(createStackBranchMock).toHaveBeenNthCalledWith(
         2,
         'chopstack/task-2',
-        'bbb222',
         'chopstack/task-1',
         '/repo',
       );
-      expect(createBranchFromCommitMock).toHaveBeenNthCalledWith(
+      expect(createStackBranchMock).toHaveBeenNthCalledWith(
         3,
         'chopstack/task-3',
-        'ccc333',
         'chopstack/task-2',
         '/repo',
       );
