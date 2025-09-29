@@ -779,18 +779,15 @@ export class GitSpiceBackend implements VcsBackend {
     logger.info(`🌿 Creating stack branch ${branchName} with parent ${parentBranch}`);
 
     try {
-      // Create branch with git-spice, tracking the parent
+      // First, ensure we're on the parent branch
+      const git = new GitWrapper(workdir);
+      await git.checkout(parentBranch);
+
+      // Create branch with git-spice from the current branch (parentBranch)
+      // The --no-commit flag prevents creating an empty commit
       await execa(
         'gs',
-        [
-          'branch',
-          'create',
-          branchName,
-          '--from',
-          parentBranch,
-          '--message',
-          `Create ${branchName}`,
-        ],
+        ['branch', 'create', branchName, '--message', `Create ${branchName}`, '--no-commit'],
         {
           cwd: workdir,
           timeout: GIT_SPICE_BRANCH_TIMEOUT_MS,
