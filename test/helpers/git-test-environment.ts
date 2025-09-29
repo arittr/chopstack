@@ -159,6 +159,7 @@ export class GitTestEnvironment {
             execSync(`git worktree remove "${path}" --force`, {
               cwd: this.tmpDir,
               encoding: 'utf8',
+              stdio: ['pipe', 'pipe', 'ignore'], // Suppress stderr to avoid "fatal" messages
             });
           }
         } catch {
@@ -178,22 +179,31 @@ export class GitTestEnvironment {
         const worktrees = execSync('git worktree list --porcelain', {
           cwd: this.tmpDir,
           encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'ignore'], // Suppress stderr
         });
 
-        const worktreePaths = worktrees
-          .split('\n')
-          .filter((line) => line.startsWith('worktree '))
-          .map((line) => line.slice(9))
-          .filter((path) => path !== this.tmpDir); // Don't remove main worktree
+        // Parse worktree blocks properly
+        const worktreeBlocks = worktrees.split('\n\n').filter((block) => block.trim() !== '');
 
-        for (const path of worktreePaths) {
-          try {
-            execSync(`git worktree remove "${path}" --force`, {
-              cwd: this.tmpDir,
-              encoding: 'utf8',
-            });
-          } catch {
-            // Ignore individual worktree cleanup errors
+        for (const block of worktreeBlocks) {
+          const lines = block.split('\n');
+          const worktreeLine = lines.find((line) => line.startsWith('worktree '));
+          const branchLine = lines.find((line) => line.startsWith('branch '));
+
+          if (worktreeLine !== undefined && branchLine !== undefined) {
+            // This is an actual worktree (not the main working tree)
+            const path = worktreeLine.slice(9);
+            if (path !== this.tmpDir && existsSync(path)) {
+              try {
+                execSync(`git worktree remove "${path}" --force`, {
+                  cwd: this.tmpDir,
+                  encoding: 'utf8',
+                  stdio: ['pipe', 'pipe', 'ignore'], // Suppress stderr
+                });
+              } catch {
+                // Ignore individual worktree cleanup errors
+              }
+            }
           }
         }
       } catch {

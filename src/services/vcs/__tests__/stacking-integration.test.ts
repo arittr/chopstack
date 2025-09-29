@@ -5,11 +5,12 @@ import * as path from 'node:path';
 
 import { setupGitTest } from '@test/helpers';
 import { execa } from 'execa';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecutionContext } from '@/core/execution/interfaces';
 import type { Plan } from '@/types/decomposer';
 
+import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
 import { ExecuteModeHandlerImpl } from '@/services/execution/modes/execute-mode-handler';
 import { MockTaskExecutionAdapter } from '@/services/orchestration/adapters/mock-task-execution-adapter';
@@ -26,18 +27,22 @@ describe('Stacked Branches Integration', () => {
   let mockOrchestrator: TaskOrchestrator;
 
   const { getGit, getTmpDir } = setupGitTest('stacking-integration');
+  const gitSpiceBackend = new GitSpiceBackend();
+
+  beforeAll(async () => {
+    const isAvailable = await gitSpiceBackend.isAvailable();
+    if (!isAvailable) {
+      throw new Error('git-spice CLI is required to run stacking integration tests.');
+    }
+  });
 
   beforeEach(async () => {
     git = getGit();
     testDir = getTmpDir();
 
     // Initialize git-spice
-    try {
-      await execa('gs', ['repo', 'init'], { cwd: testDir });
-      logger.info('Git-spice initialized successfully');
-    } catch (error) {
-      logger.warn(`Git-spice initialization failed (may not be installed): ${String(error)}`);
-    }
+    await gitSpiceBackend.initialize(testDir, 'main');
+    logger.info('Git-spice initialized successfully');
 
     // Set up VCS engine with proper config
     const vcsConfig = {
@@ -272,7 +277,7 @@ describe('Stacked Branches Integration', () => {
     } catch (error) {
       logger.warn(`Git-spice verification skipped (may not be installed): ${String(error)}`);
     }
-  });
+  }, 30_000);
 
   it('should handle branch naming conflicts gracefully', async () => {
     // Pre-create a conflicting branch
@@ -371,7 +376,9 @@ describe('Stacked Branches Integration', () => {
     try {
       const worktreeListResult = await execa('git', ['worktree', 'list'], { cwd: testDir });
       const worktreeList = worktreeListResult.stdout;
-      const worktrees = worktreeList.split('\n').filter((line) => line.includes('.chopstack'));
+      const worktrees = worktreeList
+        .split('\n')
+        .filter((line: string) => line.includes('.chopstack'));
 
       // Should have no remaining worktrees in .chopstack directory
       expect(worktrees).toHaveLength(0);
@@ -382,4 +389,94 @@ describe('Stacked Branches Integration', () => {
       expect(chopstackExists).toBe(false);
     }
   });
+
+  it('should clear completion queue between runs', async () => {
+    // First run: create one task
+    const plan1: Plan = {
+      tasks: [
+        {
+          id: 'task-first-run',
+          title: 'First Run Task',
+          description: 'Task from first run',
+          touches: [],
+          produces: ['first-run.ts'],
+          requires: [],
+          estimatedLines: 10,
+          agentPrompt: 'Create first-run.ts file',
+        },
+      ],
+    };
+
+    const context1: ExecutionContext = {
+      vcsMode: 'stacked',
+      continueOnError: false,
+      cwd: testDir,
+      dryRun: false,
+      maxRetries: 3,
+      verbose: true,
+      parentRef: 'main',
+      agentType: 'mock',
+    };
+
+    // Execute first run
+    const result1 = await executeModeHandler.handle(plan1.tasks, context1);
+    expect(result1.tasks).toHaveLength(1);
+    expect(result1.branches).toHaveLength(1);
+    expect(result1.branches[0]).toContain('task-first-run');
+
+    // Second run: create another task with a new plan
+    // This should NOT reuse the completion queue from the first run
+    const plan2: Plan = {
+      tasks: [
+        {
+          id: 'task-second-run',
+          title: 'Second Run Task',
+          description: 'Task from second run',
+          touches: [],
+          produces: ['second-run.ts'],
+          requires: [],
+          estimatedLines: 10,
+          agentPrompt: 'Create second-run.ts file',
+        },
+      ],
+    };
+
+    const context2: ExecutionContext = {
+      vcsMode: 'stacked',
+      continueOnError: false,
+      cwd: testDir,
+      dryRun: false,
+      maxRetries: 3,
+      verbose: true,
+      parentRef: 'main', // Start from main again
+      agentType: 'mock',
+    };
+
+    // Execute second run
+    const result2 = await executeModeHandler.handle(plan2.tasks, context2);
+    expect(result2.tasks).toHaveLength(1);
+    expect(result2.branches).toHaveLength(1);
+    expect(result2.branches[0]).toContain('task-second-run');
+
+    // Verify branches were created correctly
+    const branches = await git.branch();
+
+    // Should have the specific task branches from our runs
+    const ourTaskBranches = branches.all.filter(
+      (b) => b.includes('chopstack/task-first-run') || b.includes('chopstack/task-second-run'),
+    );
+    expect(ourTaskBranches).toContain('chopstack/task-first-run');
+    expect(ourTaskBranches).toContain('chopstack/task-second-run');
+
+    // Verify that second task is NOT stacked on first task
+    // It should be built directly from main since we cleared the queue
+    await git.checkout('chopstack/task-second-run');
+    const parentOfSecondTask = await git.raw(['rev-parse', 'HEAD~1']);
+
+    await git.checkout('main');
+    const mainCommit = await git.raw(['rev-parse', 'HEAD']);
+
+    // The parent of task-second-run should be main, not task-first-run
+    expect(parentOfSecondTask.trim()).toBe(mainCommit.trim());
+  }, 30_000);
 });
