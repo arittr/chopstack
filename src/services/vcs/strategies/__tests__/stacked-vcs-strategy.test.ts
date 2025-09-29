@@ -20,6 +20,8 @@ describe('StackedVcsStrategy', () => {
       addTaskToStack: vi.fn().mockResolvedValue('chopstack/test-branch'),
       restack: vi.fn().mockResolvedValue(undefined),
       cleanupWorktrees: vi.fn().mockResolvedValue(undefined),
+      createStackBranch: vi.fn().mockResolvedValue(undefined),
+      commitInStack: vi.fn().mockResolvedValue('abc123'),
     } as unknown as VcsEngineService;
 
     strategy = new StackedVcsStrategy(mockVcsEngine);
@@ -97,8 +99,8 @@ describe('StackedVcsStrategy', () => {
       const result = await strategy.prepareTaskExecution(task, executionTask, context);
 
       expect(mockVcsEngine.createWorktreesForTasks).toHaveBeenCalledWith(
-        [executionTask],
-        'main', // Should always use base branch
+        expect.arrayContaining([expect.objectContaining({ branchName: 'chopstack/task1' })]),
+        'chopstack/task1', // Should use the newly created branch
         '/test/repo',
       );
       expect(result).toEqual(worktreeContext);
@@ -124,19 +126,30 @@ describe('StackedVcsStrategy', () => {
         maxRetries: 3,
       };
 
+      const worktreeContext: WorktreeContext = {
+        taskId: 'task2',
+        branchName: 'chopstack/task2',
+        baseRef: 'main',
+        worktreePath: '.chopstack/shadows/task2',
+        absolutePath: '/test/repo/.chopstack/shadows/task2',
+        created: new Date(),
+      };
+
+      (mockVcsEngine.createWorktreesForTasks as any).mockResolvedValue([worktreeContext]);
+
       await strategy.initialize([task], context);
       await strategy.prepareTaskExecution(task, executionTask, context);
 
       expect(mockVcsEngine.createWorktreesForTasks).toHaveBeenCalledWith(
-        [executionTask],
-        'main', // Should still use base branch, not dependency branch
+        expect.arrayContaining([expect.objectContaining({ branchName: 'chopstack/task2' })]),
+        'chopstack/task2', // Should use the newly created branch
         '/test/repo',
       );
     });
   });
 
   describe('handleTaskCompletion', () => {
-    it('should add task to completion queue without immediate stacking', async () => {
+    it('should use git-spice commit for task completion', async () => {
       const task: Task = {
         id: 'task1',
         title: 'Task 1',
@@ -159,18 +172,12 @@ describe('StackedVcsStrategy', () => {
 
       const worktreeContext: WorktreeContext = {
         taskId: 'task1',
-        branchName: 'tmp-chopstack/task1',
+        branchName: 'chopstack/task1',
         baseRef: 'main',
         worktreePath: '.chopstack/shadows/task1',
         absolutePath: '/test/repo/.chopstack/shadows/task1',
         created: new Date(),
       };
-
-      const { commitService } = strategy as any;
-      commitService.commitChanges = vi.fn().mockResolvedValue('abc123');
-
-      // Mock addTaskToStack to return branch name
-      (mockVcsEngine.addTaskToStack as any).mockResolvedValue('chopstack/task1');
 
       await strategy.initialize([task], context);
       const result = await strategy.handleTaskCompletion(task, executionTask, worktreeContext);
@@ -181,11 +188,11 @@ describe('StackedVcsStrategy', () => {
         branchName: 'chopstack/task1',
       });
 
-      // Should call addTaskToStack immediately
-      expect(mockVcsEngine.addTaskToStack).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'task1', commitHash: 'abc123' }),
-        '/test/repo',
-        expect.objectContaining({ baseRef: 'main' }),
+      // Should use git-spice commit
+      expect(mockVcsEngine.commitInStack).toHaveBeenCalledWith(
+        executionTask,
+        worktreeContext,
+        expect.objectContaining({ generateMessage: true, includeAll: true }),
       );
     });
   });
