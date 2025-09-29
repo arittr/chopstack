@@ -67,20 +67,25 @@ export class WorktreeServiceImpl extends EventEmitter implements WorktreeService
     }
 
     try {
-      // Check if the baseRef is already the branch we want to checkout
-      const baseRefIsBranch = await git.branchExists(baseRef);
-      let finalBranchName: string;
+      // Always create a new branch for this task's worktree
+      // This allows multiple tasks to build from the same parent branch concurrently
 
-      if (baseRefIsBranch && baseRef.startsWith('chopstack/')) {
-        // The baseRef is already a chopstack branch, checkout it directly
-        // Don't create a new branch
-        await git.createWorktree(absolutePath, baseRef);
-        finalBranchName = baseRef;
-      } else {
-        // Need to create a new branch for this worktree
-        finalBranchName = await this._generateUniqueBranchName(git, branchName);
-        await git.createWorktree(absolutePath, baseRef, finalBranchName);
+      // CRITICAL: Resolve baseRef to commit hash to avoid conflicts
+      // If baseRef is a branch name and it's already checked out in another worktree,
+      // git will fail. Using the commit hash avoids this issue.
+      let startingPoint = baseRef;
+      try {
+        // Try to resolve baseRef to a commit hash
+        const commitHash = await git.git.revparse([baseRef]);
+        startingPoint = commitHash;
+        logger.debug(`  📍 Resolved ${baseRef} to commit ${commitHash.slice(0, 7)}`);
+      } catch {
+        // If resolution fails, use baseRef as-is (might be a commit hash already)
+        logger.debug(`  📍 Using baseRef ${baseRef} directly (could not resolve)`);
       }
+
+      const finalBranchName = await this._generateUniqueBranchName(git, branchName);
+      await git.createWorktree(absolutePath, startingPoint, finalBranchName);
 
       const context: WorktreeContext = {
         taskId,
