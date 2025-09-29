@@ -275,6 +275,21 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
     return this.stackBuildService.commitInStack(task, context, options);
   }
 
+  async fetchWorktreeCommits(tasks: ExecutionTask[], workdir: string): Promise<void> {
+    // Fetch commits from worktrees to make them available in the main repository
+    const { fetchWorktreeCommits } = await import('@/adapters/vcs/git-spice/worktree-sync');
+    await fetchWorktreeCommits(tasks, workdir);
+  }
+
+  async updateBranchToCommit(
+    branchName: string,
+    commitHash: string,
+    workdir: string,
+  ): Promise<void> {
+    // Update a branch to point to a specific commit
+    await this.stackBuildService.updateBranchToCommit(branchName, commitHash, workdir);
+  }
+
   private _setupEventForwarding(): void {
     // Forward worktree events - implementation extends EventEmitter
     if ('on' in this.worktreeService && typeof this.worktreeService.on === 'function') {
