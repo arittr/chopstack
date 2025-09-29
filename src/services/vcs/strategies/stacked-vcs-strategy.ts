@@ -28,8 +28,7 @@ export class StackedVcsStrategy implements VcsStrategy {
   private _branchStack: string[] = [];
   private _vcsContext!: VcsStrategyContext;
 
-  // Track completion order for stacking (separate from execution order)
-  private readonly completionQueue: Array<{ commitHash: string; taskId: string }> = [];
+  // Track completed tasks
   private readonly completedTasks = new Set<string>();
   private _currentStackTip = '';
 
@@ -42,6 +41,10 @@ export class StackedVcsStrategy implements VcsStrategy {
     logger.info(`[StackedVcsStrategy] Initializing for ${tasks.length} tasks`);
     logger.info(`  Working directory: ${context.cwd}`);
     logger.info(`  Base ref: ${context.baseRef ?? 'HEAD'}`);
+
+    // Clear state from any previous runs
+    this.completedTasks.clear();
+    this.worktreeContexts.clear();
 
     // Store VCS context for later use
     this._vcsContext = context;
@@ -89,10 +92,31 @@ export class StackedVcsStrategy implements VcsStrategy {
   ): Promise<WorktreeContext | null> {
     logger.info(`[StackedVcsStrategy] Preparing execution for task ${task.id}`);
 
-    // For completion-order stacking, ALL tasks execute from the base branch
-    // The stacking happens later in completion order during finalize()
-    const parentBranch = this._vcsContext.baseRef ?? 'main';
-    logger.info(`  📍 Using base branch for execution: ${parentBranch}`);
+    // Determine the parent branch based on dependencies
+    let parentBranch = this._vcsContext.baseRef ?? 'main';
+
+    // If task has dependencies, check if they're completed and stacked
+    if (task.requires.length > 0) {
+      // Find the last dependency (in case of multiple dependencies)
+      const lastDependency = task.requires.at(-1);
+
+      if (isNonNullish(lastDependency)) {
+        // Check if dependency is in the branch stack (meaning it's been stacked)
+        const dependencyBranch = this._branchStack.find((b) => b.includes(`/${lastDependency}`));
+
+        if (isNonEmptyString(dependencyBranch)) {
+          parentBranch = dependencyBranch;
+          logger.info(`  📍 Using dependency branch as base: ${parentBranch}`);
+        } else {
+          // Dependency not yet stacked - this shouldn't happen if execution order is correct
+          logger.warn(
+            `  ⚠️ Dependency ${lastDependency} not yet stacked, using base: ${parentBranch}`,
+          );
+        }
+      }
+    } else {
+      logger.info(`  📍 No dependencies, using base branch: ${parentBranch}`);
+    }
 
     logger.info(`  🏗️ Creating worktree for task ${task.id} from branch ${parentBranch}`);
 
@@ -150,21 +174,50 @@ export class StackedVcsStrategy implements VcsStrategy {
       // Store commit hash in execution task
       executionTask.commitHash = commitHash;
 
-      // Step 2: Add to completion queue for deferred stacking
-      this.completionQueue.push({ taskId: task.id, commitHash });
-      this.completedTasks.add(task.id);
-      logger.info(
-        `  📋 Added task ${task.id} to completion queue (${this.completionQueue.length} total)`,
-      );
-
-      // Step 3: Return immediately without stacking - stacking happens later in finalize()
+      // Step 2: Stack the task immediately (not deferred)
       const branchName = `chopstack/${task.id}`;
-      logger.info(`  ⏸️ Task ${task.id} commit ready, stacking deferred until finalization`);
+      let createdBranchName: string | null = null;
+      logger.info(`  🔗 Stacking task ${task.id} on current tip: ${this._currentStackTip}`);
+
+      try {
+        // Create dummy execution task for stack operation
+        const stackExecutionTask: ExecutionTask = {
+          ...executionTask,
+          commitHash,
+        };
+
+        // Create stack context with proper parent
+        const stackContext: WorktreeContext = {
+          ...context,
+          branchName,
+          baseRef: this._currentStackTip,
+        };
+
+        // Add task to stack and get the actual created branch name
+        createdBranchName = await this.vcsEngine.addTaskToStack(
+          stackExecutionTask,
+          this._vcsContext.cwd,
+          stackContext,
+        );
+
+        // Update our tracking with the actual branch name
+        if (isNonEmptyString(createdBranchName)) {
+          this._branchStack.push(createdBranchName);
+          this._currentStackTip = createdBranchName;
+          logger.info(`  ✅ Stacked ${createdBranchName} on ${stackContext.baseRef}`);
+        } else {
+          logger.error(`  ❌ Failed to get branch name for task ${task.id}`);
+        }
+      } catch (stackError) {
+        logger.error(`  ❌ Failed to stack task ${task.id}: ${String(stackError)}`);
+      }
+
+      this.completedTasks.add(task.id);
 
       return {
         taskId: task.id,
         commitHash,
-        branchName,
+        branchName: createdBranchName ?? branchName, // Use actual created branch name if available
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -182,68 +235,9 @@ export class StackedVcsStrategy implements VcsStrategy {
     context: VcsStrategyContext,
   ): Promise<{ branches: string[]; commits: string[] }> {
     logger.info(`[StackedVcsStrategy] Finalizing with ${results.length} results`);
-    logger.info(`  📋 Processing completion queue: ${this.completionQueue.length} tasks`);
 
-    // Process completion queue to create stacked branches in completion order
-    while (this.completionQueue.length > 0) {
-      const nextTask = this.completionQueue.shift();
-      if (nextTask === undefined) {
-        break;
-      }
-
-      const { taskId, commitHash } = nextTask;
-      const newBranchName = `chopstack/${taskId}`;
-
-      logger.info(`  🔗 Stacking task ${taskId} on current tip: ${this._currentStackTip}`);
-
-      try {
-        // Create dummy execution task for stack operation
-        const executionTask: ExecutionTask = {
-          id: taskId,
-          title: `Task ${taskId}`,
-          agentPrompt: '',
-          touches: [],
-          requires: [],
-          description: '',
-          produces: [],
-          estimatedLines: 0,
-          state: 'completed',
-          stateHistory: [],
-          retryCount: 0,
-          maxRetries: 0,
-          commitHash,
-        };
-
-        // Create dummy worktree context for the stack operation
-        const stackContext: WorktreeContext = {
-          taskId,
-          branchName: newBranchName,
-          worktreePath: context.cwd,
-          absolutePath: context.cwd,
-          baseRef: this._currentStackTip,
-          created: new Date(),
-        };
-
-        // Add task to stack and get the actual created branch name
-        const createdBranchName = await this.vcsEngine.addTaskToStack(
-          executionTask,
-          context.cwd,
-          stackContext,
-        );
-
-        // Update our tracking with the actual branch name
-        if (isNonEmptyString(createdBranchName)) {
-          this._branchStack.push(createdBranchName);
-          this._currentStackTip = createdBranchName;
-        } else {
-          logger.error(`  ❌ Failed to get branch name for task ${taskId}`);
-        }
-
-        logger.info(`  ✅ Stacked ${newBranchName} on ${stackContext.baseRef}`);
-      } catch (error) {
-        logger.error(`  ❌ Failed to stack task ${taskId}: ${String(error)}`);
-      }
-    }
+    // Tasks are now stacked immediately in handleTaskCompletion
+    // No need to process a completion queue here
 
     const commits = results
       .filter((r): r is TaskCommitResult & { commitHash: string } => isNonEmptyString(r.commitHash))
@@ -286,80 +280,6 @@ export class StackedVcsStrategy implements VcsStrategy {
     }
   }
 
-  /**
-   * Process the completion queue and stack tasks in completion order
-   * This creates a linear stack where each completed task builds on the previous
-   */
-  private async _processCompletionQueue(): Promise<{ branchName?: string }> {
-    if (this.completionQueue.length === 0) {
-      return {};
-    }
-
-    // Take the next task from the completion queue (FIFO order)
-    const nextTask = this.completionQueue.shift();
-    if (nextTask === undefined) {
-      return {};
-    }
-
-    const { taskId, commitHash } = nextTask;
-    const newBranchName = `chopstack/${taskId}`;
-
-    logger.info(`  🔗 Stacking task ${taskId} on current tip: ${this._currentStackTip}`);
-
-    try {
-      // Create branch for this task on the current stack tip
-      const executionTask: ExecutionTask = {
-        id: taskId,
-        title: `Task ${taskId}`,
-        agentPrompt: '',
-        touches: [],
-        requires: [],
-        description: '',
-        produces: [],
-        estimatedLines: 0,
-        state: 'completed',
-        stateHistory: [],
-        retryCount: 0,
-        maxRetries: 0,
-        commitHash,
-      };
-
-      // Create a dummy worktree context for the stack operation
-      const stackContext: WorktreeContext = {
-        taskId,
-        branchName: newBranchName,
-        worktreePath: this._vcsContext.cwd, // Use main repo for stacking
-        absolutePath: this._vcsContext.cwd,
-        baseRef: this._currentStackTip,
-        created: new Date(),
-      };
-
-      // Add task to stack - this creates the branch from the commit
-      await this.vcsEngine.addTaskToStack(executionTask, this._vcsContext.cwd, stackContext);
-
-      // Update our tracking
-      this._branchStack.push(newBranchName);
-      this._currentStackTip = newBranchName;
-
-      logger.info(`  ✅ Stacked ${newBranchName} on ${stackContext.baseRef}`);
-
-      // Process next task in queue if any
-      if (this.completionQueue.length > 0) {
-        logger.info(
-          `  ➡️ Processing next task in completion queue (${this.completionQueue.length} remaining)`,
-        );
-        await this._processCompletionQueue();
-      }
-
-      return { branchName: newBranchName };
-    } catch (error) {
-      logger.error(`  ❌ Failed to stack task ${taskId}: ${String(error)}`);
-      // Put the task back in the queue for retry
-      this.completionQueue.unshift(nextTask);
-      throw error;
-    }
-  }
-
   private _determineTaskOrder(tasks: Task[]): string[] {
     const ordered: string[] = [];
     const remaining = new Set(tasks);
@@ -395,19 +315,5 @@ export class StackedVcsStrategy implements VcsStrategy {
     }
 
     return ordered;
-  }
-
-  private async _getWorktreeCommitHash(context: WorktreeContext): Promise<string | null> {
-    const { execSync } = await import('node:child_process');
-    try {
-      const commitHash = execSync('git rev-parse HEAD', {
-        cwd: context.worktreePath,
-        encoding: 'utf8',
-      }).trim();
-      return commitHash;
-    } catch (error) {
-      logger.debug(`No commit found in worktree: ${String(error)}`);
-      return null;
-    }
   }
 }
