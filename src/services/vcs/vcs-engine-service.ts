@@ -258,6 +258,23 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
     await this.stackBuildService.restack(workdir);
   }
 
+  async createStackBranch(
+    branchName: string,
+    parentBranch: string,
+    workdir: string,
+  ): Promise<void> {
+    await this.stackBuildService.createStackBranch(branchName, parentBranch, workdir);
+  }
+
+  async commitInStack(
+    task: ExecutionTask,
+    context: WorktreeExecutionContext,
+    options: CommitOptions = {},
+  ): Promise<string> {
+    // Use git-spice backend for stack-aware commits
+    return this.stackBuildService.commitInStack(task, context, options);
+  }
+
   private _setupEventForwarding(): void {
     // Forward worktree events - implementation extends EventEmitter
     if ('on' in this.worktreeService && typeof this.worktreeService.on === 'function') {

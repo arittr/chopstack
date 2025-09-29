@@ -123,8 +123,18 @@ export class GitSpiceBackend implements VcsBackend {
   }
 
   /**
-   * Create a branch from a specific commit
+   * DEPRECATED: Use createStackBranch for new workflows.
+   * Creates a branch from an existing commit using the old cherry-pick approach.
+   *
+   * This method is kept for backward compatibility but should not be used
+   * for new git-spice "Spice-first" workflows.
+   *
+   * @param branchName - The name of the branch to create
+   * @param commitHash - The commit hash to base the branch on
+   * @param parentBranch - The parent branch to stack on top of
+   * @param workdir - The working directory
    * @returns The actual branch name created (may have suffix if collision occurred)
+   * @deprecated Use createStackBranch and commitInStack instead
    */
   async createBranchFromCommit(
     branchName: string,
@@ -166,30 +176,71 @@ export class GitSpiceBackend implements VcsBackend {
         logger.warn(`  ⚠️ Branch ${branchName} already exists, using ${finalBranchName} instead`);
       }
 
-      // Create the branch from the parent branch + commit (cumulative stacking)
-      logger.info(`  🔗 Checking out parent branch: ${parentBranch}`);
-      await git.git.checkout([parentBranch]);
+      // For non-worktree operations (main repo), we need to be more careful
+      // to avoid disrupting the user's current branch
+      if (!isWorktree) {
+        // Save current branch to restore later
+        const originalBranch = await git.git.revparse(['--abbrev-ref', 'HEAD']);
 
-      // Create new branch from the parent
-      await git.git.checkoutBranch(finalBranchName, parentBranch);
+        // Create the branch from the parent branch + commit (cumulative stacking)
+        logger.info(`  🔗 Creating branch ${finalBranchName} from parent: ${parentBranch}`);
 
-      // Apply the specific commit on top of the parent branch
-      logger.info(`  🍒 Cherry-picking commit ${commitHash.slice(0, 7)} onto ${parentBranch}`);
-      try {
-        await git.git.raw(['cherry-pick', commitHash]);
-        logger.info(`  ✅ Successfully cherry-picked commit onto ${finalBranchName}`);
-      } catch (cherryPickError) {
-        logger.warn(
-          `  ⚠️ Cherry-pick failed, trying alternative approach: ${String(cherryPickError)}`,
-        );
-        // Alternative: reset to the commit directly (fallback to original behavior)
-        await git.git.reset(['--hard', commitHash]);
-        logger.info(`  🔄 Used hard reset to commit as fallback`);
+        // Create new branch from parent without checking it out
+        await git.git.raw(['branch', finalBranchName, parentBranch]);
+
+        // Cherry-pick the commit onto the new branch
+        logger.info(`  🍒 Applying commit ${commitHash.slice(0, 7)} to ${finalBranchName}`);
+
+        // We need to temporarily switch to apply the commit
+        await git.git.checkout([finalBranchName]);
+
+        try {
+          await git.git.raw(['cherry-pick', commitHash]);
+          logger.info(`  ✅ Successfully cherry-picked commit onto ${finalBranchName}`);
+        } catch (cherryPickError) {
+          logger.warn(
+            `  ⚠️ Cherry-pick failed, using reset as fallback: ${String(cherryPickError)}`,
+          );
+          // Alternative: reset to the commit directly
+          await git.git.reset(['--hard', commitHash]);
+          logger.info(`  🔄 Used hard reset to commit as fallback`);
+        }
+
+        // Switch back to original branch to avoid disrupting user's workflow
+        logger.info(`  🔄 Restoring original branch: ${originalBranch}`);
+        await git.git.checkout([originalBranch]);
+      } else {
+        // In a worktree, we can switch branches freely
+        logger.info(`  🔗 Checking out parent branch: ${parentBranch}`);
+        await git.git.checkout([parentBranch]);
+
+        // Create new branch from the parent
+        await git.git.checkoutBranch(finalBranchName, parentBranch);
+
+        // Apply the specific commit on top of the parent branch
+        logger.info(`  🍒 Cherry-picking commit ${commitHash.slice(0, 7)} onto ${parentBranch}`);
+        try {
+          await git.git.raw(['cherry-pick', commitHash]);
+          logger.info(`  ✅ Successfully cherry-picked commit onto ${finalBranchName}`);
+        } catch (cherryPickError) {
+          logger.warn(
+            `  ⚠️ Cherry-pick failed, trying alternative approach: ${String(cherryPickError)}`,
+          );
+          // Alternative: reset to the commit directly (fallback to original behavior)
+          await git.git.reset(['--hard', commitHash]);
+          logger.info(`  🔄 Used hard reset to commit as fallback`);
+        }
       }
 
-      // Verify we're on the new branch
-      const currentBranch = await git.git.revparse(['--abbrev-ref', 'HEAD']);
-      logger.info(`  ✅ Created and checked out branch: ${currentBranch}`);
+      // Log branch creation success
+      if (!isWorktree) {
+        // In main repo, we restored original branch
+        const currentBranch = await git.git.revparse(['--abbrev-ref', 'HEAD']);
+        logger.info(`  ✅ Created branch ${finalBranchName} (currently on: ${currentBranch})`);
+      } else {
+        // In worktree, we're on the new branch
+        logger.info(`  ✅ Created and checked out branch: ${finalBranchName}`);
+      }
 
       // If we're in a worktree, we need to set up git-spice tracking in the main repo
       let branchTracked = false;
@@ -227,9 +278,8 @@ export class GitSpiceBackend implements VcsBackend {
             logger.info(`  📤 Track result: ${trackOutput}`);
           }
 
-          // Checkout the branch in the main repo so future ops use the right head
-          logger.info(`  🔄 Checking out ${finalBranchName} in main repo`);
-          await mainGit.git.checkout([finalBranchName]);
+          // Note: We don't checkout the branch in main repo to avoid disrupting user's workflow
+          logger.info(`  ✅ Branch ${finalBranchName} tracked in main repo (without switching)`);
 
           branchTracked = true;
 
@@ -274,10 +324,9 @@ export class GitSpiceBackend implements VcsBackend {
       const branchExists = finalBranches.all.includes(finalBranchName);
       logger.info(`  🔍 Branch ${finalBranchName} exists: ${branchExists}`);
 
-      // Debug: Check what files are in the final branch
+      // Debug: Check what files are in the final branch without switching to it
       try {
-        await git.git.checkout([finalBranchName]);
-        const branchFiles = await git.git.raw(['ls-tree', '-r', '--name-only', 'HEAD']);
+        const branchFiles = await git.git.raw(['ls-tree', '-r', '--name-only', finalBranchName]);
         logger.info(`  🔍 Final branch ${finalBranchName} contains files: ${branchFiles.trim()}`);
       } catch (debugError) {
         logger.warn(`  ⚠️ Failed to check final branch files: ${String(debugError)}`);
@@ -716,5 +765,106 @@ export class GitSpiceBackend implements VcsBackend {
     }
 
     return branches;
+  }
+
+  /**
+   * Create a branch in the stack with proper parent tracking
+   * Uses `gs branch create` to create the branch and track parent relationships
+   */
+  async createStackBranch(
+    branchName: string,
+    parentBranch: string,
+    workdir: string,
+  ): Promise<void> {
+    logger.info(`🌿 Creating stack branch ${branchName} with parent ${parentBranch}`);
+
+    try {
+      // Create branch with git-spice, tracking the parent
+      await execa(
+        'gs',
+        [
+          'branch',
+          'create',
+          branchName,
+          '--from',
+          parentBranch,
+          '--message',
+          `Create ${branchName}`,
+        ],
+        {
+          cwd: workdir,
+          timeout: GIT_SPICE_BRANCH_TIMEOUT_MS,
+        },
+      );
+
+      logger.info(`✅ Created and tracked branch ${branchName} with parent ${parentBranch}`);
+    } catch (error) {
+      const gitSpiceError = this._extractDetailedError(error, `gs branch create ${branchName}`);
+      throw gitSpiceError;
+    }
+  }
+
+  /**
+   * Commit changes in a stack-aware way using `gs commit`
+   * This automatically handles restacking unless explicitly disabled
+   */
+  async commitInStack(
+    message: string,
+    workdir: string,
+    options?: {
+      files?: string[];
+      noRestack?: boolean;
+    },
+  ): Promise<string> {
+    const git = new GitWrapper(workdir);
+
+    // Stage files if specified
+    if (options?.files !== undefined && options.files.length > 0) {
+      await git.git.add(options.files);
+    }
+
+    try {
+      // Use gs commit which handles restacking automatically
+      const args = ['commit', '--message', message];
+
+      if (options?.noRestack === true) {
+        args.push('--no-restack');
+      }
+
+      const { stdout } = await execa('gs', args, {
+        cwd: workdir,
+        timeout: 30_000,
+      });
+
+      // Extract commit hash from output
+      const commitMatch = stdout.match(/\[[\w/]+\s+([\da-f]{7,40})]/);
+      const commitHash = commitMatch?.[1] ?? '';
+
+      logger.info(`✅ Committed with git-spice: ${commitHash}`);
+      return commitHash;
+    } catch (error) {
+      const gitSpiceError = this._extractDetailedError(error, 'gs commit');
+      throw gitSpiceError;
+    }
+  }
+
+  /**
+   * Track an existing branch with the VCS backend
+   * Used to integrate branches created outside of git-spice
+   */
+  async trackBranch(branchName: string, parentBranch: string, workdir: string): Promise<void> {
+    logger.info(`🔗 Tracking existing branch ${branchName} with parent ${parentBranch}`);
+
+    try {
+      await execa('gs', ['branch', 'track', branchName, '--parent', parentBranch], {
+        cwd: workdir,
+        timeout: 10_000,
+      });
+
+      logger.info(`✅ Tracked branch ${branchName} with parent ${parentBranch}`);
+    } catch (error) {
+      const gitSpiceError = this._extractDetailedError(error, `gs branch track ${branchName}`);
+      throw gitSpiceError;
+    }
   }
 }
