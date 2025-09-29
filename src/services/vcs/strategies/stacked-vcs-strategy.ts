@@ -222,8 +222,25 @@ export class StackedVcsStrategy implements VcsStrategy {
           // Update the git-spice branch to point to the new commit
           await this.vcsEngine.updateBranchToCommit(branchName, commitHash, cwd);
 
+          // Track the branch with git-spice after updating it
+          // This ensures git-spice knows about the commit and maintains stack relationships
+          // Use the context's baseRef if available, otherwise use the parent branch for this task
+          const { baseRef } = context;
+          const { requires } = task;
+          let parentBranch = 'main';
+          if (isNonEmptyString(baseRef)) {
+            parentBranch = baseRef;
+          } else if (requires.length > 0) {
+            // If task has dependencies, use the last dependency's branch as parent
+            const lastDep = requires.at(-1);
+            if (isNonEmptyString(lastDep)) {
+              parentBranch = `chopstack/${lastDep}`;
+            }
+          }
+          await this.vcsEngine.trackBranch(branchName, parentBranch, cwd);
+
           logger.info(
-            `  ✅ Updated git-spice branch ${branchName} to commit ${commitHash.slice(0, 7)}`,
+            `  ✅ Updated and tracked git-spice branch ${branchName} to commit ${commitHash.slice(0, 7)}`,
           );
         } catch (syncError) {
           logger.warn(

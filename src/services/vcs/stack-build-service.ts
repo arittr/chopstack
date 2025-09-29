@@ -974,6 +974,14 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
   }
 
   /**
+   * Track an existing branch with the VCS backend
+   * Used to integrate branches created outside of git-spice
+   */
+  async trackBranch(branchName: string, parentBranch: string, workdir: string): Promise<void> {
+    await this.gitSpice.trackBranch(branchName, parentBranch, workdir);
+  }
+
+  /**
    * Update a branch to point to a specific commit
    */
   async updateBranchToCommit(
