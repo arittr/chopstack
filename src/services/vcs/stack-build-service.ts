@@ -954,7 +954,13 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       noRestack: false, // Allow auto-restacking
     };
 
-    if (options.files !== undefined) {
+    // Handle includeAll option by staging all changes
+    if (options.includeAll === true) {
+      // Stage all changes in the worktree
+      const git = new GitWrapper(context.worktreePath);
+      await git.git.add('.');
+      logger.info(`  📦 Staged all changes in ${context.worktreePath}`);
+    } else if (options.files !== undefined) {
       commitOptions.files = options.files;
     }
 

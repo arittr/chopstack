@@ -1,5 +1,6 @@
 import simpleGit, { type SimpleGit } from 'simple-git';
 
+import { logger } from '@/utils/global-logger';
 import { isNonNullish } from '@/validation/guards';
 
 export type GitStatus = {
@@ -138,6 +139,14 @@ export class GitWrapper {
    * Create a worktree (uses raw git command as simple-git doesn't support worktrees)
    */
   async createWorktree(path: string, ref: string, branch?: string): Promise<void> {
+    // First, prune any broken worktrees
+    try {
+      await this.gitClient.raw(['worktree', 'prune']);
+    } catch (pruneError) {
+      // Ignore prune errors
+      logger.debug(`Worktree prune before create (continuing): ${String(pruneError)}`);
+    }
+
     const args = ['worktree', 'add'];
     if (branch !== undefined) {
       args.push('-b', branch);
@@ -150,12 +159,32 @@ export class GitWrapper {
    * Remove a worktree (uses raw git command)
    */
   async removeWorktree(path: string, force = false): Promise<void> {
+    // First, try to prune broken worktrees
+    try {
+      await this.gitClient.raw(['worktree', 'prune']);
+    } catch (pruneError) {
+      // Ignore prune errors, continue with removal
+      const errorMessage = pruneError instanceof Error ? pruneError.message : String(pruneError);
+      logger.debug(`Worktree prune warning (continuing): ${errorMessage}`);
+    }
+
     const args = ['worktree', 'remove'];
     if (force) {
       args.push('--force');
     }
     args.push(path);
-    await this.gitClient.raw(args);
+
+    try {
+      await this.gitClient.raw(args);
+    } catch (removeError) {
+      // If removal fails and force wasn't used, try force removal
+      if (!force) {
+        logger.warn(`Normal worktree removal failed, attempting force removal for ${path}`);
+        await this.removeWorktree(path, true);
+      } else {
+        throw removeError;
+      }
+    }
   }
 
   /**
