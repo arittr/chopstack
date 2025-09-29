@@ -231,6 +231,11 @@ export type StackBuildService = {
    * Submit a stack for review (create PRs)
    */
   submitStack(workdir: string): Promise<string[]>;
+
+  /**
+   * Update a branch to point to a specific commit
+   */
+  updateBranchToCommit(branchName: string, commitHash: string, workdir: string): Promise<void>;
 };
 
 /**
