@@ -67,12 +67,20 @@ export class WorktreeServiceImpl extends EventEmitter implements WorktreeService
     }
 
     try {
-      // Check if branch already exists and generate unique name if needed
-      const finalBranchName = await this._generateUniqueBranchName(git, branchName);
+      // Check if the baseRef is already the branch we want to checkout
+      const baseRefIsBranch = await git.branchExists(baseRef);
+      let finalBranchName: string;
 
-      // Create worktree
-      // Pass baseRef as checkout source and branchName for -b to avoid invalid reference errors
-      await git.createWorktree(absolutePath, baseRef, finalBranchName);
+      if (baseRefIsBranch && baseRef.startsWith('chopstack/')) {
+        // The baseRef is already a chopstack branch, checkout it directly
+        // Don't create a new branch
+        await git.createWorktree(absolutePath, baseRef);
+        finalBranchName = baseRef;
+      } else {
+        // Need to create a new branch for this worktree
+        finalBranchName = await this._generateUniqueBranchName(git, branchName);
+        await git.createWorktree(absolutePath, baseRef, finalBranchName);
+      }
 
       const context: WorktreeContext = {
         taskId,
