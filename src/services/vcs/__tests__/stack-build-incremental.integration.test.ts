@@ -32,6 +32,9 @@ const { mockGitSpiceBackend } = vi.hoisted(() => {
     getStackInfo: vi.fn(),
     submitStack: vi.fn(),
     restack: vi.fn(),
+    createStackBranch: vi.fn(),
+    commitInStack: vi.fn(),
+    trackBranch: vi.fn(),
   };
   return { mockGitSpiceBackend: backend };
 });
