@@ -281,6 +281,11 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
     await fetchWorktreeCommits(tasks, workdir);
   }
 
+  async trackBranch(branchName: string, parentBranch: string, workdir: string): Promise<void> {
+    // Track an existing branch with the VCS backend
+    await this.stackBuildService.trackBranch(branchName, parentBranch, workdir);
+  }
+
   async updateBranchToCommit(
     branchName: string,
     commitHash: string,
