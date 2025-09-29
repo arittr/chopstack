@@ -953,7 +953,7 @@ export class GitSpiceBackend implements VcsBackend {
     logger.info(`🔗 Tracking existing branch ${branchName} with parent ${parentBranch}`);
 
     try {
-      await execa('gs', ['branch', 'track', branchName, '--parent', parentBranch], {
+      await execa('gs', ['branch', 'track', branchName, '--base', parentBranch], {
         cwd: workdir,
         timeout: 10_000,
       });
