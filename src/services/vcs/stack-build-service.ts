@@ -974,6 +974,26 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
   }
 
   /**
+   * Update a branch to point to a specific commit
+   */
+  async updateBranchToCommit(
+    branchName: string,
+    commitHash: string,
+    workdir: string,
+  ): Promise<void> {
+    const git = new GitWrapper(workdir);
+
+    try {
+      // Use git branch -f to force update the branch to point to the commit
+      await git.git.raw(['branch', '-f', branchName, commitHash]);
+      logger.info(`  ✅ Updated branch ${branchName} to commit ${commitHash.slice(0, 7)}`);
+    } catch (error) {
+      logger.error(`  ❌ Failed to update branch ${branchName}: ${String(error)}`);
+      throw error;
+    }
+  }
+
+  /**
    * Delay for a specified number of milliseconds
    */
   private async _delay(ms: number): Promise<void> {
