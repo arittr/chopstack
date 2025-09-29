@@ -169,6 +169,9 @@ describe('StackedVcsStrategy', () => {
       const { commitService } = strategy as any;
       commitService.commitChanges = vi.fn().mockResolvedValue('abc123');
 
+      // Mock addTaskToStack to return branch name
+      (mockVcsEngine.addTaskToStack as any).mockResolvedValue('chopstack/task1');
+
       await strategy.initialize([task], context);
       const result = await strategy.handleTaskCompletion(task, executionTask, worktreeContext);
 
@@ -178,8 +181,12 @@ describe('StackedVcsStrategy', () => {
         branchName: 'chopstack/task1',
       });
 
-      // Should NOT call addTaskToStack immediately
-      expect(mockVcsEngine.addTaskToStack).not.toHaveBeenCalled();
+      // Should call addTaskToStack immediately
+      expect(mockVcsEngine.addTaskToStack).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'task1', commitHash: 'abc123' }),
+        '/test/repo',
+        expect.objectContaining({ baseRef: 'main' }),
+      );
     });
   });
 
@@ -210,43 +217,25 @@ describe('StackedVcsStrategy', () => {
 
       await strategy.initialize(tasks, context);
 
-      // Simulate task completions
-      const queue = (strategy as any).completionQueue;
-      queue.push(
-        { taskId: 'task1', commitHash: 'commit1' },
-        { taskId: 'task2', commitHash: 'commit2' },
-      );
-
-      // Mock addTaskToStack to return branch names
-      (mockVcsEngine.addTaskToStack as any)
-        .mockResolvedValueOnce('chopstack/task1')
-        .mockResolvedValueOnce('chopstack/task2');
+      // Mock restack to succeed
+      (mockVcsEngine.restack as any).mockResolvedValue();
 
       const results = [
         { taskId: 'task1', commitHash: 'commit1', branchName: 'chopstack/task1' },
         { taskId: 'task2', commitHash: 'commit2', branchName: 'chopstack/task2' },
       ];
 
-      await strategy.finalize(results, context);
+      // Set up the internal branch stack to simulate task completion
+      (strategy as any)._branchStack = ['main', 'chopstack/task1', 'chopstack/task2'];
 
-      // Check that tasks were stacked in order
-      expect(mockVcsEngine.addTaskToStack).toHaveBeenCalledTimes(2);
+      const finalResult = await strategy.finalize(results, context);
 
-      // First task should be stacked on main
-      expect(mockVcsEngine.addTaskToStack).toHaveBeenNthCalledWith(
-        1,
-        expect.objectContaining({ id: 'task1', commitHash: 'commit1' }),
-        '/test/repo',
-        expect.objectContaining({ baseRef: 'main' }),
-      );
+      // Check that restack was called
+      expect(mockVcsEngine.restack).toHaveBeenCalledWith('/test/repo');
 
-      // Second task should be stacked on first task's branch
-      expect(mockVcsEngine.addTaskToStack).toHaveBeenNthCalledWith(
-        2,
-        expect.objectContaining({ id: 'task2', commitHash: 'commit2' }),
-        '/test/repo',
-        expect.objectContaining({ baseRef: 'chopstack/task1' }),
-      );
+      // Check the returned branches and commits
+      expect(finalResult.branches).toEqual(['chopstack/task1', 'chopstack/task2']);
+      expect(finalResult.commits).toEqual(['commit1', 'commit2']);
 
       // Should call restack at the end
       expect(mockVcsEngine.restack).toHaveBeenCalledWith('/test/repo');
@@ -268,16 +257,21 @@ describe('StackedVcsStrategy', () => {
 
       await strategy.initialize(tasks, context);
 
-      const queue = (strategy as any).completionQueue;
-      queue.push({ taskId: 'task1', commitHash: 'commit1' });
-
-      // Mock addTaskToStack to throw error
-      (mockVcsEngine.addTaskToStack as any).mockRejectedValue(new Error('Stack failed'));
+      // Mock restack to fail
+      (mockVcsEngine.restack as any).mockRejectedValueOnce(new Error('Restack failed'));
 
       const results = [{ taskId: 'task1', commitHash: 'commit1', branchName: 'chopstack/task1' }];
 
+      // Set up the internal branch stack to simulate task completion
+      (strategy as any)._branchStack = ['main', 'chopstack/task1'];
+
       // Should not throw, but log error
       await expect(strategy.finalize(results, context)).resolves.not.toThrow();
+
+      // Check the result still contains the data
+      const finalResult = await strategy.finalize(results, context);
+      expect(finalResult.branches).toContain('chopstack/task1');
+      expect(finalResult.commits).toContain('commit1');
     });
 
     it('should create cumulative stack with proper parent relationships', async () => {
@@ -316,60 +310,37 @@ describe('StackedVcsStrategy', () => {
 
       await strategy.initialize(tasks, context);
 
-      // Simulate completion order: task2, task1, task3
-      const queue = (strategy as any).completionQueue;
-      queue.push(
-        { taskId: 'task2', commitHash: 'commit2' },
-        { taskId: 'task1', commitHash: 'commit1' },
-        { taskId: 'task3', commitHash: 'commit3' },
-      );
+      // Mock restack
+      (mockVcsEngine.restack as any).mockResolvedValue();
 
-      (mockVcsEngine.addTaskToStack as any)
-        .mockResolvedValueOnce('chopstack/task2')
-        .mockResolvedValueOnce('chopstack/task1')
-        .mockResolvedValueOnce('chopstack/task3');
-
+      // Set up results as if tasks completed in order
       const results = [
-        { taskId: 'task2', commitHash: 'commit2', branchName: 'chopstack/task2' },
         { taskId: 'task1', commitHash: 'commit1', branchName: 'chopstack/task1' },
+        { taskId: 'task2', commitHash: 'commit2', branchName: 'chopstack/task2' },
         { taskId: 'task3', commitHash: 'commit3', branchName: 'chopstack/task3' },
+      ];
+
+      // Set up the internal branch stack to simulate proper stacking order
+      // task1 and task2 are independent (no deps), task3 depends on both
+      (strategy as any)._branchStack = [
+        'main',
+        'chopstack/task1',
+        'chopstack/task2',
+        'chopstack/task3',
       ];
 
       const finalResult = await strategy.finalize(results, context);
 
-      // Verify stacking order matches completion order
-      expect(mockVcsEngine.addTaskToStack).toHaveBeenCalledTimes(3);
+      // Should call restack
+      expect(mockVcsEngine.restack).toHaveBeenCalledWith('/test/repo');
 
-      // task2 stacked on main
-      expect(mockVcsEngine.addTaskToStack).toHaveBeenNthCalledWith(
-        1,
-        expect.objectContaining({ id: 'task2' }),
-        '/test/repo',
-        expect.objectContaining({ baseRef: 'main' }),
-      );
-
-      // task1 stacked on task2
-      expect(mockVcsEngine.addTaskToStack).toHaveBeenNthCalledWith(
-        2,
-        expect.objectContaining({ id: 'task1' }),
-        '/test/repo',
-        expect.objectContaining({ baseRef: 'chopstack/task2' }),
-      );
-
-      // task3 stacked on task1
-      expect(mockVcsEngine.addTaskToStack).toHaveBeenNthCalledWith(
-        3,
-        expect.objectContaining({ id: 'task3' }),
-        '/test/repo',
-        expect.objectContaining({ baseRef: 'chopstack/task1' }),
-      );
-
+      // Check the final result
       expect(finalResult.branches).toEqual([
-        'chopstack/task2',
         'chopstack/task1',
+        'chopstack/task2',
         'chopstack/task3',
       ]);
-      expect(finalResult.commits).toEqual(['commit2', 'commit1', 'commit3']);
+      expect(finalResult.commits).toEqual(['commit1', 'commit2', 'commit3']);
     });
   });
 

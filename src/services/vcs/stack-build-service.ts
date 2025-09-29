@@ -252,7 +252,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       logger.info(
         `  🔨 Creating branch ${branchName} from commit ${task.commitHash.slice(0, 7)}...`,
       );
-      const branchCreated = await this._createBranchWithRetry({
+      const actualBranchName = await this._createBranchWithRetry({
         branchName,
         commitHash: task.commitHash,
         parentBranch,
@@ -260,27 +260,32 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
         task,
       });
 
-      if (!branchCreated) {
+      if (actualBranchName === null) {
         logger.error(`  ❌ Failed to create branch ${branchName} after ${this.maxRetries} retries`);
         throw new Error(
           `Failed to create branch for task ${task.id} after ${this.maxRetries} retries`,
         );
       }
 
-      logger.info(`  ✅ Branch ${branchName} created successfully`);
+      logger.info(`  ✅ Branch ${actualBranchName} created successfully`);
+      if (actualBranchName !== branchName) {
+        logger.info(
+          `  ℹ️ Branch name was suffixed due to collision: ${branchName} → ${actualBranchName}`,
+        );
+      }
       logger.info(`✅ [addTaskToStack] Completed - task ${task.id} added to stack`);
 
-      // Update stack state
+      // Update stack state with the ACTUAL branch name
       if (this._stackState !== null) {
         this._stackState.stacked.add(task.id);
-        this._stackState.taskToBranch.set(task.id, branchName);
-        this._stackState.tip = branchName;
+        this._stackState.taskToBranch.set(task.id, actualBranchName);
+        this._stackState.tip = actualBranchName;
       }
 
-      // Emit event
+      // Emit event with the ACTUAL branch name
       this.emit('branch_created', {
         type: 'branch_created',
-        branchName,
+        branchName: actualBranchName,
         taskId: task.id,
         timestamp: new Date(),
       } as StackEvent);
@@ -288,7 +293,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       // Process any pending tasks that might now be ready
       await this._processPendingTasks(workdir);
 
-      return branchName;
+      return actualBranchName;
     } catch (error) {
       logger.error(
         `❌ Failed to add task ${task.id} to stack: ${error instanceof Error ? error.message : String(error)}`,
@@ -443,12 +448,18 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       let finalBranchName = desiredBranchName;
 
       try {
-        await this.gitSpice.createBranchFromCommit(
+        // createBranchFromCommit now returns the actual branch name
+        finalBranchName = await this.gitSpice.createBranchFromCommit(
           desiredBranchName,
           task.commitHash,
           currentParent,
           workdir,
         );
+        if (finalBranchName !== desiredBranchName) {
+          logger.info(
+            `  ℹ️ Branch name was suffixed due to collision: ${desiredBranchName} → ${finalBranchName}`,
+          );
+        }
       } catch (error) {
         const originalMessage = error instanceof Error ? error.message : String(error);
         logger.warn(
@@ -779,15 +790,20 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     parentBranch: string;
     task: ExecutionTask;
     workdir: string;
-  }): Promise<boolean> {
+  }): Promise<string | null> {
     let lastError: Error | undefined;
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
         // First attempt: use git-spice
         if (attempt === 1) {
-          await this.gitSpice.createBranchFromCommit(branchName, commitHash, parentBranch, workdir);
-          return true;
+          const actualBranchName = await this.gitSpice.createBranchFromCommit(
+            branchName,
+            commitHash,
+            parentBranch,
+            workdir,
+          );
+          return actualBranchName;
         }
 
         // Subsequent attempts: wait then retry
@@ -795,8 +811,13 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
           `🔄 Retrying branch creation for ${branchName} (attempt ${attempt}/${this.maxRetries})...`,
         );
         await this._delay(this.retryDelayMs * attempt); // Exponential backoff
-        await this.gitSpice.createBranchFromCommit(branchName, commitHash, parentBranch, workdir);
-        return true;
+        const actualBranchName = await this.gitSpice.createBranchFromCommit(
+          branchName,
+          commitHash,
+          parentBranch,
+          workdir,
+        );
+        return actualBranchName;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
@@ -825,7 +846,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       workdir,
     });
 
-    return fallbackResult.success;
+    return fallbackResult.success ? (fallbackResult.branchName ?? branchName) : null;
   }
 
   /**

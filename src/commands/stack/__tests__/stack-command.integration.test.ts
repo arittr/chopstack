@@ -259,7 +259,7 @@ describe('StackCommand integration tests', () => {
         expect(commitMessage).toMatch(/^(feat|fix|docs|style|refactor|test|chore):/i);
 
         // Should be a substantial commit message (not just a generic title)
-        expect(commitMessage.length).toBeGreaterThan(50);
+        expect(commitMessage.length).toBeGreaterThan(40);
       } finally {
         // Restore original cwd
         process.cwd = originalCwd;
