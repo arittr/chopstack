@@ -137,6 +137,8 @@ export class GitWrapper {
 
   /**
    * Create a worktree (uses raw git command as simple-git doesn't support worktrees)
+   * If branch is provided, creates a new branch in the worktree
+   * If branch is not provided, checks out the ref directly (existing branch/commit)
    */
   async createWorktree(path: string, ref: string, branch?: string): Promise<void> {
     // First, prune any broken worktrees
@@ -148,10 +150,15 @@ export class GitWrapper {
     }
 
     const args = ['worktree', 'add'];
+
     if (branch !== undefined) {
-      args.push('-b', branch);
+      // Create a new branch in the worktree
+      args.push('-b', branch, path, ref);
+    } else {
+      // Checkout existing ref (branch/tag/commit) directly
+      args.push(path, ref);
     }
-    args.push(path, ref);
+
     await this.gitClient.raw(args);
   }
 
