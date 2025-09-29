@@ -210,43 +210,49 @@ export class StackedVcsStrategy implements VcsStrategy {
       // The branch name was already set in prepareTaskExecution
       const { branchName } = context;
 
-      // If we're in a worktree, we need to update the git-spice branch with the commit
+      // If we're in a worktree, ensure the commit is visible in the main repo
       const { worktreePath } = context;
       const { cwd } = this._vcsContext;
 
       if (worktreePath !== cwd) {
         try {
           // Fetch the commit from the worktree to make it available in the main repo
+          // This is needed even if we're on the right branch, to make commits visible
           await this.vcsEngine.fetchWorktreeCommits([executionTask], cwd);
 
-          // Update the git-spice branch to point to the new commit
-          await this.vcsEngine.updateBranchToCommit(branchName, commitHash, cwd);
+          // Check if we're on a tracked git-spice branch
+          const branchIsTracked = branchName.startsWith('chopstack/');
 
-          // Track the branch with git-spice after updating it
-          // This ensures git-spice knows about the commit and maintains stack relationships
-          // Use the context's baseRef if available, otherwise use the parent branch for this task
-          const { baseRef } = context;
-          const { requires } = task;
-          let parentBranch = 'main';
-          if (isNonEmptyString(baseRef)) {
-            parentBranch = baseRef;
-          } else if (requires.length > 0) {
-            // If task has dependencies, use the last dependency's branch as parent
-            const lastDep = requires.at(-1);
-            if (isNonEmptyString(lastDep)) {
-              parentBranch = `chopstack/${lastDep}`;
+          if (!branchIsTracked) {
+            // Only need to update and track if we're not already on a tracked branch
+            // This handles fallback cases where a temporary branch was created
+            await this.vcsEngine.updateBranchToCommit(branchName, commitHash, cwd);
+
+            // Determine parent for tracking
+            const { baseRef } = context;
+            const { requires } = task;
+            let parentBranch = 'main';
+            if (isNonEmptyString(baseRef)) {
+              parentBranch = baseRef;
+            } else if (requires.length > 0) {
+              const lastDep = requires.at(-1);
+              if (isNonEmptyString(lastDep)) {
+                parentBranch = `chopstack/${lastDep}`;
+              }
             }
-          }
-          await this.vcsEngine.trackBranch(branchName, parentBranch, cwd);
+            await this.vcsEngine.trackBranch(branchName, parentBranch, cwd);
 
-          logger.info(
-            `  ✅ Updated and tracked git-spice branch ${branchName} to commit ${commitHash.slice(0, 7)}`,
-          );
+            logger.info(
+              `  ✅ Updated and tracked git-spice branch ${branchName} to commit ${commitHash.slice(0, 7)}`,
+            );
+          } else {
+            logger.info(
+              `  ✅ Commit ${commitHash.slice(0, 7)} already on tracked branch ${branchName}`,
+            );
+          }
         } catch (syncError) {
-          logger.warn(
-            `  ⚠️ Failed to sync worktree commit to git-spice branch: ${String(syncError)}`,
-          );
-          // Continue anyway - the commit exists, just not on the right branch
+          logger.warn(`  ⚠️ Failed to sync worktree commit: ${String(syncError)}`);
+          // Continue anyway - the commit exists
         }
       }
 
