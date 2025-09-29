@@ -286,6 +286,11 @@ export type VcsEngineService = {
   ): Promise<WorktreeContext[]>;
 
   /**
+   * Fetch commits from worktrees to make them available in the main repository
+   */
+  fetchWorktreeCommits(tasks: ExecutionTask[], workdir: string): Promise<void>;
+
+  /**
    * Retrieve the configured default parent branch used for stacks
    */
   getDefaultParentRef(): string;
@@ -304,4 +309,9 @@ export type VcsEngineService = {
    * Restack branches to ensure proper stacking relationships
    */
   restack(workdir: string): Promise<void>;
+
+  /**
+   * Update a branch to point to a specific commit
+   */
+  updateBranchToCommit(branchName: string, commitHash: string, workdir: string): Promise<void>;
 };
