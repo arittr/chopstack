@@ -9,7 +9,7 @@ import type { VcsBackend } from '@/core/vcs/interfaces';
 
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/global-logger';
-import { hasContent, isNonEmptyString } from '@/validation/guards';
+import { hasContent, isNonEmptyString, isNonNullish } from '@/validation/guards';
 
 import { GitSpiceError } from './errors';
 import { extractPrUrls, generateBranchNameFromMessage } from './helpers';
@@ -862,19 +862,37 @@ export class GitSpiceBackend implements VcsBackend {
       const isWorktree = isNonEmptyString(worktreeOutput.trim());
 
       if (isWorktree) {
-        // In worktrees, use regular git commit since gs doesn't track worktree branches
-        logger.info(`  🏗️ Using git commit in worktree: ${workdir}`);
+        // In worktrees, use git-spice commit for proper stack tracking
+        logger.info(`  🌿 Creating git-spice commit in worktree: ${workdir}`);
 
-        // Create the commit using regular git
-        await git.git.commit(message);
+        const args = ['commit', 'create', '-m', message];
+        if (options?.noRestack === true) {
+          args.push('--no-restack');
+        }
 
-        // Get the commit hash
-        const { stdout: commitHash } = await execa('git', ['rev-parse', 'HEAD'], {
+        const { stdout } = await execa('gs', args, {
           cwd: workdir,
+          timeout: 30_000,
+          all: true,
         });
 
-        logger.info(`✅ Committed in worktree: ${commitHash.slice(0, 7)}`);
-        return commitHash.trim();
+        // Try to extract commit hash
+        let commitHash = '';
+        const commitMatch = stdout.match(/\[[\w/-]+\s+([\da-f]{7,40})]/);
+        if (isNonNullish(commitMatch)) {
+          commitHash = commitMatch[1] ?? '';
+        }
+
+        if (!isNonEmptyString(commitHash)) {
+          // If we couldn't extract from output, get from HEAD
+          const { stdout: headHash } = await execa('git', ['rev-parse', 'HEAD'], {
+            cwd: workdir,
+          });
+          commitHash = headHash.trim();
+        }
+
+        logger.info(`✅ Created git-spice commit in worktree: ${commitHash.slice(0, 7)}`);
+        return commitHash;
       }
 
       // In main repository, use gs commit create for proper stacking
@@ -893,18 +911,18 @@ export class GitSpiceBackend implements VcsBackend {
       // Try multiple patterns to extract commit hash
       // Pattern 1: [branch-name hash] format
       let commitMatch = stdout.match(/\[[\w/-]+\s+([\da-f]{7,40})]/);
-      let commitHash = commitMatch?.[1] ?? '';
+      let commitHash = isNonNullish(commitMatch) ? (commitMatch[1] ?? '') : '';
 
       // Pattern 2: Just the hash on a line by itself
       if (!isNonEmptyString(commitHash)) {
         commitMatch = stdout.match(/^([\da-f]{7,40})$/m);
-        commitHash = commitMatch?.[1] ?? '';
+        commitHash = isNonNullish(commitMatch) ? (commitMatch[1] ?? '') : '';
       }
 
       // Pattern 3: "Created commit hash" format
       if (!isNonEmptyString(commitHash)) {
         commitMatch = stdout.match(/[Cc]reated?\s+(?:commit\s+)?([\da-f]{7,40})/);
-        commitHash = commitMatch?.[1] ?? '';
+        commitHash = isNonNullish(commitMatch) ? (commitMatch[1] ?? '') : '';
       }
 
       if (!isNonEmptyString(commitHash)) {
