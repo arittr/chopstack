@@ -835,6 +835,20 @@ export class GitSpiceBackend implements VcsBackend {
     }
 
     try {
+      // Check if there are any changes to commit
+      const status = await git.git.status();
+      if (status.files.length === 0) {
+        logger.warn(`⚠️ No changes to commit in ${workdir}`);
+        // Return empty commit hash to indicate no commit was made
+        return '';
+      }
+
+      // Log what we're about to commit for debugging
+      logger.info(`  📝 Committing ${status.files.length} file(s) in ${workdir}`);
+      for (const file of status.files) {
+        logger.debug(`    - ${file.path} (${file.working_dir})`);
+      }
+
       // Use gs commit create which handles restacking automatically
       const args = ['commit', 'create', '-m', message];
 
@@ -842,14 +856,19 @@ export class GitSpiceBackend implements VcsBackend {
         args.push('--no-restack');
       }
 
-      const { stdout } = await execa('gs', args, {
+      const { stdout, stderr } = await execa('gs', args, {
         cwd: workdir,
         timeout: 30_000,
+        all: true,
       });
 
       // Extract commit hash from output
       const commitMatch = stdout.match(/\[[\w/]+\s+([\da-f]{7,40})]/);
       const commitHash = commitMatch?.[1] ?? '';
+
+      if (!isNonEmptyString(commitHash) && isNonEmptyString(stderr)) {
+        logger.error(`❌ gs commit create failed with stderr: ${stderr}`);
+      }
 
       logger.info(`✅ Committed with git-spice: ${commitHash}`);
       return commitHash;
