@@ -198,20 +198,21 @@ export class WorktreeServiceImpl extends EventEmitter implements WorktreeService
       logger.info(`✅ Cleanup complete: ${successful} worktrees removed`);
     }
 
-    // Clean up empty chopstack directory if all worktrees removed successfully
+    // Clean up empty shadows directory if all worktrees removed successfully
+    // Keep the .chopstack directory itself as it contains logs
     if (
       successful === taskIds.length &&
       this.activeWorktrees.size === 0 &&
       workingDir !== undefined
     ) {
       try {
-        // Use child_process to remove directory, avoiding FS mock issues
+        // Only remove the shadows subdirectory, not the entire .chopstack directory
         const { execSync } = await import('node:child_process');
-        const chopstackPath = path.join(workingDir, '.chopstack');
-        execSync(`rm -rf "${chopstackPath}"`, { cwd: workingDir });
-        logger.info(`🧹 Cleaned up .chopstack directory`);
+        const shadowsPath = path.join(workingDir, '.chopstack', 'shadows');
+        execSync(`rm -rf "${shadowsPath}"`, { cwd: workingDir });
+        logger.info(`🧹 Cleaned up shadows directory`);
       } catch (error) {
-        logger.warn(`⚠️ Failed to clean up .chopstack directory: ${String(error)}`);
+        logger.warn(`⚠️ Failed to clean up shadows directory: ${String(error)}`);
       }
     }
   }
