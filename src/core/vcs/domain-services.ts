@@ -167,6 +167,16 @@ export type StackBuildService = {
   ): Promise<StackInfo>;
 
   /**
+   * Commit changes in a stack-aware way using native VCS backend
+   * This should use backend-specific commands (e.g., gs commit) for proper stacking
+   */
+  commitInStack(
+    task: ExecutionTask,
+    context: WorktreeContext,
+    options?: CommitOptions,
+  ): Promise<string>;
+
+  /**
    * Create a branch from a specific commit, optionally tracking a parent branch
    */
   createBranchFromCommit(
@@ -175,6 +185,12 @@ export type StackBuildService = {
     parentBranch: string,
     workdir: string,
   ): Promise<void>;
+
+  /**
+   * Create a stack branch using native VCS backend (e.g., git-spice)
+   * This creates branches with proper parent tracking for stacking
+   */
+  createStackBranch(branchName: string, parentBranch: string, workdir: string): Promise<void>;
 
   /**
    * Get the configured base branch for stacks
