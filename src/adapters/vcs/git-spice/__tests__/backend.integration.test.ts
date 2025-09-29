@@ -1,5 +1,5 @@
 import { setupGitTest } from '@test/helpers';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
 
@@ -7,6 +7,13 @@ describe('GitSpiceBackend integration tests', () => {
   let backend: GitSpiceBackend;
 
   const { getGit, getTmpDir } = setupGitTest('git-spice-backend-integration');
+  beforeAll(async () => {
+    const availabilityChecker = new GitSpiceBackend();
+    const isGitSpiceAvailable = await availabilityChecker.isAvailable();
+    if (!isGitSpiceAvailable) {
+      throw new Error('git-spice CLI is required to run GitSpiceBackend integration tests.');
+    }
+  });
 
   beforeEach(() => {
     backend = new GitSpiceBackend();
@@ -15,36 +22,15 @@ describe('GitSpiceBackend integration tests', () => {
   describe('isAvailable', () => {
     it('should detect if git-spice is installed', async () => {
       const available = await backend.isAvailable();
-
-      // On systems with git-spice installed, this should be true
-      // On systems without it, this should be false
-      expect(typeof available).toBe('boolean');
-
-      if (available) {
-        // If git-spice is available, verify we can actually run gs --version
-        const { execa } = await import('execa');
-        const { stdout } = await execa('gs', ['--version']);
-        expect(stdout).toContain('git-spice');
-      }
-    });
-
-    it('should return false when git-spice is not in PATH', async () => {
-      // This test runs in controlled environment where PATH might not include gs
-      const available = await backend.isAvailable();
-      expect(typeof available).toBe('boolean');
-      // We can't force false, but we can verify the return type
+      expect(available).toBe(true);
+      const { execa } = await import('execa');
+      const { stdout } = await execa('gs', ['--version']);
+      expect(stdout).toContain('git-spice');
     });
   });
 
   describe('initialize', () => {
     it('should initialize git-spice when available, or skip gracefully', async () => {
-      const isAvailable = await backend.isAvailable();
-
-      if (!isAvailable) {
-        console.log('⏭️  Skipping git-spice initialization test - gs command not available');
-        return;
-      }
-
       const testDir = getTmpDir();
 
       // Test that initialization doesn't throw when git-spice is available
@@ -52,25 +38,11 @@ describe('GitSpiceBackend integration tests', () => {
     });
 
     it('should handle missing directory gracefully', async () => {
-      const isAvailable = await backend.isAvailable();
-
-      if (!isAvailable) {
-        console.log('⏭️  Skipping git-spice error test - gs command not available');
-        return;
-      }
-
       // Try to initialize in a non-existent directory - should throw some error
       await expect(backend.initialize('/non/existent/directory', 'main')).rejects.toThrow(); // Any error is fine, we just want it to fail gracefully
     });
 
     it('should handle duplicate initialization attempts', async () => {
-      const isAvailable = await backend.isAvailable();
-
-      if (!isAvailable) {
-        console.log('⏭️  Skipping git-spice duplicate init test - gs command not available');
-        return;
-      }
-
       const testDir = getTmpDir();
 
       // First initialization
@@ -81,13 +53,6 @@ describe('GitSpiceBackend integration tests', () => {
     });
 
     it('should use current branch as trunk when none specified', async () => {
-      const isAvailable = await backend.isAvailable();
-
-      if (!isAvailable) {
-        console.log('⏭️  Skipping git-spice auto-trunk test - gs command not available');
-        return;
-      }
-
       const git = getGit();
       const testDir = getTmpDir();
 
@@ -104,15 +69,6 @@ describe('GitSpiceBackend integration tests', () => {
 
   describe('createBranchWithCommit', () => {
     it('should handle branch creation workflow when git-spice is available', async () => {
-      const isAvailable = await backend.isAvailable();
-
-      if (!isAvailable) {
-        console.log(
-          '⏭️  Skipping git-spice branch creation success test - gs command not available',
-        );
-        return;
-      }
-
       const git = getGit();
       const testDir = getTmpDir();
 
@@ -142,13 +98,6 @@ describe('GitSpiceBackend integration tests', () => {
     });
 
     it('should handle auto-generated branch names appropriately', async () => {
-      const isAvailable = await backend.isAvailable();
-
-      if (!isAvailable) {
-        console.log('⏭️  Skipping git-spice auto-branch-name test - gs command not available');
-        return;
-      }
-
       const git = getGit();
       const testDir = getTmpDir();
 
