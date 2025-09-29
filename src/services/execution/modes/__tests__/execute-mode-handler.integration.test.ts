@@ -118,6 +118,7 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
     // Mock the VcsStrategyFactory to return our mock strategy
     const mockVcsStrategyFactory = {
       create: vi.fn().mockReturnValue(mockVcsStrategy),
+      getDefaultParentRef: vi.fn(() => 'main'),
     } as unknown as VcsStrategyFactory;
 
     handler = new ExecuteModeHandlerImpl(
