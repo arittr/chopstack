@@ -779,6 +779,15 @@ export class GitSpiceBackend implements VcsBackend {
     logger.info(`🌿 Creating stack branch ${branchName} with parent ${parentBranch}`);
 
     try {
+      // Check if branch already exists
+      const git = new GitWrapper(workdir);
+      const branchExists = await git.branchExists(branchName);
+
+      if (branchExists) {
+        logger.info(`📌 Branch ${branchName} already exists, skipping creation`);
+        return;
+      }
+
       // Create branch with git-spice, specifying the target (parent) branch
       // The --no-commit flag prevents creating an empty commit
       await execa(
@@ -807,7 +816,7 @@ export class GitSpiceBackend implements VcsBackend {
   }
 
   /**
-   * Commit changes in a stack-aware way using `gs commit`
+   * Commit changes in a stack-aware way using `gs commit create`
    * This automatically handles restacking unless explicitly disabled
    */
   async commitInStack(
@@ -826,8 +835,8 @@ export class GitSpiceBackend implements VcsBackend {
     }
 
     try {
-      // Use gs commit which handles restacking automatically
-      const args = ['commit', '--message', message];
+      // Use gs commit create which handles restacking automatically
+      const args = ['commit', 'create', '-m', message];
 
       if (options?.noRestack === true) {
         args.push('--no-restack');
@@ -845,7 +854,7 @@ export class GitSpiceBackend implements VcsBackend {
       logger.info(`✅ Committed with git-spice: ${commitHash}`);
       return commitHash;
     } catch (error) {
-      const gitSpiceError = this._extractDetailedError(error, 'gs commit');
+      const gitSpiceError = this._extractDetailedError(error, 'gs commit create');
       throw gitSpiceError;
     }
   }
