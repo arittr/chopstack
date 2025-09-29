@@ -311,6 +311,12 @@ export type VcsEngineService = {
   restack(workdir: string): Promise<void>;
 
   /**
+   * Track an existing branch with the VCS backend
+   * Used to integrate branches created outside of the VCS backend
+   */
+  trackBranch(branchName: string, parentBranch: string, workdir: string): Promise<void>;
+
+  /**
    * Update a branch to point to a specific commit
    */
   updateBranchToCommit(branchName: string, commitHash: string, workdir: string): Promise<void>;
