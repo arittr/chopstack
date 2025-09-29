@@ -47,6 +47,35 @@ export type VcsEngineDependencies = {
   worktreeService: WorktreeService;
 };
 
+// Simple mutex for serializing git operations that need exclusive index access
+class GitOperationQueue {
+  private _queue: Promise<unknown> = Promise.resolve();
+
+  async execute<T>(operation: () => Promise<T>): Promise<T> {
+    // Create a new promise that chains to the current queue
+    const executeOperation = async (): Promise<T> => {
+      // Wait for the previous operation to complete
+      await this._queue;
+      // Execute the new operation
+      return operation();
+    };
+
+    const resultPromise = executeOperation();
+
+    // Update the queue to wait for this operation (but continue on errors)
+    this._queue = (async () => {
+      try {
+        await resultPromise;
+      } catch {
+        // Continue queue even if operation fails
+      }
+    })();
+
+    // Return the result promise
+    return resultPromise;
+  }
+}
+
 /**
  * Main VCS Engine service that coordinates all VCS domain services
  * Implements the VcsEngineService interface for clean architecture integration
@@ -59,10 +88,12 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
   private readonly conflictResolutionService: ConflictResolutionService;
   private readonly stackBuildService: StackBuildService;
   private readonly config: VcsEngineConfig;
+  private readonly gitOperationQueue: GitOperationQueue;
 
   constructor(config: VcsEngineConfig, dependencies: Partial<VcsEngineDependencies> = {}) {
     super();
     this.config = config;
+    this.gitOperationQueue = new GitOperationQueue();
 
     // Initialize domain services with DI overrides
     this.worktreeService =
@@ -149,7 +180,8 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
     logger.info(`🏗️ Creating worktrees for ${tasks.length} tasks from base ${baseRef}`);
 
     const worktreePromises = tasks.map(async (task) => {
-      const branchName = `tmp-chopstack/${task.id}`; // Use temporary prefix to avoid conflicts with final stack branches
+      // Use the task's branchName if provided, otherwise create a temporary branch
+      const branchName = task.branchName ?? `tmp-chopstack/${task.id}`;
       const worktreePath = `${this.config.shadowPath}/${task.id}`;
 
       const context = await this.worktreeService.createWorktree({
@@ -263,7 +295,10 @@ export class VcsEngineServiceImpl extends EventEmitter implements VcsEngineServi
     parentBranch: string,
     workdir: string,
   ): Promise<void> {
-    await this.stackBuildService.createStackBranch(branchName, parentBranch, workdir);
+    // Serialize branch creation to avoid git index lock conflicts
+    await this.gitOperationQueue.execute(async () => {
+      await this.stackBuildService.createStackBranch(branchName, parentBranch, workdir);
+    });
   }
 
   async commitInStack(
