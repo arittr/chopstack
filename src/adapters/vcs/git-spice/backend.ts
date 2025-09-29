@@ -124,13 +124,14 @@ export class GitSpiceBackend implements VcsBackend {
 
   /**
    * Create a branch from a specific commit
+   * @returns The actual branch name created (may have suffix if collision occurred)
    */
   async createBranchFromCommit(
     branchName: string,
     commitHash: string,
     parentBranch: string,
     workdir: string,
-  ): Promise<void> {
+  ): Promise<string> {
     logger.info(`🆕 [GitSpiceBackend.createBranchFromCommit]`);
     logger.info(`  🎯 Branch name: ${branchName}`);
     logger.info(`  📝 Commit hash: ${commitHash.slice(0, 7)}`);
@@ -221,7 +222,10 @@ export class GitSpiceBackend implements VcsBackend {
             cwd: mainRepoPath,
             timeout: GIT_SPICE_BRANCH_TIMEOUT_MS,
           });
-          logger.info(`  📤 Track result: ${trackResult.stdout}`);
+          const trackOutput = typeof trackResult.stdout === 'string' ? trackResult.stdout : '';
+          if (trackOutput !== '') {
+            logger.info(`  📤 Track result: ${trackOutput}`);
+          }
 
           // Checkout the branch in the main repo so future ops use the right head
           logger.info(`  🔄 Checking out ${finalBranchName} in main repo`);
@@ -247,7 +251,10 @@ export class GitSpiceBackend implements VcsBackend {
             cwd: workdir,
             timeout: GIT_SPICE_BRANCH_TIMEOUT_MS,
           });
-          logger.info(`  📤 Track result: ${trackResult.stdout}`);
+          const trackOutput = typeof trackResult.stdout === 'string' ? trackResult.stdout : '';
+          if (trackOutput !== '') {
+            logger.info(`  📤 Track result: ${trackOutput}`);
+          }
         } catch (trackError) {
           const errorMessage =
             trackError instanceof Error ? trackError.message : String(trackError);
@@ -277,6 +284,7 @@ export class GitSpiceBackend implements VcsBackend {
       }
 
       logger.info(`  ✅ git-spice branch ${finalBranchName} created and tracked successfully`);
+      return finalBranchName;
     } catch (error) {
       const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
       const stdout = error instanceof Error && 'stdout' in error ? String(error.stdout) : '';

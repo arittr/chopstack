@@ -110,7 +110,8 @@ describe('StackBuildServiceImpl', () => {
     execaMock.mockReset();
     execaMock.mockResolvedValue({ stdout: '', all: '' });
     createBranchFromCommitMock.mockReset();
-    createBranchFromCommitMock.mockResolvedValue(undefined);
+    // createBranchFromCommit now returns the actual branch name
+    createBranchFromCommitMock.mockImplementation((branchName: string) => branchName);
     gitWrapperInstances.length = 0;
     nextGitWrapperFactory = createGitWrapperStub;
   });
@@ -349,7 +350,7 @@ describe('StackBuildServiceImpl', () => {
       createBranchFromCommitMock
         .mockRejectedValueOnce(new Error('timeout'))
         .mockRejectedValueOnce(new Error('resource temporarily unavailable'))
-        .mockResolvedValueOnce(undefined);
+        .mockResolvedValueOnce('chopstack/task-1');
 
       await service.addTaskToStack(baseTask, '/repo');
 

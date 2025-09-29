@@ -103,7 +103,10 @@ describe('StackBuildService Integration - Incremental Building', () => {
       untracked: [],
     });
 
-    mockGitSpiceBackend.createBranchFromCommit.mockResolvedValue(undefined);
+    // createBranchFromCommit now returns the actual branch name
+    mockGitSpiceBackend.createBranchFromCommit.mockImplementation(
+      (branchName: string) => branchName,
+    );
     mockGitSpiceBackend.getStackInfo.mockResolvedValue(null);
     mockGitSpiceBackend.submitStack.mockResolvedValue([]);
 
@@ -235,7 +238,7 @@ describe('StackBuildService Integration - Incremental Building', () => {
       mockGitSpiceBackend.createBranchFromCommit
         .mockRejectedValueOnce(new Error('timeout'))
         .mockRejectedValueOnce(new Error('resource temporarily unavailable'))
-        .mockResolvedValueOnce(undefined);
+        .mockResolvedValueOnce('chopstack/task-1');
 
       const startTime = Date.now();
       await service.addTaskToStack(task, '/repo');

@@ -158,6 +158,7 @@ class TestResourceTracker {
               execSync(`git worktree remove "${path}" --force`, {
                 cwd: repoPath,
                 encoding: 'utf8',
+                stdio: ['pipe', 'pipe', 'ignore'], // Suppress stderr to avoid "fatal" messages
               });
             } catch {
               // If git command fails, try manual removal
@@ -262,7 +263,24 @@ class TestResourceTracker {
 
       const testWorktrees = worktrees
         .split('\n\n')
-        .filter((block) => block.includes('/test/tmp/') || block.includes('worktree-task-'))
+        .filter((block) => {
+          // Skip empty blocks
+          if (block.trim() === '') {
+            return false;
+          }
+
+          // Skip the main worktree (it has no branch line)
+          if (!block.includes('branch ')) {
+            return false;
+          }
+
+          // Only include blocks that have test-related paths or branches
+          return (
+            block.includes('/test/tmp/') ||
+            block.includes('worktree-task-') ||
+            block.includes('/.chopstack/shadows/')
+          );
+        })
         .map((block) => {
           const pathMatch = block.match(/^worktree (.+)$/m);
           return isNonNullish(pathMatch) ? pathMatch[1] : null;
@@ -277,6 +295,7 @@ class TestResourceTracker {
             execSync(`git worktree remove "${worktreePath}" --force`, {
               cwd: this._projectRoot,
               encoding: 'utf8',
+              stdio: ['pipe', 'pipe', 'ignore'], // Suppress stderr to avoid "fatal" messages
             });
           } catch {
             // Try manual removal if git command fails
