@@ -233,6 +233,12 @@ export type StackBuildService = {
   submitStack(workdir: string): Promise<string[]>;
 
   /**
+   * Track an existing branch with the VCS backend
+   * Used to integrate branches created outside of the VCS backend
+   */
+  trackBranch(branchName: string, parentBranch: string, workdir: string): Promise<void>;
+
+  /**
    * Update a branch to point to a specific commit
    */
   updateBranchToCommit(branchName: string, commitHash: string, workdir: string): Promise<void>;
