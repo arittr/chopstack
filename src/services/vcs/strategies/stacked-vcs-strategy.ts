@@ -210,6 +210,29 @@ export class StackedVcsStrategy implements VcsStrategy {
       // The branch name was already set in prepareTaskExecution
       const { branchName } = context;
 
+      // If we're in a worktree, we need to update the git-spice branch with the commit
+      const { worktreePath } = context;
+      const { cwd } = this._vcsContext;
+
+      if (worktreePath !== cwd) {
+        try {
+          // Fetch the commit from the worktree to make it available in the main repo
+          await this.vcsEngine.fetchWorktreeCommits([executionTask], cwd);
+
+          // Update the git-spice branch to point to the new commit
+          await this.vcsEngine.updateBranchToCommit(branchName, commitHash, cwd);
+
+          logger.info(
+            `  ✅ Updated git-spice branch ${branchName} to commit ${commitHash.slice(0, 7)}`,
+          );
+        } catch (syncError) {
+          logger.warn(
+            `  ⚠️ Failed to sync worktree commit to git-spice branch: ${String(syncError)}`,
+          );
+          // Continue anyway - the commit exists, just not on the right branch
+        }
+      }
+
       return {
         taskId: task.id,
         commitHash,
