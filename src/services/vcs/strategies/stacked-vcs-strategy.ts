@@ -1,7 +1,15 @@
 /**
  * Stacked VCS Strategy
  *
- * Creates git-spice stacked branches for each task.
+ * Worktree-first approach: Creates git-spice stacked branches for each task.
+ *
+ * Flow:
+ * 1. Create worktree from parent branch (main or previous task's branch)
+ * 2. Execute task in worktree isolation
+ * 3. Commit changes using git-spice (maintains parent relationship)
+ * 4. Track branch with git-spice (creates/updates branch tracking)
+ * 5. Clean up worktree (allows children to use the branch)
+ *
  * Each task gets its own branch that builds on the previous task's branch,
  * creating a clean stack of changes perfect for review.
  */
@@ -30,14 +38,20 @@ export class StackedVcsStrategy implements VcsStrategy {
   private readonly completedTasks = new Set<string>();
   private _currentStackTip = '';
 
+  // Unique run ID to prevent branch name collisions
+  private readonly RUN_ID: string;
+
   constructor(vcsEngine: VcsEngineService) {
     this.vcsEngine = vcsEngine;
+    // Generate a short, unique run ID (timestamp-based)
+    this.RUN_ID = Date.now().toString(36).slice(-6);
   }
 
   async initialize(tasks: Task[], context: VcsStrategyContext): Promise<void> {
     logger.info(`[StackedVcsStrategy] Initializing for ${tasks.length} tasks`);
     logger.info(`  Working directory: ${context.cwd}`);
     logger.info(`  Base ref: ${context.baseRef ?? 'HEAD'}`);
+    logger.info(`  Run ID: ${this.RUN_ID}`);
 
     // Clear state from any previous runs
     this.completedTasks.clear();
@@ -48,6 +62,38 @@ export class StackedVcsStrategy implements VcsStrategy {
 
     // Initialize VCS engine
     await this.vcsEngine.initialize(context.cwd);
+
+    // Pre-execution check: Verify working directory is clean
+    const { GitWrapper } = await import('@/adapters/vcs/git-wrapper');
+    const git = new GitWrapper(context.cwd);
+    const status = await git.status();
+
+    // Use isClean flag from simple-git which accurately checks all git state
+    if (status.isClean === false) {
+      // Collect all types of changes for error message
+      const changes = [
+        ...(status.staged ?? []).map((f) => `staged: ${f}`),
+        ...status.modified.map((f) => `modified: ${f}`),
+        ...status.added.map((f) => `added: ${f}`),
+        ...status.deleted.map((f) => `deleted: ${f}`),
+        ...status.untracked.map((f) => `untracked: ${f}`),
+        ...(status.conflicted ?? []).map((f) => `conflicted: ${f}`),
+        ...(status.notAdded ?? []).map((f) => `not added: ${f}`),
+      ];
+
+      logger.error(`❌ Working directory has uncommitted changes:`);
+      for (const change of changes.slice(0, 10)) {
+        logger.error(`  - ${change}`);
+      }
+      if (changes.length > 10) {
+        logger.error(`  ... and ${changes.length - 10} more`);
+      }
+      throw new Error(
+        `Working directory must be clean before starting stacked execution. Please commit or stash your changes first.`,
+      );
+    }
+
+    logger.info(`  ✅ Working directory is clean`);
 
     // Initialize the stack state
     this.vcsEngine.initializeStackState(context.baseRef ?? 'main');
@@ -89,54 +135,60 @@ export class StackedVcsStrategy implements VcsStrategy {
   ): Promise<WorktreeContext | null> {
     logger.info(`[StackedVcsStrategy] Preparing execution for task ${task.id}`);
 
-    // Clean up any existing branch for this task to ensure fresh start
-    const branchName = `chopstack/${task.id}`;
-    try {
-      const { GitWrapper } = await import('@/adapters/vcs/git-wrapper');
-      const git = new GitWrapper(context.cwd);
-      const branchExists = await git.branchExists(branchName);
-      if (branchExists) {
-        logger.info(`  🧹 Deleting existing branch ${branchName} for fresh start`);
-        await git.git.raw(['branch', '-D', branchName]);
-      }
-    } catch (error) {
-      logger.debug(
-        `  ℹ️ Branch ${branchName} doesn't exist or couldn't be deleted: ${String(error)}`,
-      );
-    }
+    // Generate branch name with run ID to prevent collisions
+    const branchName = `chopstack/${task.id}-${this.RUN_ID}`;
 
-    // Determine the parent branch based on dependencies
-    let parentBranch = this._vcsContext.baseRef ?? 'main';
+    // Determine the parent branch for worktree creation
+    // Must match the tracking parent for git-spice ancestry checks
+    // Use linear stacking logic: current stack tip, but ensure it's descended from dependencies
+    let parentBranch = this._currentStackTip;
 
-    // If task has dependencies, check if they're completed and stacked
+    // If task has dependencies, ensure parent is descended from all dependencies
     if (task.requires.length > 0) {
       // Find the last dependency (in case of multiple dependencies)
       const lastDependency = task.requires.at(-1);
 
       if (isNonNullish(lastDependency)) {
-        // Check if dependency is in the branch stack (meaning it's been stacked)
-        const dependencyBranch = this._branchStack.find((b) => b.includes(`/${lastDependency}`));
+        // Check if dependency is in the branch stack (meaning it's been committed)
+        const dependencyBranch = this._branchStack.find((b) =>
+          b.includes(`/${lastDependency}-${this.RUN_ID}`),
+        );
 
         if (isNonEmptyString(dependencyBranch)) {
-          parentBranch = dependencyBranch;
-          logger.info(`  📍 Using dependency branch as base: ${parentBranch}`);
+          // Check if current stack tip is already descended from this dependency
+          const stackTipIndex = this._branchStack.indexOf(this._currentStackTip);
+          const depIndex = this._branchStack.indexOf(dependencyBranch);
+
+          if (stackTipIndex > depIndex) {
+            // Current stack tip is after dependency - use it for linear stacking
+            // It contains all the dependency's changes plus any parallel tasks
+            parentBranch = this._currentStackTip;
+            logger.info(
+              `  📍 Creating worktree from current stack tip: ${parentBranch} (includes ${dependencyBranch})`,
+            );
+          } else {
+            // This is the first task to stack on this dependency
+            parentBranch = dependencyBranch;
+            logger.info(`  📍 Creating worktree from dependency branch: ${parentBranch}`);
+          }
         } else {
-          // Dependency not yet stacked - this shouldn't happen if execution order is correct
+          // Dependency not yet completed - shouldn't happen with correct execution order
           logger.warn(
-            `  ⚠️ Dependency ${lastDependency} not yet stacked, using base: ${parentBranch}`,
+            `  ⚠️ Dependency ${lastDependency} not yet completed, using current stack tip: ${parentBranch}`,
           );
         }
       }
     } else {
-      logger.info(`  📍 No dependencies, using base branch: ${parentBranch}`);
+      // No dependencies: use current stack tip for linear stacking
+      logger.info(`  📍 Creating worktree from current stack tip: ${parentBranch}`);
     }
 
-    // WORKTREE-FIRST WORKFLOW: Create worktree FIRST, then track with git-spice after commit
+    // WORKTREE-FIRST WORKFLOW: Create worktree from parent, execute, then commit & track
     logger.info(`  🏗️ Creating worktree for task ${task.id}`);
 
     try {
-      // Step 1: Create worktree directly from the parent branch
-      // This avoids checking out branches in the main repo
+      // Create worktree directly from the parent branch
+      // The branch will be created later by git-spice track after we commit
       const worktreeTask = { ...executionTask, branchName };
 
       const worktreeContext = await this.vcsEngine.createWorktreesForTasks(
@@ -176,14 +228,14 @@ export class StackedVcsStrategy implements VcsStrategy {
     logger.info(`  Worktree: ${context.worktreePath}`);
 
     try {
-      // SPICE-FIRST WORKFLOW: Use git-spice for commits
-      // The branch was already created in prepareTaskExecution,
-      // now we just need to commit the changes using git-spice
+      // WORKTREE-FIRST WORKFLOW: Commit in worktree, then track with git-spice
+      // The worktree was created in prepareTaskExecution from the parent branch,
+      // now we commit the changes and track the branch
 
       logger.info(`  🌿 Committing task changes using git-spice in ${context.worktreePath}`);
 
-      // Use git-spice commit for proper stacking
-      // This automatically handles restacking and maintains parent relationships
+      // Use git-spice commit - this creates the commit in the worktree
+      // and makes it available in the main repo automatically
       const commitHash = await this.vcsEngine.commitInStack(executionTask, context, {
         generateMessage: true,
         includeAll: true,
@@ -223,89 +275,92 @@ export class StackedVcsStrategy implements VcsStrategy {
       // The branch name was already set in prepareTaskExecution
       const { branchName } = context;
 
-      // If we're in a worktree, ensure the commit is visible in the main repo
-      const { worktreePath } = context;
-      const { cwd } = this._vcsContext;
+      // Determine parent branch for tracking at COMPLETION time
+      // This ensures we get the latest _currentStackTip for linear stacking
+      const { requires } = task;
+      let parentBranch = this._currentStackTip;
 
-      if (worktreePath !== cwd) {
-        try {
-          // Fetch the commit from the worktree to make it available in the main repo
-          // This is needed even if we're on the right branch, to make commits visible
-          await this.vcsEngine.fetchWorktreeCommits([executionTask], cwd);
+      // If task has dependencies, ensure parent is descended from all dependencies
+      if (requires.length > 0) {
+        const lastDependency = requires.at(-1);
 
-          // Ensure the branch exists in main repo before tracking
-          // Create branch reference from the commit
-          const { GitWrapper } = await import('@/adapters/vcs/git-wrapper');
-          const mainGit = new GitWrapper(cwd);
-          try {
-            // Create or update the branch to point to the commit
-            await mainGit.git.raw(['branch', '-f', branchName, commitHash]);
-            logger.info(
-              `  ✅ Created/updated branch ${branchName} at ${commitHash.slice(0, 7)} in main repo`,
-            );
-          } catch (branchError) {
-            logger.warn(`  ⚠️ Failed to create branch in main repo: ${String(branchError)}`);
-          }
+        if (isNonNullish(lastDependency)) {
+          // Find the dependency branch
+          const dependencyBranch = this._branchStack.find((b) =>
+            b.includes(`/${lastDependency}-${this.RUN_ID}`),
+          );
 
-          // Now track the branch with git-spice in the main repo
-          // Determine parent for tracking
-          const { baseRef } = context;
-          const { requires } = task;
-          let parentBranch = 'main';
-          if (isNonEmptyString(baseRef)) {
-            parentBranch = baseRef;
-          } else if (requires.length > 0) {
-            const lastDep = requires.at(-1);
-            if (isNonEmptyString(lastDep)) {
-              parentBranch = `chopstack/${lastDep}`;
-            }
-          }
+          if (isNonEmptyString(dependencyBranch)) {
+            // Check if current stack tip is already descended from this dependency
+            const stackTipIndex = this._branchStack.indexOf(this._currentStackTip);
+            const depIndex = this._branchStack.indexOf(dependencyBranch);
 
-          // Track the branch with git-spice (this will create it if needed)
-          // If the parent branch doesn't exist (because it had no changes), fall back to base
-          try {
-            await this.vcsEngine.trackBranch(branchName, parentBranch, cwd);
-          } catch (trackError) {
-            // If tracking fails because parent doesn't exist, try with the base branch
-            const errorMessage = String(trackError);
-            if (errorMessage.includes('branch not tracked') || errorMessage.includes('not found')) {
-              logger.warn(
-                `  ⚠️ Parent branch ${parentBranch} not tracked, falling back to base branch`,
+            if (stackTipIndex > depIndex) {
+              // Current stack tip is after dependency - use it for linear stacking
+              parentBranch = this._currentStackTip;
+              logger.info(
+                `  📍 Tracking with current stack tip: ${parentBranch} (descended from ${dependencyBranch})`,
               );
-              const fallbackParent = this._vcsContext.baseRef ?? 'main';
-              await this.vcsEngine.trackBranch(branchName, fallbackParent, cwd);
-              parentBranch = fallbackParent;
             } else {
-              throw trackError;
+              // This is the first task to stack on this dependency
+              parentBranch = dependencyBranch;
+              logger.info(`  📍 Tracking with dependency branch: ${parentBranch}`);
             }
+          } else {
+            // Dependency not yet stacked - use current stack tip
+            logger.warn(
+              `  ⚠️ Dependency ${lastDependency} not yet stacked, using current stack tip: ${parentBranch}`,
+            );
           }
+        }
+      } else {
+        // No dependencies: use current stack tip for linear stacking
+        logger.info(`  📍 Tracking with current stack tip: ${parentBranch}`);
+      }
 
-          // Track the branch in our stack
-          if (!this._branchStack.includes(branchName)) {
-            this._branchStack.push(branchName);
-            this._currentStackTip = branchName;
-          }
-
+      // Track the branch with git-spice in the main repo
+      // git-spice track will create the branch if it doesn't exist
+      const { cwd } = this._vcsContext;
+      try {
+        logger.info(`  🔗 Tracking branch ${branchName} with parent ${parentBranch}`);
+        await this.vcsEngine.trackBranch(branchName, parentBranch, cwd);
+        logger.info(`  ✅ Tracked git-spice branch ${branchName} with parent ${parentBranch}`);
+      } catch (trackError) {
+        // If tracking fails because parent doesn't exist (empty commit), fall back to base
+        const errorMessage = String(trackError);
+        if (errorMessage.includes('branch not tracked') || errorMessage.includes('not found')) {
+          logger.warn(
+            `  ⚠️ Parent branch ${parentBranch} not tracked, falling back to base branch`,
+          );
+          const { baseRef } = this._vcsContext;
+          const fallbackParent = baseRef ?? 'main';
+          await this.vcsEngine.trackBranch(branchName, fallbackParent, cwd);
+          parentBranch = fallbackParent;
           logger.info(`  ✅ Tracked git-spice branch ${branchName} with parent ${parentBranch}`);
-
-          // Clean up this worktree now that it's committed and tracked
-          // This allows child tasks to create worktrees from this branch
-          const { id } = task;
-          logger.info(`  🧹 Cleaning up worktree for completed task ${id}`);
-          try {
-            await this.vcsEngine.cleanupWorktrees([context]);
-            logger.info(`  ✅ Cleaned up worktree for task ${id}`);
-          } catch (cleanupError) {
-            logger.warn(`  ⚠️ Failed to cleanup worktree: ${String(cleanupError)}`);
-          }
-        } catch (syncError) {
-          logger.warn(`  ⚠️ Failed to sync worktree commit: ${String(syncError)}`);
-          // Continue anyway - the commit exists
+        } else {
+          throw trackError;
         }
       }
 
+      // Track the branch in our local stack state
+      if (!this._branchStack.includes(branchName)) {
+        this._branchStack.push(branchName);
+        this._currentStackTip = branchName;
+      }
+
+      // Clean up this worktree now that it's committed and tracked
+      // This allows child tasks to create worktrees from this branch
+      const { id: taskId } = task;
+      logger.info(`  🧹 Cleaning up worktree for completed task ${taskId}`);
+      try {
+        await this.vcsEngine.cleanupWorktrees([context]);
+        logger.info(`  ✅ Cleaned up worktree for task ${taskId}`);
+      } catch (cleanupError) {
+        logger.warn(`  ⚠️ Failed to cleanup worktree: ${String(cleanupError)}`);
+      }
+
       return {
-        taskId: task.id,
+        taskId,
         commitHash,
         branchName,
       };
