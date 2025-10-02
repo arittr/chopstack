@@ -24,6 +24,7 @@ import type {
 } from '@/core/vcs/vcs-strategy';
 import type { Task } from '@/types/decomposer';
 
+import { FileModificationValidator, ViolationReporter } from '@/services/vcs/validation';
 import { logger } from '@/utils/global-logger';
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
 
@@ -41,10 +42,17 @@ export class StackedVcsStrategy implements VcsStrategy {
   // Unique run ID to prevent branch name collisions
   private readonly RUN_ID: string;
 
+  // File modification validator
+  private readonly validator: FileModificationValidator;
+  private readonly violationReporter: ViolationReporter;
+  private _allTasks: Task[] = [];
+
   constructor(vcsEngine: VcsEngineService) {
     this.vcsEngine = vcsEngine;
     // Generate a short, unique run ID (timestamp-based)
     this.RUN_ID = Date.now().toString(36).slice(-6);
+    this.validator = new FileModificationValidator();
+    this.violationReporter = new ViolationReporter();
   }
 
   async initialize(tasks: Task[], context: VcsStrategyContext): Promise<void> {
@@ -57,8 +65,9 @@ export class StackedVcsStrategy implements VcsStrategy {
     this.completedTasks.clear();
     this.worktreeContexts.clear();
 
-    // Store VCS context for later use
+    // Store VCS context and tasks for later use
     this._vcsContext = context;
+    this._allTasks = tasks;
 
     // Initialize VCS engine
     await this.vcsEngine.initialize(context.cwd);
@@ -105,6 +114,10 @@ export class StackedVcsStrategy implements VcsStrategy {
 
     logger.info(`  📋 Task order for stack: ${this._taskOrder.join(' → ')}`);
     logger.info(`  🎯 Initial stack tip: ${this._currentStackTip}`);
+
+    // Initialize file modification validator
+    this.validator.initialize(tasks, this._taskOrder);
+    logger.info(`  ✅ File modification validator initialized`);
   }
 
   async prepareTaskExecutionContexts(
@@ -228,6 +241,65 @@ export class StackedVcsStrategy implements VcsStrategy {
     logger.info(`  Worktree: ${context.worktreePath}`);
 
     try {
+      // PRE-COMMIT VALIDATION: Check file modifications before committing
+      logger.info(`  🔍 Running pre-commit validation for task ${task.id}`);
+
+      // Get git status to find modified files
+      const { GitWrapper } = await import('@/adapters/vcs/git-wrapper');
+      const git = new GitWrapper(context.absolutePath);
+      const status = await git.status();
+
+      // Collect all modified files (with type safety)
+      const modifiedFiles: string[] = [];
+
+      // Safely collect files from each category
+      if (status.modified.length > 0) {
+        modifiedFiles.push(...status.modified);
+      }
+      // Safely access arrays that might not exist
+      if (status.added.length > 0) {
+        modifiedFiles.push(...status.added);
+      }
+      // Staged files are optional in simple-git types
+      const { staged } = status;
+      if (staged !== undefined && Array.isArray(staged) && staged.length > 0) {
+        modifiedFiles.push(...staged);
+      }
+
+      logger.info(`  📝 Modified files (${modifiedFiles.length}): ${modifiedFiles.join(', ')}`);
+
+      // Run validation
+      const validationResult = this.validator.validatePreCommit(task, modifiedFiles);
+
+      // Check validation mode
+      const validationMode = this._vcsContext.validation?.mode ?? 'strict';
+
+      if (!validationResult.valid) {
+        if (validationMode === 'strict') {
+          // STRICT MODE: Fail the task
+          const errorMessage = this.violationReporter.formatValidationError(validationResult, task);
+          logger.error(errorMessage);
+
+          return {
+            taskId: task.id,
+            error: 'File modification validation failed',
+            branchName: context.branchName,
+          };
+        }
+        // PERMISSIVE MODE: Log warning but continue
+        const warningMessage = this.violationReporter.formatValidationWarning(
+          validationResult,
+          task,
+        );
+        logger.warn(warningMessage);
+      } else if (validationResult.warnings.length > 0) {
+        // Log warnings even if validation passed
+        logger.warn(`⚠️ Task '${task.id}' validation warnings:`);
+        for (const warning of validationResult.warnings) {
+          logger.warn(`  - ${warning}`);
+        }
+      }
+
       // WORKTREE-FIRST WORKFLOW: Commit in worktree, then track with git-spice
       // The worktree was created in prepareTaskExecution from the parent branch,
       // now we commit the changes and track the branch
@@ -248,14 +320,12 @@ export class StackedVcsStrategy implements VcsStrategy {
         // Mark task as completed but without a commit
         this.completedTasks.add(task.id);
 
-        // Clean up the worktree since we're not using it
-        logger.info(`  🧹 Cleaning up worktree for empty commit task ${task.id}`);
-        try {
-          await this.vcsEngine.cleanupWorktrees([context]);
-          logger.info(`  ✅ Cleaned up worktree for task ${task.id}`);
-        } catch (cleanupError) {
-          logger.warn(`  ⚠️ Failed to cleanup worktree: ${String(cleanupError)}`);
-        }
+        // DEBUGGING: DO NOT clean up the worktree when there are no changes
+        // This allows us to inspect what files Claude wrote and where
+        logger.warn(
+          `  🔍 DEBUGGING: Preserving worktree at ${context.absolutePath} for inspection`,
+        );
+        logger.warn(`  🔍 Check if files were written to worktree or main repo`);
 
         return {
           taskId: task.id,

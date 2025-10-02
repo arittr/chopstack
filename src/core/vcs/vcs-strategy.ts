@@ -8,6 +8,7 @@
 
 import type { ExecutionTask } from '@/core/execution/types';
 import type { Task } from '@/types/decomposer';
+import type { ValidationConfig } from '@/types/validation';
 
 import type { WorktreeContext } from './domain-services';
 
@@ -17,6 +18,7 @@ export type VcsMode = 'simple' | 'worktree' | 'stacked';
 export type VcsStrategyContext = {
   baseRef?: string;
   cwd: string;
+  validation?: ValidationConfig;
 };
 
 export type TaskCommitResult = {
