@@ -165,6 +165,9 @@ export class ExecutionOrchestrator extends EventEmitter {
       cwd: options.workdir ?? process.cwd(),
       dryRun: options.dryRun ?? false,
       maxRetries: 3,
+      ...(options.permissiveValidation !== undefined && {
+        permissiveValidation: options.permissiveValidation,
+      }),
       vcsMode: options.vcsMode,
       verbose: options.verbose ?? false,
     };
