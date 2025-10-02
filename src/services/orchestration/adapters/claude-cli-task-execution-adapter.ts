@@ -86,6 +86,17 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
       receivedOutput = true;
       logger.info(`[ClaudeCliAdapter] Task ${taskId} STDOUT received (${output.length} chars)`);
       logger.info(`[ClaudeCliAdapter] Task ${taskId} STDOUT content: ${output}`);
+
+      // DEBUGGING: Parse Claude's output for file modifications
+      const fileMatches = output.match(
+        /(?:created|modified|updated|added).*?['`]([^'`]+\.[a-z]+)['`]/gi,
+      );
+      if (fileMatches !== null && fileMatches.length > 0) {
+        logger.info(
+          `  🔍 DEBUGGING: Claude mentioned these file operations: ${fileMatches.join(', ')}`,
+        );
+      }
+
       global.clearTimeout(hangTimeout);
       global.clearInterval(statusInterval);
       this._appendOutput(taskId, output);
@@ -124,36 +135,85 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
 
     return new Promise((resolve, reject) => {
       claudeProcess.on('close', (code) => {
-        logger.info(
-          `[ClaudeCliAdapter] Task ${taskId} process CLOSE event fired with code: ${code}`,
-        );
-        logger.info(`[ClaudeCliAdapter] Task ${taskId} received output: ${receivedOutput}`);
+        void (async () => {
+          logger.info(
+            `[ClaudeCliAdapter] Task ${taskId} process CLOSE event fired with code: ${code}`,
+          );
+          logger.info(`[ClaudeCliAdapter] Task ${taskId} received output: ${receivedOutput}`);
 
-        global.clearTimeout(hangTimeout);
-        global.clearInterval(statusInterval);
+          // Post-commit analysis: Check for file modifications
+          let modifiedFiles: string[] = [];
+          const { workdir } = request;
+          if (workdir !== undefined) {
+            try {
+              const { execa: execaImport } = await import('execa');
+              const { stdout: lsOutput } = await execaImport('ls', ['-la', workdir], {
+                reject: false,
+              });
+              logger.info(`  🔍 DEBUGGING: Post-execution ls of ${workdir}:\n${lsOutput}`);
 
-        const result = this._createResultFromClose(request, code);
-        logger.info(
-          `[ClaudeCliAdapter] Task ${taskId} result status: ${result.status}, output length: ${result.output?.length ?? 0}`,
-        );
+              const { stdout: gitStatus } = await execaImport('git', ['status', '--short'], {
+                cwd: workdir,
+                reject: false,
+              });
+              logger.info(`  🔍 DEBUGGING: Post-execution git status in worktree:\n${gitStatus}`);
 
-        this._finalizeTask(taskId);
+              // Parse git status to get modified files
+              modifiedFiles = gitStatus
+                .split('\n')
+                .filter((line) => line.trim().length > 0)
+                .map((line) => {
+                  // Git status format: "XY filename"
+                  // We want just the filename
+                  const parts = line.trim().split(/\s+/);
+                  return parts.length > 1 ? parts.slice(1).join(' ') : '';
+                })
+                .filter((file) => file.length > 0);
 
-        emitUpdate({
-          taskId,
-          type: 'status',
-          data: result.status,
-          timestamp: new Date(),
-        });
+              // Post-commit analysis: Detect hallucination (no changes)
+              if (code === 0 && modifiedFiles.length === 0) {
+                logger.warn(
+                  `⚠️ Task ${taskId} reported success but made NO changes (possible hallucination)`,
+                );
+                logger.warn(`  Task claimed to complete successfully but git status shows 0 files`);
+              }
+            } catch (error) {
+              logger.warn(`  ⚠️ Failed to debug post-execution state: ${String(error)}`);
+            }
+          }
 
-        if (code === 0) {
-          logger.info(`[ClaudeCliAdapter] Task ${taskId} resolving promise with success`);
-          resolve(result);
-        } else {
-          logger.info(`[ClaudeCliAdapter] Task ${taskId} rejecting promise with code ${code}`);
-          result.error = `Process exited with code ${code}`;
-          reject(result);
-        }
+          global.clearTimeout(hangTimeout);
+          global.clearInterval(statusInterval);
+
+          const result = this._createResultFromClose(request, code);
+
+          // Add modified files to result for downstream validation
+          if (modifiedFiles.length > 0) {
+            result.filesChanged = modifiedFiles;
+          }
+
+          logger.info(
+            `[ClaudeCliAdapter] Task ${taskId} result status: ${result.status}, output length: ${result.output?.length ?? 0}, files changed: ${modifiedFiles.length}`,
+          );
+
+          this._finalizeTask(taskId);
+
+          emitUpdate({
+            taskId,
+            type: 'status',
+            data: result.status,
+            timestamp: new Date(),
+          });
+
+          if (code === 0) {
+            logger.info(`[ClaudeCliAdapter] Task ${taskId} resolving promise with success`);
+            resolve(result);
+          } else {
+            logger.info(`[ClaudeCliAdapter] Task ${taskId} rejecting promise with code ${code}`);
+            result.error = `Process exited with code ${code}`;
+            reject(result);
+          }
+        })();
       });
 
       claudeProcess.on('error', (error) => {
@@ -204,7 +264,27 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
   private _createPrompt(request: TaskExecutionRequest): string {
     const filesList =
       request.files.length > 0 ? `\nRelevant files: ${request.files.join(', ')}` : '';
-    return `Task: ${request.title}\n\n${request.prompt}${filesList}\n\nPlease complete this task by modifying the necessary files.`;
+
+    // Add forbidden files warning if provided
+    let forbiddenFilesWarning = '';
+    if (request.forbiddenFiles !== undefined && request.forbiddenFiles.length > 0) {
+      const forbiddenList = request.forbiddenFiles
+        .slice(0, 10) // Limit to first 10 to avoid bloating prompt
+        .map((f) => `  - ${f}`)
+        .join('\n');
+      const moreCount =
+        request.forbiddenFiles.length > 10
+          ? ` (and ${request.forbiddenFiles.length - 10} more)`
+          : '';
+
+      forbiddenFilesWarning = `\n\nIMPORTANT: You MUST ONLY modify the files listed above in "Relevant files".
+
+DO NOT modify any of these files (they belong to other tasks):\n${forbiddenList}${moreCount}
+
+Your changes will be validated. Modifying files outside your scope will cause this task to fail.`;
+    }
+
+    return `Task: ${request.title}\n\n${request.prompt}${filesList}${forbiddenFilesWarning}\n\nPlease complete this task by modifying the necessary files.`;
   }
 
   private _appendOutput(taskId: string, output: string): void {
