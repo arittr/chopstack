@@ -31,10 +31,9 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
     this.taskOutputs.set(taskId, []);
     this.taskStartTimes.set(taskId, new Date());
 
-    const prompt = this._createPrompt(request);
-    const args = this._buildClaudeArgs(mode, prompt);
-
     const actualWorkdir = workdir ?? process.cwd();
+    const prompt = this._createPrompt(request);
+    const args = this._buildClaudeArgs(mode, prompt, actualWorkdir);
     logger.info(`[ClaudeCliAdapter] Created prompt (first 200 chars): ${prompt.slice(0, 200)}`);
     logger.info(`[ClaudeCliAdapter] Spawning claude with args: ${JSON.stringify(args)}`);
     logger.info(`[ClaudeCliAdapter] Working directory: ${actualWorkdir}`);
@@ -410,8 +409,8 @@ Your changes will be validated. Modifying files outside your scope will cause th
     this.taskOutputs.delete(taskId);
   }
 
-  private _buildClaudeArgs(mode: ExecutionMode, prompt: string): string[] {
-    return match(mode)
+  private _buildClaudeArgs(mode: ExecutionMode, prompt: string, workdir?: string): string[] {
+    const baseArgs = match(mode)
       .with('plan', () => ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt])
       .with('dry-run', () => ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt])
       .with('execute', () => ['-p', '--permission-mode', 'bypassPermissions', prompt])
@@ -426,6 +425,13 @@ Your changes will be validated. Modifying files outside your scope will cause th
       .otherwise(() => {
         throw new Error(`Unsupported execution mode: ${String(mode)}`);
       });
+
+    // Add --workdir flag if provided (critical for worktree execution)
+    if (workdir !== undefined) {
+      return ['-p', '--workdir', workdir, ...baseArgs.slice(1)];
+    }
+
+    return baseArgs;
   }
 
   private _processModeSpecificResults(
