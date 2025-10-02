@@ -53,6 +53,7 @@ export type ExecutionContext = {
   dryRun: boolean;
   maxRetries: number;
   parentRef?: string;
+  permissiveValidation?: boolean;
   vcsMode: VcsMode;
   verbose: boolean;
 };
