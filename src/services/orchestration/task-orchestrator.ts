@@ -40,6 +40,7 @@ export class TaskOrchestrator extends EventEmitter {
     workdir?: string,
     mode: ExecutionMode = 'execute',
     agent?: string,
+    forbiddenFiles?: string[],
   ): Promise<OrchestratorTaskResult> {
     logger.info(`[TaskOrchestrator] executeTask called for ${taskId} with workdir: ${workdir}`);
 
@@ -51,6 +52,7 @@ export class TaskOrchestrator extends EventEmitter {
       mode,
       ...(isNonNullish(workdir) ? { workdir } : {}),
       ...(isNonNullish(agent) ? { agent } : {}),
+      ...(isNonNullish(forbiddenFiles) ? { forbiddenFiles } : {}),
     };
 
     // Initialize task state

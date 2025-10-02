@@ -168,6 +168,7 @@ export class RunCommand extends BaseCommand {
               vcsMode: options.vcsMode,
               continueOnError: options.continueOnError,
               agent: options.agent,
+              permissiveValidation: options.permissiveValidation,
             }),
             startTui({
               orchestrator,
@@ -179,6 +180,7 @@ export class RunCommand extends BaseCommand {
                 vcsMode: options.vcsMode,
                 continueOnError: options.continueOnError,
                 agent: options.agent,
+                permissiveValidation: options.permissiveValidation,
               },
             }),
           ]);
@@ -203,6 +205,7 @@ export class RunCommand extends BaseCommand {
           vcsMode: options.vcsMode,
           continueOnError: options.continueOnError,
           agent: options.agent,
+          permissiveValidation: options.permissiveValidation,
         });
 
         failureCount = result.tasks.filter((task) => task.status === 'failure').length;
