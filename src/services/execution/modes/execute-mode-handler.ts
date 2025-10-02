@@ -51,6 +51,11 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     const vcsContext: VcsStrategyContext = {
       cwd: context.cwd,
       baseRef: selectedBaseRef,
+      validation: {
+        mode: context.permissiveValidation === true ? 'permissive' : 'strict',
+        allowNewFiles: false,
+        allowDependencyFiles: false,
+      },
     };
 
     // Initialize VCS strategy
@@ -395,6 +400,7 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
         workdir,
         'execute',
         context.agentType,
+        executionTask.forbiddenFiles,
       );
 
       logger.debug(`[chopstack] Task ${task.id}: Orchestrator returned status: ${result.status}`);
