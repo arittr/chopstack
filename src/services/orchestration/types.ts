@@ -41,6 +41,7 @@ export type StreamingUpdate = {
  */
 export type TaskExecutionRequest = {
   files: string[];
+  forbiddenFiles?: string[];
   mode: ExecutionMode;
   prompt: string;
   taskId: string;
