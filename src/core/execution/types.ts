@@ -45,6 +45,7 @@ export const ExecutionTaskSchema = TaskSchema.extend({
   endTime: z.date().optional(),
   error: z.string().optional(),
   exitCode: z.number().int().optional(),
+  forbiddenFiles: z.array(z.string()).optional(),
   maxRetries: z.number().int().min(0),
   output: z.string().optional(),
   retryCount: z.number().int().min(0),
@@ -60,6 +61,7 @@ export const ExecutionOptionsSchema = z.object({
   continueOnError: z.boolean().optional(),
   dryRun: z.boolean().optional(),
   mode: ExecutionModeSchema,
+  permissiveValidation: z.boolean().optional(),
   retryAttempts: z.number().int().min(0).optional(),
   retryDelay: z.number().int().min(0).optional(),
   silent: z.boolean().optional(),
@@ -125,6 +127,7 @@ export type ExecutionContext = {
   maxRetries: number;
   mode?: ExecutionMode;
   parentRef?: string;
+  permissiveValidation?: boolean;
   planMode?: boolean;
   taskTimeout?: number;
   vcsMode?: VcsMode;

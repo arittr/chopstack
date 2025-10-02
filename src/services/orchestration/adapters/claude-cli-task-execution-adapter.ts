@@ -34,12 +34,17 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
     const prompt = this._createPrompt(request);
     const args = this._buildClaudeArgs(mode, prompt);
 
+    const actualWorkdir = workdir ?? process.cwd();
     logger.info(`[ClaudeCliAdapter] Created prompt (first 200 chars): ${prompt.slice(0, 200)}`);
     logger.info(`[ClaudeCliAdapter] Spawning claude with args: ${JSON.stringify(args)}`);
-    logger.info(`[ClaudeCliAdapter] Working directory: ${workdir ?? process.cwd()}`);
+    logger.info(`[ClaudeCliAdapter] Working directory: ${actualWorkdir}`);
+    logger.info(
+      `[ClaudeCliAdapter] 🔍 DEBUGGING: Is worktree: ${actualWorkdir.includes('.chopstack/shadows')}`,
+    );
+    logger.info(`[ClaudeCliAdapter] 🔍 DEBUGGING: Absolute workdir path: ${actualWorkdir}`);
 
     const claudeProcess = spawn('claude', args, {
-      cwd: workdir ?? process.cwd(),
+      cwd: actualWorkdir,
       env: process.env,
       shell: false,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -176,6 +181,70 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
                   `⚠️ Task ${taskId} reported success but made NO changes (possible hallucination)`,
                 );
                 logger.warn(`  Task claimed to complete successfully but git status shows 0 files`);
+
+                // DEBUGGING: Check if files were written to the main repo instead
+                logger.warn(
+                  `  🔍 DEBUGGING: Checking if files were written to main repo instead...`,
+                );
+                try {
+                  // Get the main repo path (parent of .chopstack)
+                  const mainRepoPath = workdir.replace(/\/\.chopstack\/.*$/, '');
+                  const { stdout: mainGitStatus } = await execaImport(
+                    'git',
+                    ['status', '--short'],
+                    {
+                      cwd: mainRepoPath,
+                      reject: false,
+                    },
+                  );
+                  if (mainGitStatus.trim() !== '') {
+                    logger.warn(
+                      `  🔍 DEBUGGING: FOUND CHANGES IN MAIN REPO! (${mainRepoPath}):\n${mainGitStatus}`,
+                    );
+                    logger.warn(
+                      `  🔍 This suggests Claude wrote files to the main repo instead of the worktree!`,
+                    );
+                  } else {
+                    logger.warn(`  🔍 DEBUGGING: Main repo is clean, no leaked changes`);
+                  }
+                } catch (mainRepoError) {
+                  logger.warn(`  ⚠️ Failed to check main repo: ${String(mainRepoError)}`);
+                }
+
+                // DEBUGGING: Check if Claude actually wrote any files anywhere
+                logger.warn(`  🔍 DEBUGGING: Searching for recently modified TypeScript files...`);
+                try {
+                  const { stdout: findOutput } = await execaImport(
+                    'find',
+                    [
+                      workdir,
+                      '-name',
+                      '*.ts',
+                      '-o',
+                      '-name',
+                      '*.tsx',
+                      '-o',
+                      '-name',
+                      '*.css',
+                      '-mmin',
+                      '-5',
+                      '-type',
+                      'f',
+                    ],
+                    { reject: false },
+                  );
+                  if (findOutput.trim() !== '') {
+                    logger.warn(
+                      `  🔍 DEBUGGING: Recently modified files in worktree:\n${findOutput}`,
+                    );
+                  } else {
+                    logger.warn(
+                      `  🔍 DEBUGGING: No recently modified source files found in worktree`,
+                    );
+                  }
+                } catch (findError) {
+                  logger.warn(`  ⚠️ Failed to search for modified files: ${String(findError)}`);
+                }
               }
             } catch (error) {
               logger.warn(`  ⚠️ Failed to debug post-execution state: ${String(error)}`);
