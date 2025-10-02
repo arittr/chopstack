@@ -835,10 +835,56 @@ export class GitSpiceBackend implements VcsBackend {
     }
 
     try {
+      // DEBUGGING: Log detailed information about the working directory
+      logger.info(`  🔍 DEBUGGING: Checking for changes in ${workdir}`);
+
       // Check if there are any changes to commit
       const status = await git.git.status();
+
+      // DEBUGGING: Log the status details
+      logger.info(`  🔍 DEBUGGING: Git status has ${status.files.length} files`);
+      if (status.files.length > 0) {
+        for (const file of status.files) {
+          logger.info(`  🔍 DEBUGGING: File in git status: ${file.path} (${file.working_dir})`);
+        }
+      }
+
+      // DEBUGGING: List actual files in the worktree directory
+      try {
+        const { stdout: lsOutput } = await execa('ls', ['-la', workdir], { reject: false });
+        logger.info(`  🔍 DEBUGGING: Files in ${workdir}:\n${lsOutput}`);
+
+        // Also check for source files specifically
+        const { stdout: findOutput } = await execa(
+          'find',
+          [workdir, '-name', '*.ts', '-o', '-name', '*.tsx', '-o', '-name', '*.css', '-type', 'f'],
+          { reject: false },
+        );
+        logger.info(`  🔍 DEBUGGING: Source files found:\n${findOutput}`);
+      } catch (debugError) {
+        logger.warn(`  ⚠️ Failed to list worktree files: ${String(debugError)}`);
+      }
+
       if (status.files.length === 0) {
         logger.warn(`⚠️ No changes to commit in ${workdir}`);
+
+        // DEBUGGING: Also check git status in parent directory to see if changes leaked there
+        try {
+          const parentDir = workdir.replace(/\/\.chopstack\/.*$/, '');
+          const parentGit = new GitWrapper(parentDir);
+          const parentStatus = await parentGit.git.status();
+          logger.warn(
+            `  🔍 DEBUGGING: Parent repo ${parentDir} has ${parentStatus.files.length} uncommitted files`,
+          );
+          if (parentStatus.files.length > 0) {
+            for (const file of parentStatus.files.slice(0, 5)) {
+              logger.warn(`  🔍 DEBUGGING: Parent repo file: ${file.path} (${file.working_dir})`);
+            }
+          }
+        } catch (parentError) {
+          logger.warn(`  ⚠️ Failed to check parent repo: ${String(parentError)}`);
+        }
+
         // Return empty commit hash to indicate no commit was made
         return '';
       }
