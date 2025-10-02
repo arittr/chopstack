@@ -202,7 +202,12 @@ export class StackedVcsStrategy implements VcsStrategy {
     try {
       // Create worktree directly from the parent branch
       // The branch will be created later by git-spice track after we commit
-      const worktreeTask = { ...executionTask, branchName };
+
+      // Get forbidden files for this task to prevent cross-task contamination
+      const forbiddenFiles = this.validator.getForbiddenFiles(task);
+      logger.info(`  🚫 Forbidden files for task ${task.id}: ${forbiddenFiles.length} files`);
+
+      const worktreeTask = { ...executionTask, branchName, forbiddenFiles };
 
       const worktreeContext = await this.vcsEngine.createWorktreesForTasks(
         [worktreeTask],

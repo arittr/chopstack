@@ -58,6 +58,11 @@ program
   .option('--workdir <path>', 'Working directory for execution', process.cwd())
   .option('--vcs-mode <mode>', 'VCS mode: simple|worktree|stacked', 'simple')
   .option('--agent <type>', 'Agent for decomposition: claude|aider|mock', 'claude')
+  .option(
+    '--permissive-validation',
+    'Warn on file violations instead of failing (default: strict)',
+    false,
+  )
   .option('--continue-on-error', 'Continue execution even if tasks fail', false)
   .option('--timeout <ms>', 'Task timeout in milliseconds', (value) => Number.parseInt(value, 10))
   .option(
