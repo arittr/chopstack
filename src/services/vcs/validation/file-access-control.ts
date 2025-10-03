@@ -37,7 +37,10 @@ export class FileAccessControl {
     // Get all tasks that come after this task in execution order
     const laterTaskIds = new Set(taskOrder.slice(currentTaskIndex + 1));
 
-    // For each later task, add its files to forbidden list
+    // Get all tasks that come before this task in execution order
+    const earlierTaskIds = new Set(taskOrder.slice(0, currentTaskIndex));
+
+    // For each other task, determine if its files are forbidden
     for (const otherTask of allTasks) {
       // Skip if this is the current task
       if (otherTask.id === task.id) {
@@ -47,11 +50,16 @@ export class FileAccessControl {
       // Check if this task comes later in execution order
       const isLaterTask = laterTaskIds.has(otherTask.id);
 
+      // Check if this task comes earlier in execution order
+      const isEarlierTask = earlierTaskIds.has(otherTask.id);
+
       // Check if this task is a dependency (allowed to read those files)
       const isDependency = task.requires.includes(otherTask.id);
 
-      // Forbid files from later tasks AND from sibling tasks (parallel but not dependencies)
-      if (isLaterTask || !isDependency) {
+      // Forbid files from:
+      // 1. All later tasks (prevent task bleeding forward)
+      // 2. Earlier tasks that are NOT dependencies (parallel siblings that happened to run first)
+      if (isLaterTask || (isEarlierTask && !isDependency)) {
         forbidden.push(...otherTask.touches, ...otherTask.produces);
       }
     }
