@@ -1,5 +1,7 @@
 # chopstack
 
+<img width="150" height="150" alt="chopstack-pancake-1" src="https://github.com/user-attachments/assets/d4f9f3e3-7ea2-424c-b0cd-2f8951ac30b4" />
+
 > Chop massive AI changes into clean, reviewable PR stacks
 
 chopstack is a TypeScript CLI tool and FastMCP server for turning fuzzy feature ideas into validated task DAGs, coordinating AI agents during execution, and keeping stacked Git workflows sane. It wraps reproducible planning, worktree orchestration, and git-spice automation behind a single entry point so large AI-assisted changes ship as tidy reviewable slices.
