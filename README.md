@@ -2,25 +2,19 @@
 
 > Chop massive AI changes into clean, reviewable PR stacks
 
-chopstack is a TypeScript CLI tool and Model Context Protocol (MCP) server that turns fuzzy feature ideas into conflict-free task DAGs, coordinates parallel execution with AI coding agents, and keeps Git stacks organized. Use it to plan, validate, and run large AI-assisted code changes without losing track of dependencies or reviewer sanity.
+chopstack is a TypeScript CLI tool and FastMCP server for turning fuzzy feature ideas into validated task DAGs, coordinating AI agents during execution, and keeping stacked Git workflows sane. It wraps reproducible planning, worktree orchestration, and git-spice automation behind a single entry point so large AI-assisted changes ship as tidy reviewable slices.
 
-## Why chopstack?
-- Keep AI-generated changes small, isolated, and reviewable instead of shipping monolithic diffs
-- Discover safe parallelization opportunities so teams can work concurrently without merge fights
-- Standardize how plans, execution steps, and Git stacks are produced across people and agents
-- Integrate Claude Code, Aider, or a mock agent in the exact same workflow
+## Highlights
+- AI-assisted spec decomposition with retry logic, DAG validation, and plan metrics (critical path, parallelisation, conflicts)
+- Parallel execution engine with Ink-powered TUI, structured logging, retry controls, and pluggable VCS strategies (`simple`, `worktree`, `stacked`)
+- Agent abstraction for Claude Code, Codex, and mock agents with consistent prompts and capability checks
+- git-spice aware stacking that generates commit messages, creates branches, and falls back to vanilla Git when needed
+- FastMCP server exposing the same orchestration pipeline to MCP-compatible clients via Zod-validated schemas
+- Strict TypeScript, dependency-injected services, and reusable guard utilities to keep the surface area safe for other agents
 
-## Core capabilities
-- **Spec decomposition** – parse markdown specs into typed task graphs with dependency validation, conflict detection, and complexity estimates
-- **Execution engine** – run plans in `plan`, `dry-run`, `execute`, or `validate` modes with serial, parallel, or hybrid strategies
-- **AI orchestration** – stream execution updates while Claude Code (or other agents) produce plans or code for each task
-- **Git automation** – spin up worktrees for parallel layers and optionally create git-spice stacks when tasks succeed
-- **Rich metrics** – compute max parallelization, estimated speedup, and per-task metadata for visibility into the proposed stack
-- **MCP server** – expose the same orchestration pipeline to MCP-compatible clients via FastMCP
-
-## Getting started
+## Getting Started
 ### Prerequisites
-- Node.js 18 or newer
+- Node.js 18+
 - [pnpm](https://pnpm.io/) (required package manager)
 - Optional: [Claude Code CLI](https://docs.anthropic.com/claude/docs/claude-code), [Aider](https://aider.chat/), and [git-spice](https://git-spice.com/) for full automation
 
@@ -37,175 +31,158 @@ pnpm install
 pnpm run build
 ```
 
-## Quick start (CLI)
-1. Create a markdown spec (`spec.md`):
+### Quick Start
+1. Write a markdown spec (`spec.md`):
    ```markdown
    # Add JWT authentication
    - Register users with email/password
    - Issue short-lived access tokens and refresh tokens
-   - Add middleware that protects API routes
+   - Protect API routes with middleware
    ```
-2. Decompose the spec:
+2. Generate a plan (YAML or JSON) with retries and validation:
    ```bash
-   pnpm exec chopstack decompose --spec spec.md --agent mock --output plan.yaml
+   pnpm exec chopstack decompose --spec spec.md --agent claude --output plan.yaml
    ```
-3. Inspect the generated plan (YAML includes tasks, dependencies, touched files, and metrics).
-4. Execute the plan in dry-run mode:
+3. Inspect the generated DAG and metrics in `plan.yaml` (tasks, dependencies, touched files).
+4. Rehearse the plan without touching disk:
    ```bash
-   pnpm exec chopstack run --plan plan.yaml --mode dry-run --strategy parallel
+   pnpm exec chopstack run --plan plan.yaml --mode dry-run --vcs-mode simple --verbose
    ```
-5. Ready to apply real changes? Switch to `--mode execute` and optionally enable git-spice stack creation with `--git-spice`.
+5. Execute for real with worktrees, logging, and the Ink TUI:
+   ```bash
+   pnpm exec chopstack run --plan plan.yaml --mode execute --vcs-mode worktree --write-log
+   ```
+6. Turn the results into a tidy stack when you are happy:
+   ```bash
+   pnpm exec chopstack stack --message "Add JWT auth" --no-create-stack
+   ```
 
-## CLI commands
+## CLI Overview
 ### `chopstack decompose`
-Generate a validated task DAG from a markdown spec.
+Decompose a markdown spec into a validated task plan.
 ```bash
-chopstack decompose --spec spec.md [--agent claude|aider|mock] [--output plan.yaml] [--verbose]
+chopstack decompose --spec spec.md [--agent claude|codex|mock] [--output plan.yaml] [--verbose]
 ```
-- Retries decomposition up to three times if validation fails
-- Emits YAML to stdout or a file with metrics (task count, parallelism, speedup, total estimated LOC)
+- Runs agent-specific prompts with retry + validation (`generatePlanWithRetry`)
+- Emits plan + metrics to stdout or a file via `PlanOutputter`
+- Reports conflicts, circular dependencies, and summary stats using `DagValidator`
 
 ### `chopstack run`
-Run a plan end-to-end by decomposing a spec on the fly or loading a saved plan.
+Execute an existing plan or generate one on the fly.
 ```bash
 chopstack run [--spec spec.md | --plan plan.yaml] \
   [--mode plan|dry-run|execute|validate] \
-  [--strategy parallel|serial|hybrid] \
-  [--git-spice] [--continue-on-error] [--timeout 600000]
+  [--vcs-mode simple|worktree|stacked] \
+  [--agent claude|codex|mock] \
+  [--permissive-validation] [--continue-on-error] \
+  [--retry-attempts 3] [--retry-delay 5000] [--timeout 600000] \
+  [--workdir /path/to/repo] [--no-tui] [--write-log] [--verbose]
 ```
-- `plan` mode asks your agent for step-by-step execution plans per task
-- `dry-run` simulates execution without touching the filesystem
-- `execute` writes real changes and can create git-spice stacks per layer
-- `validate` verifies the DAG and strategy without contacting an agent
+- Automatically validates DAGs (structure, conflicts, critical path) before execution
+- Creates and manages worktrees/stacks through pluggable VCS strategies
+- Streams events through the execution orchestrator; `--mode execute` can render an Ink TUI
+- `--write-log` mirrors console output to `.chopstack/logs` for later auditing
+- `--permissive-validation` downgrades file violations to warnings instead of hard failures
+
+> **TUI**: Only available in execute mode with a TTY. Use `--no-tui` for headless CI environments.
 
 ### `chopstack stack`
-Generate an AI-authored commit message and optionally create a git-spice branch.
+Create commits or git-spice branches with AI-assisted messages.
 ```bash
 chopstack stack [--message "Fix foo"] [--no-auto-add] [--no-create-stack] [--verbose]
 ```
-- Shows staged changes, prompts Claude Code when available, and falls back to a deterministic message generator
-- Integrates with git-spice (`gs`) to keep stacks ready for review
+- Shows staged changes, colourised by status, before doing anything destructive
+- Generates commit messages via `CommitMessageGenerator`, optionally overriding with `--message`
+- If git-spice (`gs`) is installed, creates branches and can submit stacks; otherwise falls back to Git
+- Integrates with the same Ink logger output so behaviour matches other commands
 
-## Execution modes & strategies
-| Mode      | Purpose                                                    |
-|-----------|------------------------------------------------------------|
-| `plan`    | Ask the agent how it would accomplish each task            |
-| `dry-run` | Exercise scheduling logic without modifying files          |
-| `execute` | Apply changes, manage worktrees, and create optional stacks|
-| `validate`| Ensure DAG and strategy are sound before you run anything  |
+## Execution Modes
+| Mode      | Purpose                                                       |
+|-----------|----------------------------------------------------------------|
+| `plan`    | Ask your agent for textual execution plans per task            |
+| `dry-run` | Exercise scheduling logic without modifying files              |
+| `execute` | Apply changes via task executors, worktrees, and VCS strategies|
+| `validate`| Check DAG + options only, no agent calls or filesystem writes   |
 
-| Strategy   | When to use it                                                   |
-|------------|------------------------------------------------------------------|
-| `parallel` | Default – execute independent layers simultaneously               |
-| `serial`   | Run tasks one-by-one for deterministic debugging                  |
-| `hybrid`   | Automatically serialize tasks that share files, parallelize rest  |
+## VCS Modes
+| Mode       | Description                                                                 |
+|------------|-----------------------------------------------------------------------------|
+| `simple`   | Run everything in the current working copy without extra git plumbing       |
+| `worktree` | Create per-layer worktrees under `.chopstack/shadows/<task>` and merge back |
+| `stacked`  | Prepare git-spice-compatible branches so stacks can be submitted immediately|
 
-## MCP server
-Use chopstack as an MCP toolchain for agents or IDE integrations.
+## MCP Server
+Run chopstack as a FastMCP server with the same orchestration pipeline.
 ```bash
-# Start local dev server
-pnpm run dev:mcp
-
-# Inspect available MCP tools and schemas
-pnpm run inspect:mcp
-
-# Run the built server
-pnpm run start:mcp
+pnpm run dev:mcp       # hot reload during development
+pnpm run inspect:mcp   # list tools, inputs, and schemas
+pnpm run start:mcp     # run the built server
 ```
-The MCP server wraps the same orchestration logic as the CLI, exposing tools for task decomposition, execution planning, worktree management, and stack creation. Schemas are defined with Zod and validated at runtime via FastMCP.
+Schemas live in `src/entry/mcp/schemas`, and the server (`src/entry/mcp/server.ts`) manages worktrees, stack branches, and plan execution through the `TaskOrchestrator`.
 
-## Architecture highlights
-
-**chopstack** follows clean architecture principles with clear separation of concerns across four main layers:
-
-- **Core Layer** (`src/core/`): Domain interfaces, business rules, and dependency injection infrastructure
-- **Services Layer** (`src/services/`): Business logic implementations for execution, planning, orchestration, and VCS operations
-- **Adapters Layer** (`src/adapters/`): External system integrations (AI agents, Git, git-spice)
-- **Entry Layer** (`src/entry/`): Application entry points for CLI and MCP server
-
-Key architectural features:
-- **Clean interfaces**: Core domain interfaces define contracts without implementation details
-- **Dependency injection**: Centralized container manages service dependencies and lifecycle
-- **Agent abstraction**: Unified interface for Claude, Aider, and mock agents via adapter pattern
-- **Service-oriented design**: Focused services handle specific business domains (execution, planning, VCS)
-- **Type safety**: Comprehensive TypeScript types and Zod schema validation throughout
-
-See [SERVICE_CONTRACTS.md](./SERVICE_CONTRACTS.md) for detailed documentation of all service interfaces and contracts.
-
-### Project structure
+## Directory Layout
 ```
 src/
-  core/                    # Core domain layer
-    agents/                # Agent interfaces and contracts
-    config/                # Configuration interfaces
-    di/                    # Dependency injection container and providers
-    execution/             # Execution domain types and state machines
-    vcs/                   # Version control domain services and interfaces
-
-  services/                # Business logic layer
-    agents/                # Agent service implementations
-    execution/             # Execution planning, orchestration, and monitoring
-    orchestration/         # Task orchestration and coordination
-    planning/              # Plan generation, analysis, and output formatting
-    vcs/                   # VCS operations and repository management
-
-  adapters/                # External system adapters
-    agents/                # AI agent implementations (Claude, Codex, Mock)
-    vcs/                   # Git, git-spice, and commit message generation
-
-  entry/                   # Application entry points
-    cli/                   # Command-line interface bootstrap
-    mcp/                   # Model Context Protocol server
-
-  commands/                # CLI command handlers and validation
-  types/                   # Shared TypeScript definitions and Zod schemas
-  validation/              # Input validation and type guards
-  utils/                   # Shared utilities and helpers
+  adapters/     # Agent + VCS adapters (Claude CLI, git-spice, commit messages)
+  commands/     # Decorator-registered CLI commands + command registry
+  core/         # Pure domain interfaces, types, and DI container
+  entry/        # CLI bootstrap and MCP server entrypoints
+  io/           # YAML/JSON plan parsing helpers
+  providers/    # Application bootstrap + service registration
+  services/     # Planning, execution, orchestration, vcs, logging services
+  types/        # Shared type definitions and Zod schemas
+  ui/           # Ink TUI components, hooks, and theme
+  utils/        # Logger, helpers, and shared utilities
+  validation/   # DAG + input validators and guard re-exports
 
 test/
-  e2e/                     # End-to-end CLI integration tests
-  execution/               # Execution planning validation and quality tests
-  unit/                    # Unit tests (legacy location)
+  e2e/          # CLI end-to-end suites and fixtures
+  execution/    # Execution planning quality tests
+  helpers/      # Harness utilities and test infra
+  setup/        # Vitest setup hooks and worktree cleanup helpers
+  specs/        # Reusable spec fixtures used across suites
 ```
 
-## Development workflow
+## Development
 ```bash
-pnpm run dev         # Watch CLI entrypoint with tsx
-pnpm run dev:lib     # Watch library / MCP entrypoint
-pnpm run build       # Production build (tsup with d.ts output)
-pnpm run clean       # Remove dist artifacts
+pnpm run dev        # Watch the CLI entrypoint (tsx)
+pnpm run dev:run    # Run CLI once without building
+pnpm run dev:lib    # Watch library / MCP entrypoint
+pnpm run build      # Production build with tsup
+pnpm run clean      # Remove dist artifacts
+pnpm run start      # Run built CLI
+pnpm run start:mcp  # Run built MCP server
 ```
 
-### Quality and formatting
+## Quality & Testing
 ```bash
-pnpm run lint        # type-check -> format:check -> eslint
-pnpm run lint:fix    # auto-fix formatting + eslint
-pnpm run type-check  # strict tsc --noEmit
-pnpm run format      # prettier --write
-pnpm run format:check
+pnpm run lint           # type-check -> format:check -> eslint
+pnpm run lint:fix       # prettier + eslint --fix
+pnpm run type-check     # strict tsc --noEmit
+pnpm run format         # prettier --write
+pnpm run format:check   # enforce formatting
+
+pnpm run test           # all configured Vitest projects
+pnpm run test:unit      # src/**/__tests__/*.test.ts
+pnpm run test:integration
+pnpm run test:e2e       # requires Claude CLI + git-spice when enabled
+pnpm run test:execution # plan-quality scoring harness
+pnpm run test:watch     # watch mode
+pnpm run test:coverage  # V8 coverage
+pnpm run test:clean     # wipe test/tmp between runs
 ```
 
-### Test suites
-```bash
-pnpm run test             # All test suites (unit + integration + E2E + execution)
-pnpm run test:unit        # Unit tests with heavy mocking
-pnpm run test:integration # Integration tests with real class interactions
-pnpm run test:e2e         # End-to-end CLI integration tests
-pnpm run test:execution   # Execution planning validation and quality scores
-```
-The execution tests exercise Claude Code in `--permission-mode plan` to validate task execution plans without expensive implementation, keeping costs low while ensuring generated plans are actionable.
-
-## Using git-spice stacks
-- Enable `--git-spice` on `chopstack run` to create stack branches after each successful layer
-- `chopstack stack` inspects staged changes, generates AI commit messages, and calls `gs branch create`
-- After execution, run `gs stack submit` (or your preferred flow) to open PRs
+## Additional Docs
+- `SERVICE_CONTRACTS.md` – detailed clean-architecture service contracts
+- `docs/stack-merge.md` – GitHub Actions workflow for merging git-spice stacks
+- `chopstack-spec.md` – sample specs and decomposition examples
+- `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` – agent-specific conventions when collaborating with code assistants
 
 ## Contributing
-Pull requests are welcome! Before opening one:
-1. Run `pnpm run lint`, `pnpm run type-check`, and any relevant tests
-2. Follow the clean architecture patterns and service contracts documented in [SERVICE_CONTRACTS.md](./SERVICE_CONTRACTS.md)
-3. Ensure changes follow the guard utilities and `ts-pattern` style guidelines in [CLAUDE.md](./CLAUDE.md)
-4. If adding features, update specs and execution tests when applicable
+- Run linting, type-checks, and relevant tests before opening a PR
+- Follow the guard utilities (`utils/guards.ts`) and `ts-pattern` style guidelines documented in `CLAUDE.md`
+- Update specs or execution tests when adding new behaviours
+- Prefer small, reviewable stacks—`chopstack` dogfoods its own workflows
 
 ## License
 ISC
