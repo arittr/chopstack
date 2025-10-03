@@ -71,8 +71,13 @@ export class YamlPlanParser {
         processedContent = processedContent.replaceAll(
           /^(\s+agentPrompt:\s*)(.+)$/gm,
           (match: string, prefix: string, content: string) => {
-            // If already quoted, leave it alone
-            if (/^["'].*["']$/.test(content.trim())) {
+            // If already quoted (starts with quote), leave it alone
+            // We only check the start because multi-line quoted strings won't have the closing quote on this line
+            if (/^["']/.test(content.trim())) {
+              return match;
+            }
+            // If using block scalar (| or >), leave it alone
+            if (/^[>|]/.test(content.trim())) {
               return match;
             }
             // If unquoted and has problematic characters, quote it
