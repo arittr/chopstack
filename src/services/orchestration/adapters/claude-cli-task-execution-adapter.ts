@@ -32,8 +32,8 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
     this.taskStartTimes.set(taskId, new Date());
 
     const actualWorkdir = workdir ?? process.cwd();
-    const prompt = this._createPrompt(request);
-    const args = this._buildClaudeArgs(mode, prompt, actualWorkdir);
+    const prompt = this._createPrompt(request, actualWorkdir);
+    const args = this._buildClaudeArgs(mode, prompt);
     logger.info(`[ClaudeCliAdapter] Created prompt (first 200 chars): ${prompt.slice(0, 200)}`);
     logger.info(`[ClaudeCliAdapter] Spawning claude with args: ${JSON.stringify(args)}`);
     logger.info(`[ClaudeCliAdapter] Working directory: ${actualWorkdir}`);
@@ -329,9 +329,15 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
     return true;
   }
 
-  private _createPrompt(request: TaskExecutionRequest): string {
+  private _createPrompt(request: TaskExecutionRequest, workdir: string): string {
     const filesList =
       request.files.length > 0 ? `\nRelevant files: ${request.files.join(', ')}` : '';
+
+    // Add working directory instruction for worktree execution
+    const workdirInstruction =
+      workdir !== process.cwd()
+        ? `\n\nIMPORTANT: You are working in an isolated directory: ${workdir}\nAll file paths should be relative to this directory. Do NOT write files outside this directory.`
+        : '';
 
     // Add forbidden files warning if provided
     let forbiddenFilesWarning = '';
@@ -352,7 +358,7 @@ DO NOT modify any of these files (they belong to other tasks):\n${forbiddenList}
 Your changes will be validated. Modifying files outside your scope will cause this task to fail.`;
     }
 
-    return `Task: ${request.title}\n\n${request.prompt}${filesList}${forbiddenFilesWarning}\n\nPlease complete this task by modifying the necessary files.`;
+    return `Task: ${request.title}\n\n${request.prompt}${filesList}${workdirInstruction}${forbiddenFilesWarning}\n\nPlease complete this task by modifying the necessary files.`;
   }
 
   private _appendOutput(taskId: string, output: string): void {
@@ -409,8 +415,8 @@ Your changes will be validated. Modifying files outside your scope will cause th
     this.taskOutputs.delete(taskId);
   }
 
-  private _buildClaudeArgs(mode: ExecutionMode, prompt: string, workdir?: string): string[] {
-    const baseArgs = match(mode)
+  private _buildClaudeArgs(mode: ExecutionMode, prompt: string): string[] {
+    return match(mode)
       .with('plan', () => ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt])
       .with('dry-run', () => ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt])
       .with('execute', () => ['-p', '--permission-mode', 'bypassPermissions', prompt])
@@ -425,13 +431,6 @@ Your changes will be validated. Modifying files outside your scope will cause th
       .otherwise(() => {
         throw new Error(`Unsupported execution mode: ${String(mode)}`);
       });
-
-    // Add --workdir flag if provided (critical for worktree execution)
-    if (workdir !== undefined) {
-      return ['-p', '--workdir', workdir, ...baseArgs.slice(1)];
-    }
-
-    return baseArgs;
   }
 
   private _processModeSpecificResults(
