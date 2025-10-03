@@ -37,6 +37,7 @@ export const ServiceIdentifiers = {
 
   // Configuration
   Config: Symbol.for('Config'),
+  RuntimeConfig: Symbol.for('RuntimeConfig'),
 } as const;
 
 type ServiceIdentifier = (typeof ServiceIdentifiers)[keyof typeof ServiceIdentifiers];

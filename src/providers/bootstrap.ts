@@ -2,7 +2,8 @@
  * Application bootstrap - initializes DI container with all providers
  */
 
-import { container, ProviderManager } from '@/core/di';
+import { type RuntimeConfig, RuntimeConfigService } from '@/core/config/runtime-config';
+import { container, ProviderManager, ServiceIdentifiers } from '@/core/di';
 
 import { CoreServicesProvider } from './core-services.provider';
 
@@ -11,12 +12,16 @@ let bootstrapPromise: Promise<void> | null = null;
 /**
  * Bootstrap the application DI container
  */
-export async function bootstrapApplication(): Promise<void> {
+export async function bootstrapApplication(runtimeConfig?: RuntimeConfig): Promise<void> {
   if (bootstrapPromise !== null) {
     return bootstrapPromise;
   }
 
   bootstrapPromise = (async () => {
+    // Register runtime configuration first (so it's available to all providers)
+    const configService = new RuntimeConfigService(runtimeConfig);
+    container.register(ServiceIdentifiers.RuntimeConfig, configService);
+
     const manager = new ProviderManager(container);
 
     // Register all providers

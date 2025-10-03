@@ -7,7 +7,7 @@ import type {
 
 import { isNonNullish } from '@/validation/guards';
 
-import { TaskExecutionAdapterFactory } from './task-execution-adapter-factory';
+import { type AdapterOptions, TaskExecutionAdapterFactory } from './task-execution-adapter-factory';
 
 /**
  * Dynamic task execution adapter that selects the appropriate adapter
@@ -16,9 +16,11 @@ import { TaskExecutionAdapterFactory } from './task-execution-adapter-factory';
 export class DynamicTaskExecutionAdapter implements TaskExecutionAdapter {
   private readonly adapters = new Map<string, TaskExecutionAdapter>();
   private _defaultAgent: string;
+  private readonly adapterOptions: AdapterOptions;
 
-  constructor(defaultAgent: string = 'claude') {
+  constructor(defaultAgent: string = 'claude', options?: AdapterOptions) {
     this._defaultAgent = defaultAgent;
+    this.adapterOptions = options ?? {};
   }
 
   /**
@@ -35,7 +37,7 @@ export class DynamicTaskExecutionAdapter implements TaskExecutionAdapter {
     const agent = agentType ?? this._defaultAgent;
 
     if (!this.adapters.has(agent)) {
-      const adapter = TaskExecutionAdapterFactory.createAdapter(agent);
+      const adapter = TaskExecutionAdapterFactory.createAdapter(agent, this.adapterOptions);
       this.adapters.set(agent, adapter);
     }
 

@@ -50,7 +50,11 @@ export class RunCommand extends BaseCommand {
 
       const resolveContainer = async (): Promise<AppContainer> => {
         if (containerCache === null) {
-          await bootstrapApplication();
+          await bootstrapApplication({
+            ...(options.verbose !== undefined && { verbose: options.verbose }),
+            tui: options.tui,
+            writeLog: options.writeLog,
+          });
           containerCache = getContainer();
         }
         return containerCache;
