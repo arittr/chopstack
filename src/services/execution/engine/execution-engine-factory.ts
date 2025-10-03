@@ -16,6 +16,8 @@ export type ExecutionEngineFactoryConfig = {
   customDependencies?: Partial<ExecutionEngineDependencies>;
   /** VCS engine configuration */
   vcsConfig?: Partial<VcsEngineConfig>;
+  /** Enable verbose logging */
+  verbose?: boolean;
 };
 
 /**
@@ -23,6 +25,7 @@ export type ExecutionEngineFactoryConfig = {
  */
 export function createDefaultExecutionEngineDependencies(
   vcsConfig?: Partial<VcsEngineConfig>,
+  verbose?: boolean,
 ): ExecutionEngineDependencies {
   const defaultVcsConfig: VcsEngineConfig = {
     shadowPath: '.chopstack/shadows',
@@ -39,7 +42,9 @@ export function createDefaultExecutionEngineDependencies(
   };
 
   const vcsEngine = new VcsEngineServiceImpl(defaultVcsConfig);
-  const taskExecutionAdapter = new ClaudeCliTaskExecutionAdapter();
+  const taskExecutionAdapter = new ClaudeCliTaskExecutionAdapter(
+    verbose !== undefined ? { verbose } : undefined,
+  );
   const taskOrchestrator = new TaskOrchestrator(taskExecutionAdapter);
   const executionOrchestrator = new ExecutionOrchestrator({
     taskOrchestrator,
@@ -64,7 +69,10 @@ export function createDefaultExecutionEngineDependencies(
 export async function createExecutionEngine(
   config: ExecutionEngineFactoryConfig = {},
 ): Promise<ExecutionEngine> {
-  const defaultDependencies = createDefaultExecutionEngineDependencies(config.vcsConfig);
+  const defaultDependencies = createDefaultExecutionEngineDependencies(
+    config.vcsConfig,
+    config.verbose,
+  );
 
   const dependencies: ExecutionEngineDependencies = {
     ...defaultDependencies,
@@ -90,7 +98,7 @@ export async function createTestExecutionEngine(
     ...vcsConfig,
   };
 
-  const defaultDeps = createDefaultExecutionEngineDependencies(testVcsConfig);
+  const defaultDeps = createDefaultExecutionEngineDependencies(testVcsConfig, false);
 
   const dependencies: ExecutionEngineDependencies = {
     ...defaultDeps,

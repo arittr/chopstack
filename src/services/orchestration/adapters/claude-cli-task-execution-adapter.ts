@@ -12,6 +12,8 @@ import type {
 
 import { logger } from '@/utils/global-logger';
 
+import type { ClaudeExecutionStats, ClaudeStreamEvent } from './claude-stream-types';
+
 /**
  * Task execution adapter that delegates to the Claude CLI
  */
@@ -19,6 +21,12 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
   private readonly runningTasks = new Map<string, ChildProcess>();
   private readonly taskOutputs = new Map<string, string[]>();
   private readonly taskStartTimes = new Map<string, Date>();
+  private readonly taskStats = new Map<string, ClaudeExecutionStats>();
+  private readonly verbose: boolean;
+
+  constructor(options?: { verbose?: boolean }) {
+    this.verbose = options?.verbose ?? false;
+  }
 
   async executeTask(
     request: TaskExecutionRequest,
@@ -30,6 +38,7 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
 
     this.taskOutputs.set(taskId, []);
     this.taskStartTimes.set(taskId, new Date());
+    this._initializeStats(taskId);
 
     const actualWorkdir = workdir ?? process.cwd();
     const prompt = this._createPrompt(request, actualWorkdir);
@@ -61,22 +70,30 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
       );
     }, 120_000);
 
-    // Add periodic status updates
+    // Add periodic status updates with event-based monitoring
     const statusInterval = global.setInterval(() => {
-      if (this.runningTasks.has(taskId)) {
-        // Check if process is actually still running
-        try {
-          if (claudeProcess.pid !== undefined) {
-            process.kill(claudeProcess.pid, 0); // Signal 0 just checks if process exists
-            logger.info(
-              `[ClaudeCliAdapter] Task ${taskId} still running (PID: ${claudeProcess.pid} confirmed alive)`,
-            );
-          }
-        } catch {
-          logger.warn(
-            `[ClaudeCliAdapter] Task ${taskId} PID ${claudeProcess.pid} is not running anymore but hasn't fired close event`,
-          );
-        }
+      if (!this.runningTasks.has(taskId)) {
+        return;
+      }
+
+      const stats = this.taskStats.get(taskId);
+      if (stats === undefined) {
+        return;
+      }
+
+      // Check if we've received events recently
+      const timeSinceLastEvent =
+        stats.lastEventTime !== null ? Date.now() - stats.lastEventTime.getTime() : null;
+
+      if (timeSinceLastEvent !== null && timeSinceLastEvent > 120_000) {
+        // No events for 2 minutes - task might be hanging
+        logger.warn(
+          `[ClaudeCliAdapter] Task ${taskId} hasn't sent events in ${Math.floor(timeSinceLastEvent / 1000)}s (last: ${stats.lastEventType})`,
+        );
+      } else {
+        // Task is actively working
+        const status = this._getTaskStatus(taskId);
+        logger.info(`[ClaudeCliAdapter] Task ${taskId} status: ${status}`);
       }
     }, 30_000);
 
@@ -86,30 +103,24 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
     let receivedOutput = false;
 
     claudeProcess.stdout.on('data', (data: Buffer) => {
-      const output = data.toString();
       receivedOutput = true;
-      logger.info(`[ClaudeCliAdapter] Task ${taskId} STDOUT received (${output.length} chars)`);
-      logger.info(`[ClaudeCliAdapter] Task ${taskId} STDOUT content: ${output}`);
 
-      // DEBUGGING: Parse Claude's output for file modifications
-      const fileMatches = output.match(
-        /(?:created|modified|updated|added).*?['`]([^'`]+\.[a-z]+)['`]/gi,
-      );
-      if (fileMatches !== null && fileMatches.length > 0) {
-        logger.info(
-          `  🔍 DEBUGGING: Claude mentioned these file operations: ${fileMatches.join(', ')}`,
-        );
+      // Parse stream-json events
+      const events = this._parseStreamJson(data);
+
+      for (const event of events) {
+        this._handleStreamEvent(taskId, event);
+
+        // Emit streaming updates
+        emitUpdate({
+          taskId,
+          type: 'stdout',
+          data: JSON.stringify(event),
+          timestamp: new Date(),
+        });
       }
 
-      global.clearTimeout(hangTimeout);
-      global.clearInterval(statusInterval);
-      this._appendOutput(taskId, output);
-      emitUpdate({
-        taskId,
-        type: 'stdout',
-        data: output,
-        timestamp: new Date(),
-      });
+      // Don't clear timeouts on every event - they'll be managed by periodic checks
     });
 
     claudeProcess.stderr.on('data', (data: Buffer) => {
@@ -413,19 +424,158 @@ Your changes will be validated. Modifying files outside your scope will cause th
     this.runningTasks.delete(taskId);
     this.taskStartTimes.delete(taskId);
     this.taskOutputs.delete(taskId);
+    this.taskStats.delete(taskId);
+  }
+
+  /**
+   * Initialize statistics tracking for a task
+   */
+  private _initializeStats(taskId: string): void {
+    this.taskStats.set(taskId, {
+      thinkingCount: 0,
+      toolUseCount: 0,
+      lastEventType: null,
+      lastEventTime: null,
+      toolsUsed: new Set(),
+    });
+  }
+
+  /**
+   * Parse JSONL stream into individual events
+   */
+  private _parseStreamJson(chunk: Buffer): ClaudeStreamEvent[] {
+    const events: ClaudeStreamEvent[] = [];
+    const lines = chunk.toString().split('\n');
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed === '') {
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(trimmed) as ClaudeStreamEvent;
+        events.push(parsed);
+      } catch {
+        // Not valid JSON, might be plain text fallback
+        logger.debug(`[ClaudeCliAdapter] Failed to parse stream event: ${trimmed}`);
+      }
+    }
+
+    return events;
+  }
+
+  /**
+   * Handle a stream event and update stats
+   */
+  private _handleStreamEvent(taskId: string, event: ClaudeStreamEvent): void {
+    const stats = this.taskStats.get(taskId);
+    if (stats === undefined) {
+      return;
+    }
+
+    stats.lastEventType = event.type;
+    stats.lastEventTime = new Date();
+
+    // Track event-specific stats
+    switch (event.type) {
+      case 'thinking': {
+        stats.thinkingCount++;
+        if (this.verbose && 'content' in event && typeof event.content === 'string') {
+          const { content } = event;
+          logger.info(
+            `[${taskId}] 💭 ${content.slice(0, 100)}${content.length > 100 ? '...' : ''}`,
+          );
+        }
+
+        break;
+      }
+      case 'tool_use': {
+        stats.toolUseCount++;
+        if ('tool' in event && typeof event.tool === 'string') {
+          stats.toolsUsed.add(event.tool);
+          if (this.verbose && 'input' in event) {
+            const inputPreview = JSON.stringify(event.input).slice(0, 100);
+            logger.info(
+              `[${taskId}] 🔧 ${event.tool}(${inputPreview}${inputPreview.length > 100 ? '...' : ''})`,
+            );
+          }
+        }
+
+        break;
+      }
+      case 'content': {
+        // This is the final output
+        if ('content' in event && typeof event.content === 'string') {
+          this._appendOutput(taskId, event.content);
+        }
+
+        break;
+      }
+      case 'error': {
+        if ('error' in event && typeof event.error === 'string') {
+          logger.error(`[${taskId}] ❌ ${event.error}`);
+        }
+
+        break;
+      }
+      // No default
+    }
+
+    // Always log to debug level for tail -f
+    logger.debug(`[${taskId}] Event: ${JSON.stringify(event)}`);
+  }
+
+  /**
+   * Get human-readable status for a task
+   */
+  private _getTaskStatus(taskId: string): string {
+    const stats = this.taskStats.get(taskId);
+    if (stats?.lastEventType === null || stats === undefined) {
+      return 'starting...';
+    }
+
+    const timeSince =
+      stats.lastEventTime !== null
+        ? `${Math.floor((Date.now() - stats.lastEventTime.getTime()) / 1000)}s ago`
+        : 'unknown';
+
+    return `${stats.lastEventType} (${timeSince})`;
   }
 
   private _buildClaudeArgs(mode: ExecutionMode, prompt: string): string[] {
+    // Always use stream-json for better monitoring, regardless of mode
     return match(mode)
-      .with('plan', () => ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt])
-      .with('dry-run', () => ['-p', '--permission-mode', 'plan', '--output-format', 'json', prompt])
-      .with('execute', () => ['-p', '--permission-mode', 'bypassPermissions', prompt])
-      .with('validate', () => [
+      .with('plan', () => [
         '-p',
+        '--output-format',
+        'stream-json',
         '--permission-mode',
         'plan',
+        prompt,
+      ])
+      .with('dry-run', () => [
+        '-p',
         '--output-format',
-        'json',
+        'stream-json',
+        '--permission-mode',
+        'plan',
+        prompt,
+      ])
+      .with('execute', () => [
+        '-p',
+        '--output-format',
+        'stream-json',
+        '--permission-mode',
+        'bypassPermissions',
+        prompt,
+      ])
+      .with('validate', () => [
+        '-p',
+        '--output-format',
+        'stream-json',
+        '--permission-mode',
+        'plan',
         prompt,
       ])
       .otherwise(() => {

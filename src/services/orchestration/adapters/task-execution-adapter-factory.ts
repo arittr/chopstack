@@ -5,6 +5,10 @@ import { logger } from '@/utils/global-logger';
 import { ClaudeCliTaskExecutionAdapter } from './claude-cli-task-execution-adapter';
 import { MockTaskExecutionAdapter } from './mock-task-execution-adapter';
 
+export type AdapterOptions = {
+  verbose?: boolean;
+};
+
 /**
  * Factory for creating task execution adapters based on agent type
  */
@@ -12,10 +16,10 @@ export const TaskExecutionAdapterFactory = {
   /**
    * Create a task execution adapter for the specified agent type
    */
-  createAdapter(agentType: string = 'claude'): TaskExecutionAdapter {
+  createAdapter(agentType: string = 'claude', options?: AdapterOptions): TaskExecutionAdapter {
     switch (agentType) {
       case 'claude': {
-        return new ClaudeCliTaskExecutionAdapter();
+        return new ClaudeCliTaskExecutionAdapter(options);
       }
 
       case 'mock': {
@@ -33,7 +37,7 @@ export const TaskExecutionAdapterFactory = {
 
       default: {
         logger.warn(`⚠️  Unknown agent type '${agentType}'. Defaulting to Claude CLI executor.`);
-        return new ClaudeCliTaskExecutionAdapter();
+        return new ClaudeCliTaskExecutionAdapter(options);
       }
     }
   },
