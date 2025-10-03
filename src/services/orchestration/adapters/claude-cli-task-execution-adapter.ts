@@ -545,9 +545,11 @@ Your changes will be validated. Modifying files outside your scope will cause th
 
   private _buildClaudeArgs(mode: ExecutionMode, prompt: string): string[] {
     // Always use stream-json for better monitoring, regardless of mode
+    // Note: --verbose is required when using --output-format=stream-json with -p
     return match(mode)
       .with('plan', () => [
         '-p',
+        '--verbose',
         '--output-format',
         'stream-json',
         '--permission-mode',
@@ -556,6 +558,7 @@ Your changes will be validated. Modifying files outside your scope will cause th
       ])
       .with('dry-run', () => [
         '-p',
+        '--verbose',
         '--output-format',
         'stream-json',
         '--permission-mode',
@@ -564,6 +567,7 @@ Your changes will be validated. Modifying files outside your scope will cause th
       ])
       .with('execute', () => [
         '-p',
+        '--verbose',
         '--output-format',
         'stream-json',
         '--permission-mode',
@@ -572,6 +576,7 @@ Your changes will be validated. Modifying files outside your scope will cause th
       ])
       .with('validate', () => [
         '-p',
+        '--verbose',
         '--output-format',
         'stream-json',
         '--permission-mode',
