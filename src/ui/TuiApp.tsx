@@ -6,24 +6,43 @@ import type { ExecutionOptions } from '@/core/execution/types';
 import type { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
 import type { Plan } from '@/types/decomposer';
 
+import { isNonNullish } from '@/validation/guards';
+
 import { LogPanel } from './components/LogPanel';
 import { StatusPanel } from './components/StatusPanel';
 import { useExecutionState } from './hooks/useExecutionState';
 import { theme } from './theme';
 
 export type TuiAppProps = {
+  jobIdRef?: { current: string | undefined } | undefined;
   options: ExecutionOptions;
   orchestrator: ExecutionOrchestrator;
   plan: Plan;
 };
 
-export const TuiApp: FC<TuiAppProps> = ({ orchestrator, plan, options }) => {
+export const TuiApp: FC<TuiAppProps> = ({ orchestrator, plan, options, jobIdRef }) => {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const { tasks, logs, metrics, isComplete } = useExecutionState(orchestrator, plan, {
     verbose: options.verbose ?? false,
   });
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | undefined>();
+  const [jobId, setJobId] = React.useState<string | undefined>(jobIdRef?.current);
+
+  // Poll for job ID updates from the ref
+  React.useEffect(() => {
+    if (!isNonNullish(jobIdRef)) {
+      return;
+    }
+
+    const interval = globalThis.setInterval(() => {
+      if (isNonNullish(jobIdRef.current) && jobIdRef.current !== jobId) {
+        setJobId(jobIdRef.current);
+      }
+    }, 100);
+
+    return () => globalThis.clearInterval(interval);
+  }, [jobId, jobIdRef]);
 
   // Calculate dimensions based on terminal size
   const terminalHeight = stdout.rows;
@@ -73,7 +92,7 @@ export const TuiApp: FC<TuiAppProps> = ({ orchestrator, plan, options }) => {
         borderColor={theme.borderActive}
         flexShrink={0}
       >
-        <StatusPanel tasks={tasks} metrics={metrics} options={options} />
+        <StatusPanel tasks={tasks} metrics={metrics} options={options} jobId={jobId} />
       </Box>
 
       <Box
