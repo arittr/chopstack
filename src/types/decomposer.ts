@@ -62,6 +62,7 @@ export const DecomposeOptionsSchema = z.object({
   agent: AgentTypeSchema,
   output: z.string().optional(),
   spec: z.string().min(1),
+  targetDir: z.string().optional(),
   verbose: z.boolean().optional(),
 });
 export type DecomposeOptions = z.infer<typeof DecomposeOptionsSchema>;
