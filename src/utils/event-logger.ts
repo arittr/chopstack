@@ -113,12 +113,13 @@ export class EventLogger extends Logger {
 
     // Emit to TUI if emitter is available
     if (this._emitter !== undefined) {
-      // Map log levels to TUI log types
+      // Map log levels to TUI log types (for display styling)
       const logType = level === 'error' ? 'error' : level === 'warn' ? 'stderr' : 'info';
 
       this._emitter.emit('log', {
         level: logType,
         message: cleanMessage.trim(),
+        originalLevel: level, // Preserve original level for filtering
         ...(taskId !== undefined && { taskId }),
         ...(metadata !== undefined && { metadata }),
       });

@@ -2,7 +2,6 @@
  * Core services provider for dependency injection
  */
 
-import type { RuntimeConfigService } from '@/core/config/runtime-config';
 import type { Container } from '@/core/di';
 import type {
   CommitService,
@@ -46,8 +45,7 @@ export class CoreServicesProvider extends BaseServiceProvider {
     container.registerSingleton(ServiceIdentifiers.AgentService, () => new AgentServiceImpl());
 
     container.registerSingleton(ServiceIdentifiers.TaskExecutionAdapter, () => {
-      const runtimeConfig = container.get<RuntimeConfigService>(ServiceIdentifiers.RuntimeConfig);
-      return new DynamicTaskExecutionAdapter('claude', { verbose: runtimeConfig.verbose });
+      return new DynamicTaskExecutionAdapter('claude');
     });
 
     container.registerSingleton(ServiceIdentifiers.TaskOrchestrator, () => {

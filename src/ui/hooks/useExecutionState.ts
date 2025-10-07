@@ -43,7 +43,16 @@ export type ExecutionState = {
   tasks: Map<string, TaskUIState>;
 };
 
-export function useExecutionState(orchestrator: ExecutionOrchestrator, plan: Plan): ExecutionState {
+export type UseExecutionStateOptions = {
+  verbose?: boolean;
+};
+
+export function useExecutionState(
+  orchestrator: ExecutionOrchestrator,
+  plan: Plan,
+  options: UseExecutionStateOptions = {},
+): ExecutionState {
+  const verbose = options.verbose ?? false;
   const [tasks, setTasks] = useState(() => {
     const initialTasks = new Map<string, TaskUIState>();
     for (const task of plan.tasks) {
@@ -166,23 +175,40 @@ export function useExecutionState(orchestrator: ExecutionOrchestrator, plan: Pla
     const handleLog = ({
       level,
       message,
+      originalLevel,
       taskId,
     }: {
       level: string;
       message: string;
+      originalLevel?: string;
       taskId?: string;
     }): void => {
+      // Filter DEBUG logs unless verbose mode is enabled
+      if (originalLevel === 'debug' && !verbose) {
+        return;
+      }
+
       const type = level === 'error' ? 'error' : 'info';
       addLog({ message, ...(isNonEmptyString(taskId) && { taskId }), type });
     };
 
     const handleStdout = ({ data, taskId }: { data: string; taskId?: string }): void => {
+      // Only show raw stdout in verbose mode
+      if (!verbose) {
+        return;
+      }
+
       if (isNonNullish(data)) {
         addLog({ message: data, ...(isNonEmptyString(taskId) && { taskId }), type: 'stdout' });
       }
     };
 
     const handleStderr = ({ data, taskId }: { data: string; taskId?: string }): void => {
+      // Only show raw stderr in verbose mode
+      if (!verbose) {
+        return;
+      }
+
       if (isNonNullish(data)) {
         addLog({ message: data, ...(isNonEmptyString(taskId) && { taskId }), type: 'stderr' });
       }
@@ -211,7 +237,7 @@ export function useExecutionState(orchestrator: ExecutionOrchestrator, plan: Pla
       orchestrator.off('stdout', handleStdout);
       orchestrator.off('stderr', handleStderr);
     };
-  }, [orchestrator, addLog, tasks]);
+  }, [orchestrator, addLog, tasks, verbose]);
 
   // Calculate metrics
   const taskArray = [...tasks.values()];
