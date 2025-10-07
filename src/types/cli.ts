@@ -12,12 +12,46 @@ export type { DecomposeOptions } from './decomposer';
 export type { ExecutionMode, ExecutionOptions, VcsMode } from '@/core/execution/types';
 
 // Decompose command options schema
-export const DecomposeCommandOptionsSchema = z.object({
-  agent: AgentTypeSchema,
-  output: z.string().optional(),
-  spec: z.string().min(1, 'Spec file path cannot be empty'),
-  verbose: z.boolean(),
-});
+export const DecomposeCommandOptionsSchema = z
+  .object({
+    agent: AgentTypeSchema,
+    output: z.string().optional(),
+    spec: z.string().min(1, 'Spec file path cannot be empty'),
+    targetDir: z.string().optional(),
+    verbose: z.boolean(),
+  })
+  .refine(
+    (data) => {
+      // Validate target directory exists and is accessible
+      if (data.targetDir === undefined) {
+        return true; // Will use process.cwd() as default
+      }
+
+      const resolvedPath = resolve(data.targetDir);
+      if (!existsSync(resolvedPath)) {
+        return false;
+      }
+
+      try {
+        const stats = statSync(resolvedPath);
+        return stats.isDirectory();
+      } catch {
+        return false;
+      }
+    },
+    {
+      message:
+        'Target directory does not exist or is not accessible. Please provide a valid directory path.',
+      path: ['targetDir'],
+    },
+  )
+  .transform((data) => {
+    // Resolve target directory to absolute path
+    if (data.targetDir !== undefined) {
+      return { ...data, targetDir: resolve(data.targetDir) };
+    }
+    return data;
+  });
 export type DecomposeCommandOptions = z.infer<typeof DecomposeCommandOptionsSchema>;
 
 // Run command options schema - supports both spec and plan inputs
@@ -71,14 +105,48 @@ export const RunCommandOptionsSchema = ExecutionOptionsSchema.extend({
 export type RunCommandOptions = z.infer<typeof RunCommandOptionsSchema>;
 
 // Stack command options schema
-export const StackCommandOptionsSchema = z.object({
-  autoAdd: z.boolean().default(false),
-  createStack: z.boolean().default(false),
-  dryRun: z.boolean().default(false),
-  message: z.string().optional(),
-  verbose: z.boolean().default(false),
-  tui: z.boolean().default(true),
-});
+export const StackCommandOptionsSchema = z
+  .object({
+    autoAdd: z.boolean().default(false),
+    createStack: z.boolean().default(false),
+    dryRun: z.boolean().default(false),
+    message: z.string().optional(),
+    targetDir: z.string().optional(),
+    verbose: z.boolean().default(false),
+    tui: z.boolean().default(true),
+  })
+  .refine(
+    (data) => {
+      // Validate target directory exists and is accessible
+      if (data.targetDir === undefined) {
+        return true; // Will use process.cwd() as default
+      }
+
+      const resolvedPath = resolve(data.targetDir);
+      if (!existsSync(resolvedPath)) {
+        return false;
+      }
+
+      try {
+        const stats = statSync(resolvedPath);
+        return stats.isDirectory();
+      } catch {
+        return false;
+      }
+    },
+    {
+      message:
+        'Target directory does not exist or is not accessible. Please provide a valid directory path.',
+      path: ['targetDir'],
+    },
+  )
+  .transform((data) => {
+    // Resolve target directory to absolute path
+    if (data.targetDir !== undefined) {
+      return { ...data, targetDir: resolve(data.targetDir) };
+    }
+    return data;
+  });
 export type StackArgs = z.infer<typeof StackCommandOptionsSchema>;
 
 // Helper functions for validation
