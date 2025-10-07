@@ -46,6 +46,7 @@
     "test:unit": "vitest --project=unit --run",
     "test:e2e": "vitest --project=e2e --run",
     "test:execution": "vitest --project=execution --run",
+    "test:repo": "node dist/bin/chopstack.js run --plan ./test/e2e/specs/add-dark-mode-v2.yaml --mode execute --vcs-mode stacked --agent claude --write-log --target-dir ../typescript-nextjs-starter",
     "prepublishOnly": "pnpm run clean && pnpm run build",
     "prepare": "husky"
   },
@@ -107,6 +108,7 @@
     "@modelcontextprotocol/sdk": "^1.0.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.1",
+    "dayjs": "^1.11.18",
     "execa": "^9.6.0",
     "fastmcp": "^3.16.0",
     "ink": "^6.3.1",
