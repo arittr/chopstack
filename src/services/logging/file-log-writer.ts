@@ -15,6 +15,7 @@ export class FileLogWriter {
   private _globalStream: WriteStream | null = null;
   private _isEnabled: boolean = false;
   private readonly jobId: string | undefined;
+  private _hasWrittenHeader: boolean = false;
 
   constructor(baseDir: string = process.cwd(), enabled: boolean = false, jobId?: string) {
     this.logDir = join(baseDir, '.chopstack', 'logs');
@@ -62,16 +63,19 @@ export class FileLogWriter {
 
     this._globalStream = createWriteStream(globalLogPath, { flags: 'a' });
 
-    // Write header
-    this._globalStream.write(
-      `================================================================================\n`,
-    );
-    this._globalStream.write(`ChopStack Execution Log\n`);
-    this._globalStream.write(`Started: ${new Date().toISOString()}\n`);
-    this._globalStream.write(`Working Directory: ${process.cwd()}\n`);
-    this._globalStream.write(
-      `================================================================================\n\n`,
-    );
+    // Write header only once
+    if (!this._hasWrittenHeader) {
+      this._globalStream.write(
+        `================================================================================\n`,
+      );
+      this._globalStream.write(`ChopStack Execution Log\n`);
+      this._globalStream.write(`Started: ${new Date().toISOString()}\n`);
+      this._globalStream.write(`Working Directory: ${process.cwd()}\n`);
+      this._globalStream.write(
+        `================================================================================\n\n`,
+      );
+      this._hasWrittenHeader = true;
+    }
 
     logger.info(`📝 Writing logs to: ${globalLogPath}`);
   }
