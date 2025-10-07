@@ -15,12 +15,13 @@ import { LayerIndicator } from './LayerIndicator';
 import { TaskProgress } from './TaskProgress';
 
 export type StatusPanelProps = {
+  jobId?: string | undefined;
   metrics: ExecutionMetrics;
   options: ExecutionOptions;
   tasks: Map<string, TaskUIState>;
 };
 
-export const StatusPanel: FC<StatusPanelProps> = ({ tasks, metrics, options }) => {
+export const StatusPanel: FC<StatusPanelProps> = ({ tasks, metrics, options, jobId }) => {
   const runningTasks = [...tasks.values()].filter((t) => t.status === 'running');
   const completionPercentage =
     metrics.totalTasks > 0 ? (metrics.completedTasks / metrics.totalTasks) * 100 : 0;
@@ -46,6 +47,7 @@ export const StatusPanel: FC<StatusPanelProps> = ({ tasks, metrics, options }) =
             {isNonEmptyString(options.agent) && options.agent !== 'claude'
               ? ` • ${options.agent}`
               : ''}
+            {isNonEmptyString(jobId) ? ` • ${jobId}` : ''}
           </Text>
         </Box>
         <KeyboardHelp />

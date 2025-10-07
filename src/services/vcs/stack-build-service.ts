@@ -957,7 +957,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     // Handle includeAll option by staging all changes
     if (options.includeAll === true) {
       // Stage all changes in the worktree
-      const git = new GitWrapper(context.worktreePath);
+      const git = new GitWrapper(context.absolutePath);
       await git.git.add('.');
       logger.info(`  📦 Staged all changes in ${context.worktreePath}`);
     } else if (options.files !== undefined) {
@@ -966,7 +966,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
 
     const commitHash = await this.gitSpice.commitInStack(
       message,
-      context.worktreePath,
+      context.absolutePath,
       commitOptions,
     );
 
