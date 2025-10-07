@@ -24,6 +24,8 @@ export class FileAccessControl {
    * Forbidden files are those belonging to:
    * 1. Tasks that come AFTER this task in execution order (prevent task bleeding)
    * 2. Tasks that are siblings (not dependencies) that execute in parallel
+   *
+   * Files from transitive dependencies are allowed (can modify files in dependency chain)
    */
   getForbiddenFiles(task: Task, allTasks: Task[], taskOrder: string[]): string[] {
     const currentTaskIndex = taskOrder.indexOf(task.id);
@@ -40,6 +42,9 @@ export class FileAccessControl {
     // Get all tasks that come before this task in execution order
     const earlierTaskIds = new Set(taskOrder.slice(0, currentTaskIndex));
 
+    // Get all dependencies (direct + transitive) for this task
+    const allDependencies = this._getAllDependencies(task, allTasks);
+
     // For each other task, determine if its files are forbidden
     for (const otherTask of allTasks) {
       // Skip if this is the current task
@@ -53,18 +58,44 @@ export class FileAccessControl {
       // Check if this task comes earlier in execution order
       const isEarlierTask = earlierTaskIds.has(otherTask.id);
 
-      // Check if this task is a dependency (allowed to read those files)
-      const isDependency = task.requires.includes(otherTask.id);
+      // Check if this task is a dependency (direct or transitive)
+      const isDependency = allDependencies.has(otherTask.id);
 
       // Forbid files from:
       // 1. All later tasks (prevent task bleeding forward)
-      // 2. Earlier tasks that are NOT dependencies (parallel siblings that happened to run first)
+      // 2. Earlier tasks that are NOT in the dependency chain (parallel siblings)
       if (isLaterTask || (isEarlierTask && !isDependency)) {
         forbidden.push(...otherTask.touches, ...otherTask.produces);
       }
     }
 
     return forbidden;
+  }
+
+  /**
+   * Get all dependencies (direct + transitive) for a task
+   */
+  private _getAllDependencies(task: Task, allTasks: Task[]): Set<string> {
+    const dependencies = new Set<string>();
+    const taskMap = new Map(allTasks.map((t) => [t.id, t]));
+
+    const addDependencies = (taskId: string): void => {
+      const currentTask = taskMap.get(taskId);
+      if (currentTask === undefined) {
+        return;
+      }
+
+      for (const depId of currentTask.requires) {
+        if (!dependencies.has(depId)) {
+          dependencies.add(depId);
+          // Recursively add transitive dependencies
+          addDependencies(depId);
+        }
+      }
+    };
+
+    addDependencies(task.id);
+    return dependencies;
   }
 
   /**
