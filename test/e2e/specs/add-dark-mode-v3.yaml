@@ -1,0 +1,334 @@
+tasks:
+  - id: "create-theme-types"
+    title: "Create theme type definitions"
+    description: "Define TypeScript types and enums for theme values ('light', 'dark', 'system') and theme context shape"
+    touches: []
+    produces:
+      - "src/types/theme.ts"
+    requires: []
+    estimatedLines: 30
+    agentPrompt: "Create a new file src/types/theme.ts with TypeScript type definitions for the dark mode feature:
+
+      - Define a Theme type with values 'light', 'dark', and 'system'
+
+      - Define a ThemeContextType interface with theme state, setTheme method, and resolvedTheme (the actual theme being displayed)
+
+      - Export all types for use across the application
+
+      - Follow TypeScript best practices and strict typing\n"
+  - id: "create-theme-context"
+    title: "Implement ThemeContext and ThemeProvider"
+    description: "Create React Context for theme management with state, localStorage persistence, and system preference detection"
+    touches: []
+    produces:
+      - "src/contexts/ThemeContext.tsx"
+    requires:
+      - "create-theme-types"
+    estimatedLines: 120
+    agentPrompt: "Create src/contexts/ThemeContext.tsx implementing the theme management system:
+
+      - Import types from src/types/theme.ts
+
+      - Create ThemeContext using React.createContext with proper typing
+
+      - Implement ThemeProvider component that:
+
+      \  * Manages theme state (light/dark/system)
+
+      \  * Persists theme preference to localStorage with key 'theme-preference'
+
+      \  * Detects system color scheme using window.matchMedia('(prefers-color-scheme: dark)')
+
+      \  * Listens for system preference changes and updates accordingly
+
+      \  * Calculates resolvedTheme (actual theme to display based on theme setting)
+
+      \  * Provides theme value and setTheme function via context
+
+      \  * Uses useEffect for localStorage sync and system preference detection
+
+      \  * Handles SSR safely (check typeof window !== 'undefined')
+
+      - Export ThemeProvider and a useTheme hook for consuming the context
+
+      - Add proper TypeScript typing throughout
+
+      - Include error handling for missing ThemeProvider\n"
+  - id: "create-theme-toggle-component"
+    title: "Build ThemeToggle UI component"
+    description: "Create an accessible theme toggle button with icons for light/dark/system modes and keyboard support"
+    touches: []
+    produces:
+      - "src/components/ThemeToggle.tsx"
+      - "src/components/ThemeToggle.module.css"
+    requires:
+      - "create-theme-context"
+    estimatedLines: 100
+    agentPrompt: "Create src/components/ThemeToggle.tsx and src/components/ThemeToggle.module.css:
+
+
+      TypeScript component (ThemeToggle.tsx):
+
+      - Import useTheme hook from src/contexts/ThemeContext.tsx
+
+      - Create a button that cycles through themes: light -> dark -> system -> light
+
+      - Display appropriate icon/text for current theme state
+
+      - Use proper ARIA attributes (aria-label, role=\"button\")
+
+      - Support keyboard navigation (Enter and Space keys)
+
+      - Apply CSS module styles
+
+      - Make it a client component ('use client' directive)
+
+
+      CSS module (ThemeToggle.module.css):
+
+      - Style the toggle button with appropriate sizing and padding
+
+      - Add hover and focus states for accessibility
+
+      - Ensure proper contrast ratios
+
+      - Add smooth transitions for interactions
+
+      - Make it responsive and touch-friendly (min 44x44px touch target)
+
+      - Use CSS custom properties where appropriate\n"
+  - id: "create-css-theme-variables"
+    title: "Define CSS custom properties for dark mode"
+    description: "Update globals.css to add comprehensive CSS variables for both light and dark themes with proper organization"
+    touches:
+      - "src/app/globals.css"
+    produces: []
+    requires: []
+    estimatedLines: 80
+    agentPrompt: "Update src/app/globals.css to enhance the existing CSS custom properties structure:
+
+      - Keep existing variables but reorganize them for clarity
+
+      - Add data attribute selectors [data-theme=\"light\"] and [data-theme=\"dark\"] for explicit theme control
+
+      - Maintain the existing @media (prefers-color-scheme: dark) for system preference support
+
+      - Add new semantic CSS variables for common UI elements:
+
+      \  * --background-primary, --background-secondary
+
+      \  * --text-primary, --text-secondary, --text-tertiary
+
+      \  * --border-color, --border-color-light
+
+      \  * --accent-color, --accent-color-hover
+
+      \  * --shadow-sm, --shadow-md, --shadow-lg
+
+      - Define values for both light and dark themes
+
+      - Ensure proper contrast ratios (WCAG AA minimum)
+
+      - Add transition property for smooth theme changes: transition: background-color 0.3s ease, color 0.3s ease
+
+      - Keep all existing variables and ensure backward compatibility\n"
+  - id: "integrate-theme-provider"
+    title: "Integrate ThemeProvider into app layout"
+    description: "Add ThemeProvider to root layout and apply theme data attribute to html element for CSS theme switching"
+    touches:
+      - "src/app/layout.tsx"
+    produces: []
+    requires:
+      - "create-theme-context"
+      - "create-css-theme-variables"
+    estimatedLines: 30
+    agentPrompt: "Update src/app/layout.tsx to integrate the theme system:
+
+      - Import ThemeProvider from src/contexts/ThemeContext.tsx
+
+      - Wrap children with ThemeProvider
+
+      - Create a client component wrapper or use Next.js pattern to apply data-theme attribute to <html> element
+
+      - The data-theme attribute should reflect the resolved theme (light or dark)
+
+      - Consider creating a separate ClientThemeWrapper component if needed due to Next.js server/client component constraints
+
+      - Ensure the html element gets data-theme attribute applied for CSS custom property switching
+
+      - Maintain existing Inter font and metadata
+
+      - Keep the layout clean and follow Next.js 15 App Router best practices\n"
+  - id: "add-theme-toggle-to-page"
+    title: "Add ThemeToggle to home page"
+    description: "Integrate ThemeToggle component into the main page in an appropriate location (header area)"
+    touches:
+      - "src/app/page.tsx"
+    produces: []
+    requires:
+      - "create-theme-toggle-component"
+      - "integrate-theme-provider"
+    estimatedLines: 15
+    agentPrompt: "Update src/app/page.tsx to include the ThemeToggle component:
+
+      - Import ThemeToggle from src/components/ThemeToggle.tsx
+
+      - Add ThemeToggle to the description section (top area) of the page
+
+      - Position it in a visually appropriate location (suggest top-right of description div)
+
+      - Ensure it doesn't disrupt existing layout
+
+      - Maintain all existing content and structure
+
+      - Use appropriate styling to integrate it seamlessly\n"
+  - id: "update-page-module-css"
+    title: "Update page.module.css with theme variables"
+    description: "Refactor page.module.css to use new CSS custom properties for theme-aware styling"
+    touches:
+      - "src/app/page.module.css"
+    produces: []
+    requires:
+      - "create-css-theme-variables"
+    estimatedLines: 40
+    agentPrompt: "Update src/app/page.module.css to use the new theme CSS custom properties:
+
+      - Replace hardcoded color values with CSS custom properties where appropriate
+
+      - Update background colors to use --background-primary, --background-secondary
+
+      - Update text colors to use --text-primary, --text-secondary
+
+      - Update border colors to use --border-color
+
+      - Ensure all interactive elements (.card, .code, etc.) use theme variables
+
+      - Keep existing layout and structure intact
+
+      - Maintain responsive design and media queries
+
+      - Remove or update the @media (prefers-color-scheme: dark) rule since theme is now controlled via data attributes
+
+      - Ensure smooth transitions work properly\n"
+  - id: "create-theme-script"
+    title: "Add blocking script to prevent theme flash"
+    description: "Create inline script to apply theme before page render to prevent flash of wrong theme (FOUC)"
+    touches:
+      - "src/app/layout.tsx"
+    produces: []
+    requires:
+      - "integrate-theme-provider"
+    estimatedLines: 25
+    agentPrompt: "Update src/app/layout.tsx to add a blocking script that prevents flash of unstyled content (FOUC):
+
+      - Add a <script> tag in the <head> or before <body> content
+
+      - The script should run synchronously before page render
+
+      - Read theme preference from localStorage (key: 'theme-preference')
+
+      - Detect system preference if theme is 'system' or not set
+
+      - Apply data-theme attribute to document.documentElement immediately
+
+      - Use dangerouslySetInnerHTML or Next.js Script component with beforeInteractive strategy
+
+      - Minify the inline script for performance
+
+      - Ensure it works with SSR and doesn't cause hydration issues
+
+      - Handle edge cases (localStorage not available, invalid values, etc.)\n"
+  - id: "add-theme-documentation"
+    title: "Create theme system documentation"
+    description: "Document the theme implementation, usage patterns, and how to extend it"
+    touches: []
+    produces:
+      - "docs/DARK_MODE.md"
+    requires:
+      - "create-theme-toggle-component"
+      - "integrate-theme-provider"
+    estimatedLines: 80
+    agentPrompt: "Create docs/DARK_MODE.md with comprehensive documentation:
+
+      - Overview of the dark mode implementation
+
+      - Architecture explanation (Context, Provider, CSS variables)
+
+      - Usage examples for consuming theme in components
+
+      - How to add new theme-aware components
+
+      - CSS custom properties reference table
+
+      - Accessibility considerations implemented
+
+      - localStorage structure and keys used
+
+      - How to customize themes or add new color schemes
+
+      - Troubleshooting common issues (FOUC, hydration, etc.)
+
+      - Performance considerations
+
+      - Testing recommendations
+
+      Use clear markdown formatting with code examples\n"
+  - id: "add-theme-tests"
+    title: "Add unit tests for theme functionality"
+    description: "Create tests for ThemeContext, ThemeProvider, and ThemeToggle components to ensure proper behavior"
+    touches: []
+    produces:
+      - "src/contexts/__tests__/ThemeContext.test.tsx"
+      - "src/components/__tests__/ThemeToggle.test.tsx"
+    requires:
+      - "create-theme-context"
+      - "create-theme-toggle-component"
+    estimatedLines: 150
+    agentPrompt: "Create test files for theme functionality (note: you may need to add testing dependencies first):
+
+
+      src/contexts/__tests__/ThemeContext.test.tsx:
+
+      - Test ThemeProvider renders children correctly
+
+      - Test theme state changes via setTheme
+
+      - Test localStorage persistence
+
+      - Test system preference detection
+
+      - Test resolvedTheme calculation
+
+      - Mock window.matchMedia for system preference tests
+
+      - Mock localStorage
+
+
+      src/components/__tests__/ThemeToggle.test.tsx:
+
+      - Test component renders with correct initial state
+
+      - Test clicking cycles through themes
+
+      - Test keyboard navigation (Enter, Space)
+
+      - Test accessibility attributes
+
+      - Mock useTheme hook
+
+
+      Use React Testing Library and Jest
+
+      Add proper TypeScript types
+
+      Include setup/teardown for mocks
+
+      Note: This task assumes testing infrastructure exists; if not, it may need to be set up first\n"
+
+# Plan Metrics
+# Task Count: 10
+# Execution Layers: 4
+# Max Parallelization: 4
+# Critical Path Length: 400 lines
+# Estimated Speedup: 1.68x
+# Total Estimated Lines: 670
