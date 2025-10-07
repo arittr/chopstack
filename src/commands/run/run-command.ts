@@ -39,12 +39,14 @@ export class RunCommand extends BaseCommand {
       const cwd = options.workdir ?? this.context.cwd;
       const serviceOverrides = this.dependencies.services ?? {};
 
-      // Initialize file logging if requested (will be reinitialized with job ID later)
-      let fileLogWriter = initializeFileLogWriter(cwd, options.writeLog);
+      // Generate job ID upfront for logging
+      const jobId = `plan-${Date.now()}`;
+
+      // Initialize file logging if requested
+      const fileLogWriter = initializeFileLogWriter(cwd, options.writeLog, jobId);
       if (options.writeLog) {
         this.logger.info(chalk.cyan(`📝 Logging enabled: ${fileLogWriter.getLogDirectory()}`));
       }
-      let jobId: string | undefined;
       type AppContainer = ReturnType<typeof getContainer>;
 
       let containerCache: AppContainer | null = null;
@@ -151,17 +153,7 @@ export class RunCommand extends BaseCommand {
       const engine = await resolveExecutionEngine();
 
       // Create a shared state object for job ID that TUI can access
-      const jobIdRef = { current: undefined as string | undefined };
-
-      // Listen for execution plan creation to get job ID
-      engine.once('execution_plan_created', (event: { id: string }) => {
-        jobId = event.id;
-        jobIdRef.current = event.id;
-        // Reinitialize file log writer with job ID
-        if (options.writeLog) {
-          fileLogWriter = initializeFileLogWriter(cwd, options.writeLog, jobId);
-        }
-      });
+      const jobIdRef = { current: jobId };
 
       let result;
       let failureCount: number;
@@ -179,16 +171,20 @@ export class RunCommand extends BaseCommand {
         try {
           // Start TUI and execute in parallel
           [result] = await Promise.all([
-            engine.execute(plan, {
-              mode: options.mode,
-              verbose: options.verbose,
-              dryRun: options.dryRun,
-              vcsMode: options.vcsMode,
-              workdir: cwd,
-              continueOnError: options.continueOnError,
-              agent: options.agent,
-              permissiveValidation: options.permissiveValidation,
-            }),
+            engine.execute(
+              plan,
+              {
+                mode: options.mode,
+                verbose: options.verbose,
+                dryRun: options.dryRun,
+                vcsMode: options.vcsMode,
+                workdir: cwd,
+                continueOnError: options.continueOnError,
+                agent: options.agent,
+                permissiveValidation: options.permissiveValidation,
+              },
+              jobId,
+            ),
             startTui({
               orchestrator,
               plan,
@@ -218,16 +214,20 @@ export class RunCommand extends BaseCommand {
         }
 
         this.logger.info(chalk.blue('🚀 Starting plan execution...'));
-        result = await engine.execute(plan, {
-          mode: options.mode,
-          verbose: options.verbose,
-          dryRun: options.dryRun,
-          vcsMode: options.vcsMode,
-          workdir: cwd,
-          continueOnError: options.continueOnError,
-          agent: options.agent,
-          permissiveValidation: options.permissiveValidation,
-        });
+        result = await engine.execute(
+          plan,
+          {
+            mode: options.mode,
+            verbose: options.verbose,
+            dryRun: options.dryRun,
+            vcsMode: options.vcsMode,
+            workdir: cwd,
+            continueOnError: options.continueOnError,
+            agent: options.agent,
+            permissiveValidation: options.permissiveValidation,
+          },
+          jobId,
+        );
 
         failureCount = result.tasks.filter((task) => task.status === 'failure').length;
 
