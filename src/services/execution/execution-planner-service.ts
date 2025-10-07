@@ -22,7 +22,11 @@ export type ExecutionPlannerService = {
   /**
    * Create an execution plan from a decomposed plan
    */
-  createExecutionPlan(plan: Plan, options: ExecutionOptions): Promise<ExecutionPlan>;
+  createExecutionPlan(
+    plan: Plan,
+    options: ExecutionOptions,
+    jobId?: string,
+  ): Promise<ExecutionPlan>;
 
   /**
    * Optimize execution layers for maximum parallelism
@@ -47,7 +51,11 @@ export class ExecutionPlannerServiceImpl implements ExecutionPlannerService {
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  async createExecutionPlan(plan: Plan, options: ExecutionOptions): Promise<ExecutionPlan> {
+  async createExecutionPlan(
+    plan: Plan,
+    options: ExecutionOptions,
+    jobId?: string,
+  ): Promise<ExecutionPlan> {
     // Convert tasks to execution tasks
     const executionTasks = new Map<string, ExecutionTask>();
 
@@ -74,7 +82,7 @@ export class ExecutionPlannerServiceImpl implements ExecutionPlannerService {
     );
 
     const executionPlan: ExecutionPlan = {
-      id: `plan-${Date.now()}`,
+      id: jobId ?? `plan-${Date.now()}`,
       plan: {
         tasks: plan.tasks,
       },
