@@ -10,6 +10,8 @@ import type {
   TaskExecutionRequest,
 } from '@/services/orchestration/types';
 
+import { ExecutionEventBus } from '@/services/events/execution-event-bus';
+import { LogLevel } from '@/types/events';
 import { logger } from '@/utils/global-logger';
 
 import type { ClaudeExecutionStats, ClaudeStreamEvent } from './claude-stream-types';
@@ -22,10 +24,10 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
   private readonly taskOutputs = new Map<string, string[]>();
   private readonly taskStartTimes = new Map<string, Date>();
   private readonly taskStats = new Map<string, ClaudeExecutionStats>();
-  private readonly verbose: boolean;
+  private readonly eventBus: ExecutionEventBus;
 
-  constructor(options?: { verbose?: boolean }) {
-    this.verbose = options?.verbose ?? false;
+  constructor(options?: { eventBus?: ExecutionEventBus }) {
+    this.eventBus = options?.eventBus ?? new ExecutionEventBus();
   }
 
   async executeTask(
@@ -110,6 +112,9 @@ export class ClaudeCliTaskExecutionAdapter implements TaskExecutionAdapter {
 
       for (const event of events) {
         this._handleStreamEvent(taskId, event);
+
+        // Emit to event bus (consumers can filter based on verbose)
+        this.eventBus.emitStreamData(taskId, event);
 
         // Emit streaming updates
         emitUpdate({
@@ -481,25 +486,13 @@ Your changes will be validated. Modifying files outside your scope will cause th
     switch (event.type) {
       case 'thinking': {
         stats.thinkingCount++;
-        if (this.verbose && 'content' in event && typeof event.content === 'string') {
-          const { content } = event;
-          logger.info(
-            `[${taskId}] 💭 ${content.slice(0, 100)}${content.length > 100 ? '...' : ''}`,
-          );
-        }
-
+        // Event consumers will handle displaying this based on verbose flag
         break;
       }
       case 'tool_use': {
         stats.toolUseCount++;
         if ('tool' in event && typeof event.tool === 'string') {
           stats.toolsUsed.add(event.tool);
-          if (this.verbose && 'input' in event) {
-            const inputPreview = JSON.stringify(event.input).slice(0, 100);
-            logger.info(
-              `[${taskId}] 🔧 ${event.tool}(${inputPreview}${inputPreview.length > 100 ? '...' : ''})`,
-            );
-          }
         }
 
         break;
@@ -514,7 +507,8 @@ Your changes will be validated. Modifying files outside your scope will cause th
       }
       case 'error': {
         if ('error' in event && typeof event.error === 'string') {
-          logger.error(`[${taskId}] ❌ ${event.error}`);
+          // Emit error through event bus
+          this.eventBus.emitLog(LogLevel.ERROR, `[${taskId}] ❌ ${event.error}`);
         }
 
         break;
@@ -522,8 +516,8 @@ Your changes will be validated. Modifying files outside your scope will cause th
       // No default
     }
 
-    // Always log to debug level for tail -f
-    logger.debug(`[${taskId}] Event: ${JSON.stringify(event)}`);
+    // Events are now emitted through eventBus.emitStreamData in stdout handler
+    // No need to log every event here
   }
 
   /**

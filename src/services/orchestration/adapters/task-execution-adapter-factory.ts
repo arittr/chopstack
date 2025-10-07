@@ -1,13 +1,50 @@
 import type { TaskExecutionAdapter } from '@/services/orchestration/types';
 
+import { ExecutionEventBus } from '@/services/events/execution-event-bus';
+import { ExecutionEventConsumer } from '@/services/events/execution-event-consumer';
 import { logger } from '@/utils/global-logger';
 
 import { ClaudeCliTaskExecutionAdapter } from './claude-cli-task-execution-adapter';
 import { MockTaskExecutionAdapter } from './mock-task-execution-adapter';
 
 export type AdapterOptions = {
-  verbose?: boolean;
+  eventBus?: ExecutionEventBus;
 };
+
+/**
+ * Singleton event bus instance shared across all adapters
+ */
+const globalEventBus = new ExecutionEventBus();
+
+/**
+ * Singleton event consumer for handling event display
+ */
+let globalEventConsumer: ExecutionEventConsumer | null = null;
+
+/**
+ * Get the global event bus instance
+ */
+export function getGlobalEventBus(): ExecutionEventBus {
+  return globalEventBus;
+}
+
+/**
+ * Initialize the global event consumer with options
+ * Should be called once at application startup
+ */
+export function initializeEventConsumer(options: { verbose: boolean }): void {
+  // Clean up existing consumer if any
+  if (globalEventConsumer !== null) {
+    globalEventConsumer.destroy();
+  }
+
+  // Create new consumer with options
+  globalEventConsumer = new ExecutionEventConsumer(globalEventBus, {
+    verbose: options.verbose,
+    showStreamData: options.verbose, // Only show raw stream data in verbose mode
+    showTaskProgress: true,
+  });
+}
 
 /**
  * Factory for creating task execution adapters based on agent type
@@ -17,9 +54,11 @@ export const TaskExecutionAdapterFactory = {
    * Create a task execution adapter for the specified agent type
    */
   createAdapter(agentType: string = 'claude', options?: AdapterOptions): TaskExecutionAdapter {
+    const eventBus = options?.eventBus ?? globalEventBus;
+
     switch (agentType) {
       case 'claude': {
-        return new ClaudeCliTaskExecutionAdapter(options);
+        return new ClaudeCliTaskExecutionAdapter({ ...options, eventBus });
       }
 
       case 'mock': {
@@ -37,7 +76,7 @@ export const TaskExecutionAdapterFactory = {
 
       default: {
         logger.warn(`⚠️  Unknown agent type '${agentType}'. Defaulting to Claude CLI executor.`);
-        return new ClaudeCliTaskExecutionAdapter(options);
+        return new ClaudeCliTaskExecutionAdapter({ ...options, eventBus });
       }
     }
   },

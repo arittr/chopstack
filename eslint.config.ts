@@ -149,6 +149,28 @@ const config: Record<string, unknown>[] = [
           format: ['PascalCase'],
           selector: 'interface',
         },
+        // Allow colon notation for event type properties (e.g., 'stream:data', 'task:complete')
+        {
+          custom: {
+            match: true,
+            regex: '^[a-z]+:[a-z-]+$',
+          },
+          filter: {
+            match: true,
+            regex: ':',
+          },
+          format: null,
+          selector: 'typeProperty',
+        },
+        // Allow standard camelCase for other type properties
+        {
+          filter: {
+            match: false,
+            regex: ':',
+          },
+          format: ['camelCase', 'PascalCase'],
+          selector: 'typeProperty',
+        },
       ],
       '@typescript-eslint/no-base-to-string': 'error',
       '@typescript-eslint/no-confusing-void-expression': 'error',

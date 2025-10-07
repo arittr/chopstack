@@ -20,7 +20,9 @@ export type TuiAppProps = {
 export const TuiApp: FC<TuiAppProps> = ({ orchestrator, plan, options }) => {
   const { exit } = useApp();
   const { stdout } = useStdout();
-  const { tasks, logs, metrics, isComplete } = useExecutionState(orchestrator, plan);
+  const { tasks, logs, metrics, isComplete } = useExecutionState(orchestrator, plan, {
+    verbose: options.verbose ?? false,
+  });
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | undefined>();
 
   // Calculate dimensions based on terminal size

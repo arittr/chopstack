@@ -102,6 +102,132 @@ The codebase follows these architectural patterns:
 - **External Types**: Official Claude Code SDK types from `@anthropic-ai/claude-code`
 - **Testing**: Vitest for all testing, custom execution testing framework
 
+### Logging Architecture
+
+**IMPORTANT**: This codebase has TWO SEPARATE logging systems that serve different purposes. Understanding which to use is critical.
+
+#### System 1: Service Logger (General Application Logs)
+
+**Location**: `src/logging/` - Import via `import { logger } from '@/logging'`
+
+**Purpose**: General application logging for services, debugging, and user-facing messages
+
+**When to Use**:
+- Internal service operations (VCS, orchestration, planning, decomposition)
+- User-facing error/warning/info messages
+- Debug logging for development
+- Any non-streaming operational log
+
+**Examples**:
+```typescript
+import { logger } from '@/logging';
+
+// User-facing messages
+logger.info('Creating worktree for task-1');
+logger.warn('Branch already exists, retrying...');
+logger.error('Failed to commit changes');
+
+// Debug logging (only shown with --verbose)
+logger.debug('VCS engine initialized with config:', { config });
+logger.debug('Task execution state:', { taskId, status });
+```
+
+**Features**:
+- Automatic log level filtering (DEBUG, INFO, WARN, ERROR)
+- Color-coded console output via chalk
+- TUI integration via EventLogger
+- File logging support
+- Controlled by `--verbose` flag and LOG_LEVEL env var
+
+#### System 2: Execution Event Bus (Task Execution Events)
+
+**Location**: `src/services/events/` - Import via `import { getGlobalEventBus, initializeEventConsumer } from '@/logging'`
+
+**Purpose**: Event-driven architecture for task execution lifecycle and Claude CLI stream data
+
+**When to Use**:
+- Task lifecycle events (start, progress, complete, failed)
+- Claude CLI streaming output (thinking, tool_use, content, error)
+- VCS operation events (branch created, commit made)
+- Cross-cutting concerns that need multiple consumers (TUI, metrics, webhooks)
+
+**Examples**:
+```typescript
+import { getGlobalEventBus, initializeEventConsumer, EventLogLevel } from '@/logging';
+
+// In task execution adapters - emit events
+const eventBus = getGlobalEventBus();
+
+eventBus.emitTaskStart(task, { taskId: 'task-1', taskName: 'My Task' });
+eventBus.emitStreamData('task-1', { type: 'thinking', content: '...' });
+eventBus.emitTaskComplete('task-1', { success: true });
+eventBus.emitLog(EventLogLevel.INFO, 'Task completed successfully');
+
+// In CLI entry point - initialize consumer
+initializeEventConsumer({ verbose: options.verbose });
+```
+
+**Features**:
+- Type-safe event emission with `ExecutionEvents` type
+- Centralized event bus (singleton pattern)
+- Filtering via `ExecutionEventConsumer` based on verbose flag
+- Decouples event emission from consumption
+- Supports multiple consumers (TUI, file logger, metrics)
+
+#### Quick Reference: Which System to Use?
+
+| Scenario | System | Import |
+|----------|--------|--------|
+| VCS operation logging | Service Logger | `logger.info('Creating branch...')` |
+| User error messages | Service Logger | `logger.error('Failed to...')` |
+| Debug internal state | Service Logger | `logger.debug('State:', state)` |
+| Claude stream events | Event Bus | `eventBus.emitStreamData(...)` |
+| Task lifecycle | Event Bus | `eventBus.emitTaskStart(...)` |
+| Branch/commit events | Event Bus | `eventBus.emitBranchCreated(...)` |
+
+#### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Service Logger (logger.ts + global-logger.ts)          │
+│  - General app logs (INFO, WARN, ERROR, DEBUG)          │
+│  - Console output with colors                           │
+│  - File logging support                                 │
+│  - TUI integration via EventLogger                      │
+│  - Used by: VCS, orchestration, planning services       │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  Execution Event Bus (event-bus + event-consumer)       │
+│  - Task execution events                                │
+│  - Claude stream data filtering                         │
+│  - Type-safe event emission                             │
+│  - VCS operation events                                 │
+│  - Used by: Task adapters, VCS strategies               │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### Integration Points
+
+1. **CLI Entry Point** (`src/entry/cli/chopstack.ts`):
+   - Configures service logger: `logger.configure({ verbose: options.verbose })`
+   - Initializes event consumer: `initializeEventConsumer({ verbose: options.verbose })`
+
+2. **Task Execution Adapter** (`src/services/orchestration/adapters/claude-cli-task-execution-adapter.ts`):
+   - Uses service logger for internal operations
+   - Emits events via event bus for stream data
+
+3. **VCS Services** (`src/services/vcs/*`):
+   - Use service logger for operational logs
+   - Can emit VCS events via event bus for cross-cutting concerns
+
+#### Testing
+
+Both systems have comprehensive unit tests:
+- **Service Logger**: `src/utils/__tests__/logger.test.ts`
+- **Event Bus**: `src/services/events/__tests__/execution-event-bus.test.ts`
+- **Event Consumer**: `src/services/events/__tests__/execution-event-consumer.test.ts`
+
 ## Code Style Requirements
 
 ### Pattern Matching with ts-pattern

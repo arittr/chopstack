@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { ZodError } from 'zod';
 
 import { createDefaultDependencies, DecomposeCommand, RunCommand, StackCommand } from '@/commands';
+import { initializeEventConsumer } from '@/services/orchestration/adapters/task-execution-adapter-factory';
 import { validateDecomposeArgs, validateRunArgs, validateStackArgs } from '@/types/cli';
 import { logger } from '@/utils/global-logger';
 
@@ -31,6 +32,8 @@ program
         verbose: validatedOptions.verbose ?? false,
         silent: cliOptions.silent ?? false,
       });
+      // Initialize event consumer
+      initializeEventConsumer({ verbose: validatedOptions.verbose ?? false });
       const deps = createDefaultDependencies({ logger });
       const command = new DecomposeCommand(deps);
       const exitCode = await command.execute(validatedOptions);
@@ -55,7 +58,8 @@ program
   .option('--spec <file>', 'Path to specification file (.md)')
   .option('--plan <file>', 'Path to plan file (JSON/YAML) - if not provided, will decompose spec')
   .option('--mode <mode>', 'Execution mode: plan|dry-run|execute|validate', 'dry-run')
-  .option('--workdir <path>', 'Working directory for execution', process.cwd())
+  .option('--target-dir <dir>', 'Target directory for execution (default: current directory)', '.')
+  .option('--workdir <path>', '[DEPRECATED] Use --target-dir instead')
   .option('--vcs-mode <mode>', 'VCS mode: simple|worktree|stacked', 'simple')
   .option('--agent <type>', 'Agent for decomposition: claude|aider|mock', 'claude')
   .option(
@@ -90,6 +94,8 @@ program
         verbose: validatedOptions.verbose ?? false,
         silent: cliOptions.silent ?? false,
       });
+      // Initialize event consumer
+      initializeEventConsumer({ verbose: validatedOptions.verbose ?? false });
       const deps = createDefaultDependencies({ logger });
       const command = new RunCommand(deps);
       const exitCode = await command.execute(validatedOptions);
@@ -126,6 +132,8 @@ program
         verbose: validatedOptions.verbose,
         silent: cliOptions.silent ?? false,
       });
+      // Initialize event consumer
+      initializeEventConsumer({ verbose: validatedOptions.verbose });
       const deps = createDefaultDependencies({ logger });
       const command = new StackCommand(deps);
       const exitCode = await command.execute(validatedOptions);
