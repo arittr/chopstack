@@ -80,16 +80,13 @@ export class ExecutionEngine extends EventEmitter {
     });
   }
 
-  async execute(plan: Plan, options: ExecutionOptions): Promise<ExecutionResult> {
+  async execute(plan: Plan, options: ExecutionOptions, jobId?: string): Promise<ExecutionResult> {
     logger.info(`🚀 Starting execution in ${options.mode} mode with modular architecture`);
 
     try {
       // Create execution plan using planner service
-      const executionPlan = await this.plannerService.createExecutionPlan(plan, options);
+      const executionPlan = await this.plannerService.createExecutionPlan(plan, options, jobId);
       logger.info(`📋 Created execution plan with ${executionPlan.vcsMode} VCS mode`);
-
-      // Emit execution plan created event with the job ID
-      this.emit('execution_plan_created', { id: executionPlan.id });
 
       // Start monitoring
       this.monitorService.startMonitoring(executionPlan);
