@@ -1,7 +1,10 @@
 import { createWriteStream, existsSync, mkdirSync, type WriteStream } from 'node:fs';
 import { join } from 'node:path';
 
+import dayjs from 'dayjs';
+
 import { logger } from '@/utils/global-logger';
+import { isNonNullish } from '@/validation/guards';
 
 /**
  * Service to write logs to files in .chopstack/logs/
@@ -11,10 +14,12 @@ export class FileLogWriter {
   private readonly logDir: string;
   private _globalStream: WriteStream | null = null;
   private _isEnabled: boolean = false;
+  private readonly jobId: string | undefined;
 
-  constructor(baseDir: string = process.cwd(), enabled: boolean = false) {
+  constructor(baseDir: string = process.cwd(), enabled: boolean = false, jobId?: string) {
     this.logDir = join(baseDir, '.chopstack', 'logs');
     this._isEnabled = enabled;
+    this.jobId = jobId;
 
     if (this._isEnabled) {
       this._ensureLogDirectory();
@@ -50,8 +55,10 @@ export class FileLogWriter {
    * Initialize the global log file for the entire run
    */
   private _initializeGlobalLog(): void {
-    const timestamp = new Date().toISOString().replaceAll(/[.:]/g, '-').slice(0, -5);
-    const globalLogPath = join(this.logDir, `chopstack-run-${timestamp}.log`);
+    // Format: 2025-10-07T14-30-45-07-00 (system timezone with ISO offset)
+    const timestamp = dayjs().format('YYYY-MM-DDTHH-mm-ssZZ').replace(':', '-');
+    const jobIdPart = isNonNullish(this.jobId) ? `-${this.jobId}` : '';
+    const globalLogPath = join(this.logDir, `chopstack-run-${timestamp}${jobIdPart}.log`);
 
     this._globalStream = createWriteStream(globalLogPath, { flags: 'a' });
 
@@ -245,7 +252,8 @@ export function getFileLogWriter(): FileLogWriter {
 export function initializeFileLogWriter(
   baseDir: string = process.cwd(),
   enabled: boolean = false,
+  jobId?: string,
 ): FileLogWriter {
-  globalFileLogWriter = new FileLogWriter(baseDir, enabled);
+  globalFileLogWriter = new FileLogWriter(baseDir, enabled, jobId);
   return globalFileLogWriter;
 }

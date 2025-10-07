@@ -39,11 +39,12 @@ export class RunCommand extends BaseCommand {
       const cwd = options.workdir ?? this.context.cwd;
       const serviceOverrides = this.dependencies.services ?? {};
 
-      // Initialize file logging if requested
-      const fileLogWriter = initializeFileLogWriter(cwd, options.writeLog);
+      // Initialize file logging if requested (will be reinitialized with job ID later)
+      let fileLogWriter = initializeFileLogWriter(cwd, options.writeLog);
       if (options.writeLog) {
         this.logger.info(chalk.cyan(`📝 Logging enabled: ${fileLogWriter.getLogDirectory()}`));
       }
+      let jobId: string | undefined;
       type AppContainer = ReturnType<typeof getContainer>;
 
       let containerCache: AppContainer | null = null;
@@ -149,6 +150,19 @@ export class RunCommand extends BaseCommand {
 
       const engine = await resolveExecutionEngine();
 
+      // Create a shared state object for job ID that TUI can access
+      const jobIdRef = { current: undefined as string | undefined };
+
+      // Listen for execution plan creation to get job ID
+      engine.once('execution_plan_created', (event: { id: string }) => {
+        jobId = event.id;
+        jobIdRef.current = event.id;
+        // Reinitialize file log writer with job ID
+        if (options.writeLog) {
+          fileLogWriter = initializeFileLogWriter(cwd, options.writeLog, jobId);
+        }
+      });
+
       let result;
       let failureCount: number;
 
@@ -178,6 +192,7 @@ export class RunCommand extends BaseCommand {
             startTui({
               orchestrator,
               plan,
+              jobIdRef,
               options: {
                 mode: options.mode,
                 verbose: options.verbose,
