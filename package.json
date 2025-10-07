@@ -46,7 +46,7 @@
     "test:unit": "vitest --project=unit --run",
     "test:e2e": "vitest --project=e2e --run",
     "test:execution": "vitest --project=execution --run",
-    "test:repo": "node dist/bin/chopstack.js run --plan ./test/e2e/specs/add-dark-mode-v2.yaml --mode execute --vcs-mode stacked --agent claude --write-log --target-dir ../typescript-nextjs-starter",
+    "test:repo": "node dist/bin/chopstack.js run --plan ./test/e2e/specs/add-dark-mode-v3.yaml --mode execute --vcs-mode stacked --agent claude --write-log --target-dir ../typescript-nextjs-starter",
     "prepublishOnly": "pnpm run clean && pnpm run build",
     "prepare": "husky"
   },

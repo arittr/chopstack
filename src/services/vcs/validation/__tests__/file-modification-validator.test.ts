@@ -253,4 +253,109 @@ describe('FileModificationValidator', () => {
       expect(result.violations[0]?.reason).toBe('no_changes');
     });
   });
+
+  describe('transitive dependency chains', () => {
+    it('should allow modifying files from direct dependencies', () => {
+      // task-a touches layout.tsx
+      // task-b requires task-a and also touches layout.tsx (refinement)
+      const taskA = createTask('task-a', ['src/app/layout.tsx'], [], []);
+      const taskB = createTask('task-b', ['src/app/layout.tsx'], [], ['task-a']);
+      const allTasks = [taskA, taskB];
+      const taskOrder = ['task-a', 'task-b'];
+
+      validator.initialize(allTasks, taskOrder);
+
+      // task-b should be allowed to modify layout.tsx since it depends on task-a
+      const result = validator.validatePreCommit(taskB, ['src/app/layout.tsx']);
+
+      expect(result.valid).toBe(true);
+      expect(result.violations).toHaveLength(0);
+    });
+
+    it('should allow modifying files from transitive dependencies', () => {
+      // task-a touches layout.tsx
+      // task-b requires task-a, touches layout.tsx
+      // task-c requires task-b, touches layout.tsx (transitive refinement)
+      const taskA = createTask('task-a', ['src/app/layout.tsx'], [], []);
+      const taskB = createTask('task-b', ['src/app/layout.tsx'], [], ['task-a']);
+      const taskC = createTask('task-c', ['src/app/layout.tsx'], [], ['task-b']);
+      const allTasks = [taskA, taskB, taskC];
+      const taskOrder = ['task-a', 'task-b', 'task-c'];
+
+      validator.initialize(allTasks, taskOrder);
+
+      // task-c should be allowed to modify layout.tsx even though task-a is a transitive dependency
+      const result = validator.validatePreCommit(taskC, ['src/app/layout.tsx']);
+
+      expect(result.valid).toBe(true);
+      expect(result.violations).toHaveLength(0);
+    });
+
+    it('should forbid modifying files from parallel tasks (no dependency relationship)', () => {
+      // task-a touches layout.tsx
+      // task-b touches layout.tsx (but no dependency relationship)
+      const taskA = createTask('task-a', ['src/app/layout.tsx'], [], []);
+      const taskB = createTask('task-b', ['src/app/layout.tsx'], [], []);
+      const allTasks = [taskA, taskB];
+      const taskOrder = ['task-a', 'task-b'];
+
+      validator.initialize(allTasks, taskOrder);
+
+      // task-b should NOT be allowed to modify layout.tsx since it doesn't depend on task-a
+      const result = validator.validatePreCommit(taskB, ['src/app/layout.tsx']);
+
+      expect(result.valid).toBe(false);
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0]?.file).toBe('src/app/layout.tsx');
+      expect(result.violations[0]?.reason).toBe('belongs_to_other_task');
+      expect(result.violations[0]?.conflictingTask).toBe('task-a');
+    });
+
+    it('should handle complex dependency chain with multiple files', () => {
+      // task-a touches file1.ts and file2.ts
+      // task-b requires task-a, touches file2.ts and file3.ts
+      // task-c requires task-b, touches file2.ts, file3.ts, and file4.ts (can touch files from dependency chain)
+      const taskA = createTask('task-a', ['file1.ts', 'file2.ts'], [], []);
+      const taskB = createTask('task-b', ['file2.ts', 'file3.ts'], [], ['task-a']);
+      const taskC = createTask('task-c', ['file2.ts', 'file3.ts', 'file4.ts'], [], ['task-b']);
+      const allTasks = [taskA, taskB, taskC];
+      const taskOrder = ['task-a', 'task-b', 'task-c'];
+
+      validator.initialize(allTasks, taskOrder);
+
+      // task-c should be allowed to modify file2.ts (from transitive dep), file3.ts (from direct dep), and file4.ts (own)
+      const result = validator.validatePreCommit(taskC, ['file2.ts', 'file3.ts', 'file4.ts']);
+
+      expect(result.valid).toBe(true);
+      expect(result.violations).toHaveLength(0);
+    });
+
+    it('should handle the dark-mode scenario (integrate-theme-provider and add-theme-script)', () => {
+      // Simplified version of the failing dark-mode spec
+      // integrate-theme-provider touches layout.tsx
+      // add-theme-script requires integrate-theme-provider and also touches layout.tsx
+      const integrateProvider = createTask(
+        'integrate-theme-provider',
+        ['src/app/layout.tsx'],
+        [],
+        [],
+      );
+      const addThemeScript = createTask(
+        'add-theme-script',
+        ['src/app/layout.tsx'],
+        [],
+        ['integrate-theme-provider'],
+      );
+      const allTasks = [integrateProvider, addThemeScript];
+      const taskOrder = ['integrate-theme-provider', 'add-theme-script'];
+
+      validator.initialize(allTasks, taskOrder);
+
+      // add-theme-script should be allowed to modify layout.tsx since it depends on integrate-theme-provider
+      const result = validator.validatePreCommit(addThemeScript, ['src/app/layout.tsx']);
+
+      expect(result.valid).toBe(true);
+      expect(result.violations).toHaveLength(0);
+    });
+  });
 });

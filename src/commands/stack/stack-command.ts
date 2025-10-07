@@ -36,8 +36,11 @@ export class StackCommand extends BaseCommand {
     try {
       const args = validateStackArgs(rawArgs);
 
+      // Get working directory (from targetDir or context)
+      const cwd = args.targetDir ?? this.dependencies.context.cwd;
+
       // Check for git status first
-      const gitStatus = getGitStatus();
+      const gitStatus = getGitStatus(cwd);
 
       if (!gitStatus.hasChanges) {
         this.logger.info(chalk.yellow('No changes to commit'));
@@ -68,7 +71,7 @@ export class StackCommand extends BaseCommand {
       if (args.autoAdd) {
         this.logger.info(chalk.blue('📥 Adding all changes...'));
         if (!args.dryRun) {
-          addAllChanges();
+          addAllChanges(cwd);
         } else {
           this.logger.info(chalk.gray('   (DRY RUN: would run `git add -A`)'));
         }
@@ -82,10 +85,10 @@ export class StackCommand extends BaseCommand {
           dryRun: args.dryRun,
           ...(hasContent(args.message) && { message: args.message }),
         };
-        return await this._handleStackCreation(spiceOptions, commitMessage);
+        return await this._handleStackCreation(spiceOptions, commitMessage, cwd);
       }
       // Just create a regular commit
-      return this._handleRegularCommit(commitMessage, args.dryRun);
+      return this._handleRegularCommit(commitMessage, args.dryRun, cwd);
     } catch (error) {
       this.logger.error(
         chalk.red(
@@ -119,6 +122,7 @@ export class StackCommand extends BaseCommand {
   private async _handleStackCreation(
     args: GitSpiceOptions,
     commitMessage: string,
+    cwd?: string,
   ): Promise<number> {
     this.logger.info(chalk.blue('📚 Creating git-spice branch...'));
 
@@ -130,11 +134,11 @@ export class StackCommand extends BaseCommand {
 
         // Fall back to regular commit
         this.logger.info(chalk.blue('📝 Falling back to regular git commit...'));
-        return this._handleRegularCommit(commitMessage);
+        return this._handleRegularCommit(commitMessage, false, cwd);
       }
 
       // Create git-spice branch
-      const workdir = process.cwd();
+      const workdir = cwd ?? process.cwd();
       if (args.dryRun === true) {
         const proposedBranchName = args.branchName ?? 'auto-generated-branch-name';
         this.logger.info(
@@ -174,7 +178,7 @@ export class StackCommand extends BaseCommand {
     }
   }
 
-  private _handleRegularCommit(commitMessage: string, dryRun = false): number {
+  private _handleRegularCommit(commitMessage: string, dryRun = false, cwd?: string): number {
     try {
       if (dryRun) {
         this.logger.info(
@@ -182,7 +186,7 @@ export class StackCommand extends BaseCommand {
         );
         this.logger.info(chalk.green('✅ Would create commit with message:'));
       } else {
-        createCommit(commitMessage);
+        createCommit(commitMessage, cwd);
         this.logger.info(chalk.green('✅ Created commit with message:'));
       }
       this.logger.info(chalk.white(`   ${commitMessage.split('\n')[0]}`));
