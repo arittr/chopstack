@@ -40,8 +40,8 @@ export class DecomposeCommand extends BaseCommand {
       // Create the appropriate agent (includes capability validation)
       const agent = await createDecomposerAgent(options.agent);
 
-      // Get current working directory
-      const { cwd } = this.dependencies.context;
+      // Get working directory (from targetDir or context)
+      const cwd = options.targetDir ?? this.dependencies.context.cwd;
 
       // Generate plan with retry logic
       const result = await generatePlanWithRetry(agent, specContent, cwd, {
