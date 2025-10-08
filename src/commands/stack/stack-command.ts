@@ -3,8 +3,8 @@
  */
 
 import chalk from 'chalk';
+import { CommitMessageGenerator } from 'commitment';
 
-import { CommitMessageGenerator } from '@/adapters/vcs/commit-message-generator';
 import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
 import { RegisterCommand } from '@/commands/command-factory';
 import { BaseCommand, type CommandDependencies } from '@/commands/types';
