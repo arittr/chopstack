@@ -1,7 +1,8 @@
+import { CommitMessageGenerator } from 'commitment';
+
 import type { ExecutionTask } from '@/core/execution/types';
 import type { CommitOptions, CommitService, WorktreeContext } from '@/core/vcs/domain-services';
 
-import { CommitMessageGenerator } from '@/adapters/vcs/commit-message-generator';
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 import { logger } from '@/utils/global-logger';
 import { isNonEmptyString, isValidArray } from '@/validation/guards';
