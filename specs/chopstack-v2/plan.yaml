@@ -1,0 +1,2290 @@
+name: Chopstack v2.0.0 - Phase-Based Task Decomposition
+description: |
+  Transform chopstack from a basic task decomposition tool into an intelligent,
+  specification-driven workflow system that combines spec-kit's specification expansion
+  with chopstack's parallel execution capabilities.
+
+  Goals:
+  - Rich specifications: Transform brief intent into comprehensive specs with codebase analysis
+  - Phase-based planning: Organize tasks into logical phases (setup → implementation → polish)
+  - Intelligent execution: Context-aware parallel execution with zero conflicts
+  - Validation framework: Verify implementation against acceptance criteria and project principles
+  - Reduce file conflicts to <1 per plan (70% reduction)
+  - Achieve 80% first-attempt success rate (100% improvement)
+  - Plans follow correct architectural ordering (DB → API → UI)
+
+specification: spec.md
+codebase: codebase.md
+mode: plan
+strategy: phased-parallel
+
+phases:
+  - id: phase-1-foundation
+    name: Foundation & Type System
+    strategy: sequential
+    tasks:
+      [
+        task-1-1-1-create-v2-type-schemas,
+        task-1-1-2-create-analysis-type-schemas,
+        task-1-1-3-create-agent-interface,
+        task-1-2-1-audit-v1-type-usage,
+        task-1-3-1-migrate-core-services-to-v2-types,
+        task-1-3-2-remove-v1-type-files,
+        task-1-3-3-foundation-testing-validation,
+      ]
+    estimated_hours: 60
+    notes: Sequential prework then migration - enables all downstream work
+
+  - id: phase-2-spec-expansion-analysis
+    name: Specification Expansion & Analysis
+    strategy: sequential
+    tasks:
+      [
+        task-2-1-1-create-template-engine,
+        task-2-1-2-create-markdown-parser-utilities,
+        task-2-2-1-implement-codebase-analyzer,
+        task-2-2-2-create-specification-templates,
+        task-2-2-3-implement-chopstack-specify-command,
+        task-2-2-4-implement-specification-analyzer-core,
+        task-2-2-5-implement-gap-detection-algorithms,
+        task-2-2-6-implement-chopstack-analyze-command,
+        task-2-2-7-create-spec-expansion-prompts,
+        task-2-3-1-integration-testing-specify-flow,
+        task-2-3-2-integration-testing-analyze-flow,
+        task-2-3-3-documentation-polish,
+      ]
+    estimated_hours: 112
+    notes: Prework (engine, parser) then 3 parallel tracks (codebase analysis, spec analysis, prompts) then integration
+    requires: [phase-1-foundation]
+
+  - id: phase-2-track-a-codebase
+    name: Specification Expansion & Analysis - Track A (Codebase)
+    strategy: parallel
+    tasks:
+      [
+        task-2-2-1-implement-codebase-analyzer,
+        task-2-2-2-create-specification-templates,
+        task-2-2-3-implement-chopstack-specify-command,
+      ]
+    estimated_hours: 42
+    requires: [phase-2-spec-expansion-analysis]
+    notes: Parallel track A - can run independently after prework
+
+  - id: phase-2-track-b-analysis
+    name: Specification Expansion & Analysis - Track B (Analysis)
+    strategy: parallel
+    tasks:
+      [
+        task-2-2-4-implement-specification-analyzer-core,
+        task-2-2-5-implement-gap-detection-algorithms,
+        task-2-2-6-implement-chopstack-analyze-command,
+      ]
+    estimated_hours: 42
+    requires: [phase-2-spec-expansion-analysis]
+    notes: Parallel track B - can run independently after prework
+
+  - id: phase-2-track-c-prompts
+    name: Specification Expansion & Analysis - Track C (Prompts)
+    strategy: parallel
+    tasks: [task-2-2-7-create-spec-expansion-prompts]
+    estimated_hours: 8
+    requires: [phase-2-spec-expansion-analysis]
+    notes: Parallel track C - can run independently after prework
+
+  - id: phase-3-decomposition-v2
+    name: Decomposition v2
+    strategy: sequential
+    tasks:
+      [
+        task-3-1-1-design-5-phase-decomposition-workflow,
+        task-3-1-2-create-dag-utilities,
+        task-3-2-1-create-phase-0-2-prompts,
+        task-3-2-2-create-phase-3-4-prompts,
+        task-3-2-3-implement-phase-detection-algorithm,
+        task-3-2-4-implement-plan-generator-v2,
+        task-3-2-5-enhanced-conflict-resolution,
+        task-3-3-1-implement-chopstack-decompose-v2-command,
+        task-3-3-2-integration-testing-decompose-v2,
+      ]
+    estimated_hours: 88
+    notes: Prework (workflow, DAG) then 3 parallel tracks then integration
+    requires: [phase-2-spec-expansion-analysis]
+
+  - id: phase-3-track-a-prompts
+    name: Decomposition v2 - Track A (Prompts)
+    strategy: parallel
+    tasks:
+      [task-3-2-1-create-phase-0-2-prompts, task-3-2-2-create-phase-3-4-prompts]
+    estimated_hours: 24
+    requires: [phase-3-decomposition-v2]
+    notes: Parallel track A - prompts
+
+  - id: phase-3-track-b-detection
+    name: Decomposition v2 - Track B (Detection)
+    strategy: parallel
+    tasks: [task-3-2-3-implement-phase-detection-algorithm]
+    estimated_hours: 16
+    requires: [phase-3-decomposition-v2]
+    notes: Parallel track B - phase detection
+
+  - id: phase-3-track-c-generation
+    name: Decomposition v2 - Track C (Generation)
+    strategy: parallel
+    tasks:
+      [task-3-2-4-implement-plan-generator-v2, task-3-2-5-enhanced-conflict-resolution]
+    estimated_hours: 34
+    requires: [phase-3-decomposition-v2]
+    notes: Parallel track C - plan generation
+
+  - id: phase-4-execution-v2
+    name: Execution v2 & Context Injection
+    strategy: sequential
+    tasks:
+      [
+        task-4-1-1-design-context-injection-system,
+        task-4-1-2-create-phase-dag-parser,
+        task-4-2-1-implement-phase-executor-core,
+        task-4-2-2-implement-sequential-phase-execution,
+        task-4-2-3-implement-parallel-phase-execution,
+        task-4-2-4-implement-prompt-builder-with-context,
+        task-4-2-5-implement-token-budget-manager,
+        task-4-3-1-implement-chopstack-run-v2-command,
+        task-4-3-2-integration-testing-context-injection,
+      ]
+    estimated_hours: 72
+    notes: Prework (context design, parser) then 2 parallel tracks then integration
+    requires: [phase-3-decomposition-v2]
+
+  - id: phase-4-track-a-executor
+    name: Execution v2 - Track A (Executor)
+    strategy: parallel
+    tasks:
+      [
+        task-4-2-1-implement-phase-executor-core,
+        task-4-2-2-implement-sequential-phase-execution,
+        task-4-2-3-implement-parallel-phase-execution,
+      ]
+    estimated_hours: 40
+    requires: [phase-4-execution-v2]
+    notes: Parallel track A - phase execution engine
+
+  - id: phase-4-track-b-context
+    name: Execution v2 - Track B (Context)
+    strategy: parallel
+    tasks:
+      [
+        task-4-2-4-implement-prompt-builder-with-context,
+        task-4-2-5-implement-token-budget-manager,
+      ]
+    estimated_hours: 22
+    requires: [phase-4-execution-v2]
+    notes: Parallel track B - context injection
+
+  - id: phase-5-tui-v2
+    name: TUI v2 - Phase Visualization
+    strategy: parallel
+    tasks:
+      [
+        task-5-1-1-design-phase-tree-structure,
+        task-5-1-2-implement-tree-rendering,
+        task-5-1-3-implement-phase-progress-bars,
+        task-5-1-4-implement-phase-transition-animations,
+        task-5-1-5-enhance-status-panel-for-phases,
+        task-5-2-1-integrate-tui-with-phase-executor,
+        task-5-2-2-tui-testing-ux-polish,
+      ]
+    estimated_hours: 64
+    notes: 3 parallel UI tracks then integration
+    requires: [phase-4-execution-v2]
+
+  - id: phase-5-track-a-tree
+    name: TUI v2 - Track A (Tree View)
+    strategy: parallel
+    tasks:
+      [task-5-1-1-design-phase-tree-structure, task-5-1-2-implement-tree-rendering]
+    estimated_hours: 26
+    requires: [phase-5-tui-v2]
+    notes: Parallel track A - tree view
+
+  - id: phase-5-track-b-progress
+    name: TUI v2 - Track B (Progress)
+    strategy: parallel
+    tasks:
+      [
+        task-5-1-3-implement-phase-progress-bars,
+        task-5-1-4-implement-phase-transition-animations,
+      ]
+    estimated_hours: 18
+    requires: [phase-5-tui-v2]
+    notes: Parallel track B - progress indicators
+
+  - id: phase-5-track-c-status
+    name: TUI v2 - Track C (Status)
+    strategy: parallel
+    tasks: [task-5-1-5-enhance-status-panel-for-phases]
+    estimated_hours: 8
+    requires: [phase-5-tui-v2]
+    notes: Parallel track C - status panel
+
+  - id: phase-6-validation-mode
+    name: Validation Mode
+    strategy: sequential
+    tasks:
+      [
+        task-6-1-1-design-validation-architecture,
+        task-6-1-2-implement-project-principles-discovery,
+        task-6-2-1-implement-criteria-checker,
+        task-6-2-2-implement-success-metrics-validator,
+        task-6-2-3-implement-cross-artifact-analyzer,
+        task-6-2-4-implement-principle-checker,
+        task-6-3-1-implement-validation-engine,
+        task-6-3-2-implement-validation-report-generator,
+        task-6-3-3-add-validate-flag-to-run-command,
+      ]
+    estimated_hours: 60
+    notes: Prework (architecture, principles) then 3 parallel tracks then engine
+    requires: [phase-4-execution-v2]
+
+  - id: phase-6-track-a-criteria
+    name: Validation Mode - Track A (Criteria & Metrics)
+    strategy: parallel
+    tasks:
+      [
+        task-6-2-1-implement-criteria-checker,
+        task-6-2-2-implement-success-metrics-validator,
+      ]
+    estimated_hours: 24
+    requires: [phase-6-validation-mode]
+    notes: Parallel track A - criteria and metrics
+
+  - id: phase-6-track-b-artifacts
+    name: Validation Mode - Track B (Cross-Artifact)
+    strategy: parallel
+    tasks: [task-6-2-3-implement-cross-artifact-analyzer]
+    estimated_hours: 14
+    requires: [phase-6-validation-mode]
+    notes: Parallel track B - cross-artifact analysis
+
+  - id: phase-6-track-c-principles
+    name: Validation Mode - Track C (Principles)
+    strategy: parallel
+    tasks: [task-6-2-4-implement-principle-checker]
+    estimated_hours: 12
+    requires: [phase-6-validation-mode]
+    notes: Parallel track C - principles validation
+
+  - id: phase-7-integration-release
+    name: Integration, Testing & Release
+    strategy: sequential
+    tasks:
+      [
+        task-7-1-1-e2e-test-full-workflow-dark-mode,
+        task-7-1-2-e2e-test-complex-refactor-auth-service,
+        task-7-1-3-update-claude-md-with-v2-patterns,
+        task-7-1-4-create-cli-reference-documentation,
+        task-7-1-5-create-migration-guide-v1-v2,
+        task-7-1-6-performance-benchmarking,
+        task-7-1-7-code-quality-audit,
+        task-7-2-1-final-integration-testing,
+        task-7-2-2-examples-tutorials,
+        task-7-2-3-release-preparation,
+        task-7-2-4-final-qa-release,
+      ]
+    estimated_hours: 120
+    notes: 3 parallel tracks (testing, docs, quality) then sequential release
+    requires: [phase-5-tui-v2, phase-6-validation-mode]
+
+  - id: phase-7-track-a-testing
+    name: Integration & Release - Track A (Testing)
+    strategy: parallel
+    tasks:
+      [
+        task-7-1-1-e2e-test-full-workflow-dark-mode,
+        task-7-1-2-e2e-test-complex-refactor-auth-service,
+      ]
+    estimated_hours: 30
+    requires: [phase-7-integration-release]
+    notes: Parallel track A - E2E testing
+
+  - id: phase-7-track-b-docs
+    name: Integration & Release - Track B (Documentation)
+    strategy: parallel
+    tasks:
+      [
+        task-7-1-3-update-claude-md-with-v2-patterns,
+        task-7-1-4-create-cli-reference-documentation,
+        task-7-1-5-create-migration-guide-v1-v2,
+      ]
+    estimated_hours: 30
+    requires: [phase-7-integration-release]
+    notes: Parallel track B - documentation
+
+  - id: phase-7-track-c-quality
+    name: Integration & Release - Track C (Quality)
+    strategy: parallel
+    tasks:
+      [task-7-1-6-performance-benchmarking, task-7-1-7-code-quality-audit]
+    estimated_hours: 26
+    requires: [phase-7-integration-release]
+    notes: Parallel track C - performance and quality
+
+tasks:
+  # ============================================================================
+  # PHASE 1: Foundation & Type System
+  # ============================================================================
+
+  - id: task-1-1-1-create-v2-type-schemas
+    name: Create v2 Type Schemas
+    description: |
+      Define Zod schemas as single source of truth for v2 types.
+
+      Deliverables:
+      - src/types/schemas-v2.ts with all core schemas
+      - phaseSchema - Phase definition with strategy, tasks, dependencies
+      - taskV2Schema - Enhanced task with acceptance criteria, estimated hours
+      - successMetricsSchema - Quantitative/qualitative metrics
+      - planSchemaV2 - Complete plan with phases
+      - executionContextSchema - Spec injection context
+      - Export inferred TypeScript types: Phase, TaskV2, PlanV2, ExecutionContext
+      - Comprehensive unit tests
+      - 100% test coverage
+
+      Implementation details:
+      - Cross-validation: phase tasks reference existing task IDs
+      - TypeScript types inferred via z.infer<>
+      - No any types
+      - Helpful error messages in schemas
+      - TSDoc comments with usage examples
+    files:
+      - src/types/schemas-v2.ts
+      - src/types/__tests__/schemas-v2.test.ts
+    acceptance_criteria:
+      - All schemas defined with comprehensive validation
+      - Cross-validation working (phase → task references)
+      - TypeScript types inferred via z.infer<>
+      - No any types
+      - 100% test coverage for schemas
+      - All tests pass
+      - TSDoc comments on all exports
+      - Helpful validation error messages
+    estimated_hours: 12
+
+  - id: task-1-1-2-create-analysis-type-schemas
+    name: Create Analysis Type Schemas
+    description: |
+      Define codebase and specification analysis types.
+
+      Deliverables:
+      - CodebaseAnalysis - Flexible, agent-driven codebase findings
+      - AnalysisReport - Spec completeness validation results
+      - Gap - Gap finding with severity categorization
+      - RemediationStep - Prioritized fix actions
+      - ValidationFinding - Cross-artifact analysis findings
+      - ProjectPrinciples - Discovered from CLAUDE.md, .cursorrules
+      - Comprehensive test coverage
+
+      Implementation details:
+      - Analysis schemas support agent freeform discoveries
+      - Severity-based gap categorization (CRITICAL/HIGH/MEDIUM/LOW)
+      - Extensible structure with [key: string]: unknown
+      - Clear type boundaries
+    files:
+      - src/types/schemas-v2.ts
+    dependencies:
+      - task-1-1-1-create-v2-type-schemas
+    acceptance_criteria:
+      - Analysis schemas support agent freeform discoveries
+      - Severity-based gap categorization (CRITICAL/HIGH/MEDIUM/LOW)
+      - Extensible structure with [key: string]: unknown
+      - Comprehensive test coverage
+      - All tests pass
+    estimated_hours: 8
+
+  - id: task-1-1-3-create-agent-interface
+    name: Create Agent Interface
+    description: |
+      Define unified agent interface for multi-agent support.
+
+      Interface:
+      export interface Agent {
+        decompose(prompt: string, cwd: string, options: DecomposeOptions): Promise<PlanV2>;
+        execute(prompt: string, files: string[], cwd: string): Promise<TaskResult>;
+        validate(prompt: string, criteria: string[], cwd: string): Promise<ValidationResult>;
+      }
+
+      Deliverables:
+      - Agent interface in src/types/agent.ts
+      - DecomposeOptions, TaskResult, ValidationResult types
+      - Test suite validates contract compliance
+    files:
+      - src/types/agent.ts
+      - src/types/__tests__/agent.test.ts
+    dependencies:
+      - task-1-1-1-create-v2-type-schemas
+    acceptance_criteria:
+      - Single interface supports Claude, Aider, Mock implementations
+      - Clear contracts for decompose, execute, validate
+      - Result types fully typed
+      - Test suite validates contract compliance
+      - All tests pass
+    estimated_hours: 6
+
+  - id: task-1-2-1-audit-v1-type-usage
+    name: Audit v1 Type Usage
+    description: |
+      Scan codebase for v1 type usage and create migration plan.
+
+      Tasks:
+      - Find all imports from src/types/decomposer.ts
+      - Map v1 types to v2 equivalents
+      - Identify breaking changes
+      - Generate migration checklist
+
+      Deliverables:
+      - Complete usage audit in docs/v1-to-v2-migration.md
+      - All v1 type imports catalogued
+      - Migration strategy documented
+    files:
+      - src/**/*.ts
+      - docs/v1-to-v2-migration.md
+    acceptance_criteria:
+      - Complete usage audit in docs/v1-to-v2-migration.md
+      - All v1 type imports catalogued
+      - Migration strategy documented
+      - No actual code changes (read-only analysis)
+    estimated_hours: 4
+
+  - id: task-1-3-1-migrate-core-services-to-v2-types
+    name: Migrate Core Services to v2 Types
+    description: |
+      Replace v1 types with v2 equivalents throughout codebase.
+
+      Changes:
+      - Update all imports from decomposer.ts to schemas-v2.ts
+      - Refactor to use new type names (TaskV2, PlanV2, etc.)
+      - Update Zod validations
+      - Fix type errors
+
+      Must complete:
+      - No imports from src/types/decomposer.ts
+      - All services use v2 types
+      - TypeScript compiles with no errors
+      - All existing tests pass
+    files:
+      - src/services/**/*.ts
+      - src/commands/**/*.ts
+    dependencies:
+      - task-1-1-1-create-v2-type-schemas
+      - task-1-1-2-create-analysis-type-schemas
+      - task-1-1-3-create-agent-interface
+      - task-1-2-1-audit-v1-type-usage
+    acceptance_criteria:
+      - No imports from src/types/decomposer.ts
+      - All services use v2 types
+      - TypeScript compiles with no errors
+      - All existing tests pass
+      - Migration follows documented strategy
+    estimated_hours: 20
+
+  - id: task-1-3-2-remove-v1-type-files
+    name: Remove v1 Type Files
+    description: |
+      Delete v1 type definitions and clean up exports.
+
+      Changes:
+      - Remove src/types/decomposer.ts
+      - Update src/types/index.ts to export v2 types
+      - Update package exports
+      - Verify no references to v1 types
+    files:
+      - src/types/decomposer.ts
+      - src/types/index.ts
+    dependencies:
+      - task-1-3-1-migrate-core-services-to-v2-types
+    acceptance_criteria:
+      - decomposer.ts deleted
+      - No references to v1 types in codebase
+      - Build succeeds
+      - All tests pass
+      - Package exports updated
+    estimated_hours: 2
+
+  - id: task-1-3-3-foundation-testing-validation
+    name: Foundation Testing & Validation
+    description: |
+      Comprehensive testing of v2 type system.
+
+      Tasks:
+      - Run full test suite
+      - Run linter (fix all issues)
+      - Run type checker (fix all errors)
+      - Manual smoke testing
+    files:
+      - All modified files
+    dependencies:
+      - task-1-3-2-remove-v1-type-files
+    acceptance_criteria:
+      - 100% test pass rate
+      - 0 ESLint errors/warnings
+      - 0 TypeScript errors
+      - No any types in production code
+      - All v1 types removed
+      - Smoke tests pass
+    estimated_hours: 8
+
+  # ============================================================================
+  # PHASE 2: Specification Expansion & Analysis
+  # ============================================================================
+
+  - id: task-2-1-1-create-template-engine
+    name: Create Template Engine
+    description: |
+      Handlebars-based template engine for spec generation.
+
+      Features:
+      - Parse Handlebars templates
+      - Variable injection from context
+      - Helpers: #each, #if, custom helpers
+      - Template validation
+      - Error handling for missing variables
+
+      Deliverables:
+      - Template engine implementation
+      - Comprehensive test coverage
+    files:
+      - src/services/planning/template-engine.ts
+      - src/services/planning/__tests__/template-engine.test.ts
+    acceptance_criteria:
+      - Renders templates with variable substitution
+      - Supports nested structures
+      - Error handling for missing variables
+      - 100% test coverage
+      - All tests pass
+    estimated_hours: 10
+
+  - id: task-2-1-2-create-markdown-parser-utilities
+    name: Create Markdown Parser Utilities
+    description: |
+      Parse markdown for analysis and validation.
+
+      Features:
+      - Extract sections by heading
+      - Extract code blocks by language
+      - Extract lists (requirements, criteria)
+      - Parse frontmatter metadata
+      - Handle malformed markdown gracefully
+
+      Deliverables:
+      - Markdown parser utilities
+      - Returns structured ParsedMarkdown type
+      - Test coverage for edge cases
+    files:
+      - src/utils/markdown-parser.ts
+      - src/utils/__tests__/markdown-parser.test.ts
+    acceptance_criteria:
+      - Parses all markdown structures
+      - Returns structured ParsedMarkdown type
+      - Handles malformed markdown gracefully
+      - Test coverage for edge cases
+      - All tests pass
+    estimated_hours: 8
+
+  # Track A: Codebase Analysis
+
+  - id: task-2-2-1-implement-codebase-analyzer
+    name: Implement Codebase Analyzer
+    description: |
+      Scan target codebase for architectural context.
+
+      Features:
+      - File discovery with glob patterns
+      - Directory structure analysis
+      - Import graph analysis
+      - Code example extraction
+      - Agent-based pattern analysis
+
+      Deliverables:
+      - Returns CodebaseAnalysis with structured findings
+      - Handles large codebases (>1000 files)
+      - Graceful error handling
+    files:
+      - src/services/analysis/codebase-analyzer.ts
+      - src/services/analysis/__tests__/codebase-analyzer.test.ts
+    dependencies:
+      - task-2-1-1-create-template-engine
+      - task-2-1-2-create-markdown-parser-utilities
+    acceptance_criteria:
+      - Returns CodebaseAnalysis with structured findings
+      - Handles large codebases (>1000 files)
+      - Graceful error handling
+      - Test with mock file system
+      - All tests pass
+    estimated_hours: 16
+
+  - id: task-2-2-2-create-specification-templates
+    name: Create Specification Templates
+    description: |
+      Handlebars templates for spec generation.
+
+      Templates:
+      - Feature template (requirements, architecture, acceptance criteria)
+      - Refactor template (current state, problems, migration path)
+      - Bugfix template (bug description, root cause, fix approach)
+
+      Deliverables:
+      - Templates render with all variables
+      - Produce 1000+ line specs when fully populated
+      - Follow spec.md structure
+    files:
+      - src/services/planning/templates/feature-spec.md
+      - src/services/planning/templates/refactor-spec.md
+      - src/services/planning/templates/bugfix-spec.md
+    dependencies:
+      - task-2-1-1-create-template-engine
+    acceptance_criteria:
+      - Templates render with all variables
+      - Produce 1000+ line specs when fully populated
+      - Follow spec.md structure
+      - Examples in comments
+      - All templates tested
+    estimated_hours: 12
+
+  - id: task-2-2-3-implement-chopstack-specify-command
+    name: Implement chopstack specify Command
+    description: |
+      CLI command for specification expansion.
+
+      Flow:
+      - Parse CLI options (description, output, template, agent)
+      - Run codebase analyzer
+      - Load and populate template
+      - Invoke agent for spec expansion
+      - Write output file
+
+      Deliverables:
+      - Generates rich specs from brief descriptions
+      - Uses correct template based on flag
+      - Injects codebase context
+    files:
+      - src/commands/specify.ts
+      - src/commands/__tests__/specify.test.ts
+    dependencies:
+      - task-2-2-1-implement-codebase-analyzer
+      - task-2-2-2-create-specification-templates
+    acceptance_criteria:
+      - Generates rich specs from brief descriptions
+      - Uses correct template based on flag
+      - Injects codebase context
+      - Error handling for all failure modes
+      - All tests pass
+    estimated_hours: 14
+
+  # Track B: Specification Analysis
+
+  - id: task-2-2-4-implement-specification-analyzer-core
+    name: Implement Specification Analyzer Core
+    description: |
+      Validate specification completeness.
+
+      Algorithm:
+      - Parse spec and codebase documents
+      - Detect structural gaps (missing sections)
+      - Cross-artifact analysis (unmapped requirements)
+      - Completeness validation (insufficient criteria)
+      - Calculate completeness score with weighted deductions
+
+      Deliverables:
+      - Returns AnalysisReport with gaps categorized by severity
+      - Completeness score 0-100
+      - Generates remediation steps
+    files:
+      - src/services/analysis/specification-analyzer.ts
+      - src/services/analysis/__tests__/specification-analyzer.test.ts
+    dependencies:
+      - task-2-1-2-create-markdown-parser-utilities
+    acceptance_criteria:
+      - Returns AnalysisReport with gaps categorized by severity
+      - Completeness score 0-100
+      - Generates remediation steps
+      - Test coverage for all gap types
+      - All tests pass
+    estimated_hours: 20
+
+  - id: task-2-2-5-implement-gap-detection-algorithms
+    name: Implement Gap Detection Algorithms
+    description: |
+      Advanced gap detection logic.
+
+      Gap types:
+      - Structural gaps: Missing required sections
+      - Cross-artifact gaps: Requirements not mapped to components
+      - Interface gaps: Components without TypeScript interfaces
+      - Metrics gaps: Missing quantitative metrics
+      - Severity calculation algorithm
+
+      Deliverables:
+      - Detects all gap categories
+      - Severity correctly assigned (CRITICAL/HIGH/MEDIUM/LOW)
+      - Clear remediation messages
+    files:
+      - src/services/analysis/specification-analyzer.ts
+    dependencies:
+      - task-2-2-4-implement-specification-analyzer-core
+    acceptance_criteria:
+      - Detects all gap categories
+      - Severity correctly assigned (CRITICAL/HIGH/MEDIUM/LOW)
+      - Clear remediation messages
+      - False positive rate < 5%
+      - All tests pass
+    estimated_hours: 12
+
+  - id: task-2-2-6-implement-chopstack-analyze-command
+    name: Implement chopstack analyze Command
+    description: |
+      CLI command for spec analysis.
+
+      Flow:
+      - Parse CLI options (spec, codebase, output, threshold)
+      - Run specification analyzer
+      - Generate gap report markdown
+      - Exit with error if --fail-on-gaps and below threshold
+
+      Deliverables:
+      - Validates spec completeness
+      - Writes gap report to file
+      - Correct exit codes (0=pass, 1=gaps, 2=error)
+    files:
+      - src/commands/analyze.ts
+      - src/commands/__tests__/analyze.test.ts
+    dependencies:
+      - task-2-2-5-implement-gap-detection-algorithms
+    acceptance_criteria:
+      - Validates spec completeness
+      - Writes gap report to file
+      - Correct exit codes (0=pass, 1=gaps, 2=error)
+      - Threshold enforcement
+      - All tests pass
+    estimated_hours: 10
+
+  # Track C: Agent Prompts
+
+  - id: task-2-2-7-create-spec-expansion-prompts
+    name: Create Spec Expansion Prompts
+    description: |
+      Agent prompts for rich spec generation.
+
+      Prompts:
+      - Feature expansion prompt template
+      - Refactor expansion prompt template
+      - Bugfix expansion prompt template
+      - Inject codebase analysis context
+      - Clear output format instructions
+
+      Deliverables:
+      - Prompts produce 1000+ line specs
+      - Follow spec.md structure
+      - Include codebase context effectively
+    files:
+      - src/services/planning/spec-expansion-prompts.ts
+      - src/services/planning/__tests__/spec-expansion-prompts.test.ts
+    dependencies:
+      - task-2-1-1-create-template-engine
+    acceptance_criteria:
+      - Prompts produce 1000+ line specs
+      - Follow spec.md structure
+      - Include codebase context effectively
+      - Test with mock agent responses
+      - All tests pass
+    estimated_hours: 8
+
+  # Integration
+
+  - id: task-2-3-1-integration-testing-specify-flow
+    name: Integration Testing - Specify Flow
+    description: |
+      End-to-end testing of specification expansion.
+
+      Tests:
+      - Test with real codebase (chopstack itself)
+      - Verify rich spec generation
+      - Validate codebase context injection
+      - Test all templates
+
+      Deliverables:
+      - E2E flow works with real files
+      - Generated specs meet quality standards
+      - Performance < 30s per spec
+    files:
+      - src/commands/__tests__/specify.integration.test.ts
+    dependencies:
+      - task-2-2-3-implement-chopstack-specify-command
+      - task-2-2-7-create-spec-expansion-prompts
+    acceptance_criteria:
+      - E2E flow works with real files
+      - Generated specs meet quality standards
+      - Error cases handled properly
+      - Performance < 30s per spec
+      - All tests pass
+    estimated_hours: 12
+
+  - id: task-2-3-2-integration-testing-analyze-flow
+    name: Integration Testing - Analyze Flow
+    description: |
+      End-to-end testing of specification analysis.
+
+      Tests:
+      - Test with complete and incomplete specs
+      - Verify gap detection accuracy
+      - Test cross-artifact analysis
+      - Validate remediation steps
+
+      Deliverables:
+      - Detects real gaps in test specs
+      - Completeness scoring accurate
+      - Performance < 10s per analysis
+    files:
+      - src/commands/__tests__/analyze.integration.test.ts
+    dependencies:
+      - task-2-2-6-implement-chopstack-analyze-command
+    acceptance_criteria:
+      - Detects real gaps in test specs
+      - Completeness scoring accurate
+      - Report format correct
+      - Performance < 10s per analysis
+      - All tests pass
+    estimated_hours: 10
+
+  - id: task-2-3-3-documentation-polish
+    name: Documentation & Polish
+    description: |
+      Document new commands with examples.
+
+      Documentation:
+      - CLI usage guide for specify
+      - CLI usage guide for analyze
+      - Template customization guide
+      - Gap remediation workflow
+
+      Deliverables:
+      - Complete documentation for both commands
+      - Real-world examples
+      - Troubleshooting guide
+    files:
+      - README.md
+      - docs/specify-command.md
+      - docs/analyze-command.md
+    dependencies:
+      - task-2-3-1-integration-testing-specify-flow
+      - task-2-3-2-integration-testing-analyze-flow
+    acceptance_criteria:
+      - Complete documentation for both commands
+      - Real-world examples
+      - Troubleshooting guide
+      - API documentation
+      - Clear and comprehensive
+    estimated_hours: 8
+
+  # ============================================================================
+  # PHASE 3: Decomposition v2
+  # ============================================================================
+
+  - id: task-3-1-1-design-5-phase-decomposition-workflow
+    name: Design 5-Phase Decomposition Workflow
+    description: |
+      Implement structured decomposition with quality gates.
+
+      Phases:
+      - Phase 0: Codebase Analysis (architecture identification)
+      - Phase 1: Requirements Extraction (FR/NFR listing)
+      - Phase 2: Task Generation (with layered ordering)
+      - Phase 3: Conflict Resolution (file conflict detection & resolution)
+      - Phase 4: Validation (circular deps, requirement coverage)
+
+      Each phase has quality gate (YES/NO decision).
+
+      Deliverables:
+      - Workflow logic implements all 5 phases
+      - Quality gates enforce correctness
+      - Retry logic on gate failures (max 3 attempts)
+    files:
+      - docs/decomposition-workflow.md
+      - src/services/planning/decomposition-workflow.ts
+    acceptance_criteria:
+      - Workflow logic implements all 5 phases
+      - Quality gates enforce correctness
+      - Retry logic on gate failures (max 3 attempts)
+      - Clear error messages
+      - All tests pass
+    estimated_hours: 14
+
+  - id: task-3-1-2-create-dag-utilities
+    name: Create DAG Utilities
+    description: |
+      Graph algorithms for dependency management.
+
+      Algorithms:
+      - Topological sort
+      - Cycle detection
+      - Strongly connected components
+      - Layering (group tasks by dependency depth)
+      - Conflict detection (tasks sharing files)
+
+      Deliverables:
+      - Handles complex DAGs (100+ nodes)
+      - Detects all circular dependencies
+      - Performance < 100ms for typical plans
+    files:
+      - src/utils/dag-utils.ts
+      - src/utils/__tests__/dag-utils.test.ts
+    acceptance_criteria:
+      - Handles complex DAGs (100+ nodes)
+      - Detects all circular dependencies
+      - Correct topological ordering
+      - Performance < 100ms for typical plans
+      - All tests pass
+    estimated_hours: 10
+
+  # Track A: Decomposition Prompts
+
+  - id: task-3-2-1-create-phase-0-2-prompts
+    name: Create Phase 0-2 Prompts
+    description: |
+      Agent prompts for early decomposition phases.
+
+      Prompts:
+      - Phase 0: Codebase Analysis prompt (architecture pattern identification)
+      - Phase 1: Requirements Extraction prompt (FR/NFR listing with affected files)
+      - Phase 2: Task Generation prompt (layered ordering: DB → API → UI)
+
+      Include quality gates and output format specifications.
+
+      Deliverables:
+      - Prompts produce structured outputs
+      - Quality gates work correctly
+      - Agents follow layered ordering
+    files:
+      - src/services/planning/prompts-v2.ts
+    dependencies:
+      - task-3-1-1-design-5-phase-decomposition-workflow
+    acceptance_criteria:
+      - Prompts produce structured outputs
+      - Quality gates work correctly
+      - Agents follow layered ordering
+      - Test with mock agent
+      - All tests pass
+    estimated_hours: 12
+
+  - id: task-3-2-2-create-phase-3-4-prompts
+    name: Create Phase 3-4 Prompts
+    description: |
+      Agent prompts for conflict resolution and validation.
+
+      Prompts:
+      - Phase 3: Conflict Resolution prompt (detection algorithm + resolution strategies)
+      - Phase 4: Validation prompt (circular deps, requirement coverage, completeness)
+
+      Include retry strategies and error feedback.
+
+      Deliverables:
+      - Conflict detection algorithm in prompt
+      - Resolution strategies: sequential ordering, file splitting, task merging
+      - Validation checks comprehensive
+    files:
+      - src/services/planning/prompts-v2.ts
+    dependencies:
+      - task-3-1-1-design-5-phase-decomposition-workflow
+      - task-3-1-2-create-dag-utilities
+    acceptance_criteria:
+      - Conflict detection algorithm in prompt
+      - Resolution strategies comprehensive
+      - Validation checks complete
+      - Test with conflicting tasks
+      - All tests pass
+    estimated_hours: 12
+
+  # Track B: Phase Detection
+
+  - id: task-3-2-3-implement-phase-detection-algorithm
+    name: Implement Phase Detection Algorithm
+    description: |
+      Detect natural phase boundaries from tasks.
+
+      Algorithm:
+      - Build dependency graph
+      - Identify topological layers
+      - Detect layer types (setup, data, api, ui, testing)
+      - Determine parallelization potential (file conflict analysis)
+      - Size threshold heuristics (≥3 tasks → parallel candidate)
+      - Generate phase structure
+
+      Deliverables:
+      - Correct phase boundaries detected
+      - Strategy (sequential/parallel) correctly inferred
+      - Handles edge cases
+    files:
+      - src/services/planning/phase-detector.ts
+      - src/services/planning/__tests__/phase-detector.test.ts
+    dependencies:
+      - task-3-1-2-create-dag-utilities
+    acceptance_criteria:
+      - Correct phase boundaries detected
+      - Strategy (sequential/parallel) correctly inferred
+      - Handles edge cases (single task, no deps, circular deps)
+      - Test with various task structures
+      - All tests pass
+    estimated_hours: 16
+
+  # Track C: Plan Generation
+
+  - id: task-3-2-4-implement-plan-generator-v2
+    name: Implement Plan Generator v2
+    description: |
+      Orchestrate 5-phase decomposition workflow.
+
+      Flow:
+      - Execute phases 0-4 in sequence
+      - Check quality gates, retry on failure
+      - Extract acceptance criteria from spec
+      - Extract success metrics from spec
+      - Inject into plan YAML
+      - Invoke phase detector for phase structure
+
+      Deliverables:
+      - Runs all 5 decomposition phases
+      - Produces PlanV2 with phases
+      - Zero file conflicts (Phase 3 guarantee)
+    files:
+      - src/services/planning/plan-generator-v2.ts
+      - src/services/planning/__tests__/plan-generator-v2.test.ts
+    dependencies:
+      - task-3-2-1-create-phase-0-2-prompts
+      - task-3-2-2-create-phase-3-4-prompts
+      - task-3-2-3-implement-phase-detection-algorithm
+    acceptance_criteria:
+      - Runs all 5 decomposition phases
+      - Produces PlanV2 with phases
+      - Acceptance criteria and metrics included
+      - Zero file conflicts (Phase 3 guarantee)
+      - Passes all validation checks (Phase 4)
+      - All tests pass
+    estimated_hours: 20
+
+  - id: task-3-2-5-enhanced-conflict-resolution
+    name: Enhanced Conflict Resolution
+    description: |
+      Implement conflict resolution strategies.
+
+      Strategies:
+      - Strategy 1: Sequential ordering (add dependency)
+      - Strategy 2: File splitting (extract to separate files)
+      - Strategy 3: Task merging (combine related changes)
+
+      Automatic strategy selection and re-validation after resolution.
+
+      Deliverables:
+      - All strategies implemented
+      - Strategy selection logic correct
+      - Reduces conflicts to zero
+    files:
+      - src/services/planning/conflict-resolver.ts
+      - src/services/planning/__tests__/conflict-resolver.test.ts
+    dependencies:
+      - task-3-1-2-create-dag-utilities
+      - task-3-2-2-create-phase-3-4-prompts
+    acceptance_criteria:
+      - All strategies implemented
+      - Strategy selection logic correct
+      - Reduces conflicts to zero
+      - Test with high-conflict plans
+      - All tests pass
+    estimated_hours: 14
+
+  # Command & Integration
+
+  - id: task-3-3-1-implement-chopstack-decompose-v2-command
+    name: Implement chopstack decompose v2 Command
+    description: |
+      CLI command for phase-based decomposition.
+
+      Flow:
+      - Parse CLI options (spec, output, agent, strategy, max-task-size)
+      - Load specification file
+      - Invoke plan generator v2
+      - Invoke phase detector (unless --no-phases)
+      - Write plan YAML with phases
+      - Validate output
+
+      Deliverables:
+      - Generates phase-based plans from specs
+      - Supports all CLI flags
+      - Performance < 60s per decomposition
+    files:
+      - src/commands/decompose-v2.ts
+      - src/commands/__tests__/decompose-v2.test.ts
+    dependencies:
+      - task-3-2-4-implement-plan-generator-v2
+      - task-3-2-5-enhanced-conflict-resolution
+    acceptance_criteria:
+      - Generates phase-based plans from specs
+      - Supports all CLI flags
+      - Error handling for invalid specs
+      - Performance < 60s per decomposition
+      - All tests pass
+    estimated_hours: 12
+
+  - id: task-3-3-2-integration-testing-decompose-v2
+    name: Integration Testing - Decompose v2
+    description: |
+      E2E testing of decomposition v2.
+
+      Tests:
+      - Test with real specs (dark mode, auth refactor)
+      - Verify phase detection accuracy
+      - Validate conflict resolution
+      - Test all quality gates
+      - Measure success rate improvement
+
+      Deliverables:
+      - < 1 file conflict per plan (70% reduction from v1)
+      - Plans follow DB → API → UI ordering
+      - Performance targets met
+    files:
+      - src/commands/__tests__/decompose-v2.integration.test.ts
+    dependencies:
+      - task-3-3-1-implement-chopstack-decompose-v2-command
+    acceptance_criteria:
+      - Less than 1 file conflict per plan (70% reduction from v1)
+      - Plans follow DB → API → UI ordering
+      - All validation checks pass
+      - Performance targets met
+      - All tests pass
+    estimated_hours: 10
+
+  # ============================================================================
+  # PHASE 4: Execution v2 & Context Injection
+  # ============================================================================
+
+  - id: task-4-1-1-design-context-injection-system
+    name: Design Context Injection System
+    description: |
+      System for passing full spec to every agent execution.
+
+      Features:
+      - Load spec file in run command
+      - Create ExecutionContext with spec content + plan metadata
+      - Build enriched prompts with spec context
+      - Token budget management (stay under 180K tokens)
+      - Spec reduction strategies for large specs
+
+      Deliverables:
+      - Context structure defined
+      - Prompt template includes full spec
+      - Token counting accurate
+    files:
+      - docs/context-injection.md
+      - src/services/execution/context-builder.ts
+    acceptance_criteria:
+      - Context structure defined
+      - Prompt template includes full spec
+      - Token counting accurate
+      - Reduction strategies tested
+      - All tests pass
+    estimated_hours: 10
+
+  - id: task-4-1-2-create-phase-dag-parser
+    name: Create Phase DAG Parser
+    description: |
+      Parse phase structure and build execution order.
+
+      Features:
+      - Load plan v2 YAML
+      - Build phase dependency graph
+      - Topological sort phases
+      - Validate phase structure (no cycles, valid task refs)
+      - Return sorted phase list
+
+      Deliverables:
+      - Correct topological ordering
+      - Detects invalid phase DAGs
+      - Handles edge cases
+    files:
+      - src/services/execution/phase-dag-parser.ts
+      - src/services/execution/__tests__/phase-dag-parser.test.ts
+    acceptance_criteria:
+      - Correct topological ordering
+      - Detects invalid phase DAGs
+      - Handles edge cases (no phases, single phase)
+      - Test with complex plans
+      - All tests pass
+    estimated_hours: 8
+
+  # Track A: Phase Execution Engine
+
+  - id: task-4-2-1-implement-phase-executor-core
+    name: Implement Phase Executor Core
+    description: |
+      Execute phases with strategy awareness.
+
+      Features:
+      - Accept ExecutionContext in constructor
+      - Execute phases in topological order
+      - Route to sequential/parallel execution based on strategy
+      - Emit phase lifecycle events (start, progress, complete)
+      - Error handling and phase failure logic
+
+      Deliverables:
+      - Respects phase execution order
+      - Strategy routing works correctly
+      - Context passed to all tasks
+    files:
+      - src/services/execution/phase-executor.ts
+      - src/services/execution/__tests__/phase-executor.test.ts
+    dependencies:
+      - task-4-1-1-design-context-injection-system
+      - task-4-1-2-create-phase-dag-parser
+    acceptance_criteria:
+      - Respects phase execution order
+      - Strategy routing works correctly
+      - Events emitted at right times
+      - Context passed to all tasks
+      - All tests pass
+    estimated_hours: 16
+
+  - id: task-4-2-2-implement-sequential-phase-execution
+    name: Implement Sequential Phase Execution
+    description: |
+      Execute tasks one-by-one within phase.
+
+      Features:
+      - Single worktree/branch
+      - Execute tasks in dependency order
+      - Commit after each task
+      - Build enriched prompt with spec context
+      - Pass to agent for execution
+
+      Deliverables:
+      - Tasks execute in correct order
+      - Commits created per task
+      - Spec context in every prompt
+    files:
+      - src/services/execution/phase-executor.ts
+    dependencies:
+      - task-4-2-1-implement-phase-executor-core
+    acceptance_criteria:
+      - Tasks execute in correct order
+      - Commits created per task
+      - Spec context in every prompt
+      - Error handling for task failures
+      - All tests pass
+    estimated_hours: 10
+
+  - id: task-4-2-3-implement-parallel-phase-execution
+    name: Implement Parallel Phase Execution
+    description: |
+      Execute tasks concurrently with worktrees.
+
+      Features:
+      - Create worktree per task
+      - Execute tasks in parallel (respect dependencies within phase)
+      - Build enriched prompts with spec context
+      - Merge branches in dependency order
+      - Worktree cleanup on success/failure
+
+      Deliverables:
+      - Parallel execution works correctly
+      - Worktrees isolated
+      - Cleanup handles all cases
+    files:
+      - src/services/execution/phase-executor.ts
+    dependencies:
+      - task-4-2-1-implement-phase-executor-core
+    acceptance_criteria:
+      - Parallel execution works correctly
+      - Worktrees isolated
+      - Merge order respects dependencies
+      - Cleanup handles all cases
+      - All tests pass
+    estimated_hours: 14
+
+  # Track B: Context Injection
+
+  - id: task-4-2-4-implement-prompt-builder-with-context
+    name: Implement Prompt Builder with Context
+    description: |
+      Build enriched prompts with full spec context.
+
+      Template:
+      - Task description
+      - Full specification markdown
+      - Acceptance criteria
+      - Success metrics
+      - Architectural context
+
+      Features:
+      - Token budget enforcement
+      - Spec content reduction if needed (hierarchical chunking)
+      - Clear formatting for agent clarity
+
+      Deliverables:
+      - Prompt includes all context elements
+      - Stays within token budget
+    files:
+      - src/services/execution/prompt-builder.ts
+      - src/services/execution/__tests__/prompt-builder.test.ts
+    dependencies:
+      - task-4-1-1-design-context-injection-system
+    acceptance_criteria:
+      - Prompt includes all context elements
+      - Stays within token budget
+      - Reduction strategies work
+      - Test with various spec sizes
+      - All tests pass
+    estimated_hours: 12
+
+  - id: task-4-2-5-implement-token-budget-manager
+    name: Implement Token Budget Manager
+    description: |
+      Manage context size for API limits.
+
+      Features:
+      - Count tokens in spec, analysis, task, prompt
+      - Total must be < 180K tokens (200K window - 20K headroom)
+      - Apply reduction strategies: hierarchical chunking, progressive loading, summarization
+      - Cache token counts
+
+      Deliverables:
+      - Accurate token counting
+      - Reduction strategies preserve critical sections
+      - Performance < 50ms per prompt build
+    files:
+      - src/services/execution/token-budget-manager.ts
+      - src/services/execution/__tests__/token-budget-manager.test.ts
+    dependencies:
+      - task-4-1-1-design-context-injection-system
+    acceptance_criteria:
+      - Accurate token counting
+      - Reduction strategies preserve critical sections
+      - Performance < 50ms per prompt build
+      - Test with large specs (50KB+)
+      - All tests pass
+    estimated_hours: 10
+
+  # Command & Integration
+
+  - id: task-4-3-1-implement-chopstack-run-v2-command
+    name: Implement chopstack run v2 Command
+    description: |
+      CLI command for phase-aware execution.
+
+      Flow:
+      - Parse CLI options (plan, spec, mode, agent, strategy, flags)
+      - Load plan v2 and spec file
+      - Create ExecutionContext
+      - Initialize PhaseExecutor with context
+      - Execute plan with spec injection
+      - Handle --validate flag
+      - Progress tracking and TUI integration
+
+      Deliverables:
+      - Executes phase-based plans correctly
+      - Spec context injected to every task
+      - All CLI flags work
+    files:
+      - src/commands/run-v2.ts
+      - src/commands/__tests__/run-v2.test.ts
+    dependencies:
+      - task-4-2-2-implement-sequential-phase-execution
+      - task-4-2-3-implement-parallel-phase-execution
+      - task-4-2-4-implement-prompt-builder-with-context
+      - task-4-2-5-implement-token-budget-manager
+    acceptance_criteria:
+      - Executes phase-based plans correctly
+      - Spec context injected to every task
+      - All CLI flags work
+      - Error handling for failures
+      - All tests pass
+    estimated_hours: 14
+
+  - id: task-4-3-2-integration-testing-context-injection
+    name: Integration Testing - Context Injection
+    description: |
+      Verify spec context reaches agents.
+
+      Tests:
+      - Test with real plan and spec
+      - Mock agent to capture prompts
+      - Verify spec content in prompts
+      - Test with large specs (reduction)
+      - Measure token usage
+
+      Deliverables:
+      - Spec content in 100% of agent prompts
+      - Token budget respected
+      - Performance acceptable
+    files:
+      - src/services/execution/__tests__/context-injection.integration.test.ts
+    dependencies:
+      - task-4-3-1-implement-chopstack-run-v2-command
+    acceptance_criteria:
+      - Spec content in 100% of agent prompts
+      - Token budget respected
+      - Large specs reduced correctly
+      - Performance acceptable
+      - All tests pass
+    estimated_hours: 8
+
+  # ============================================================================
+  # PHASE 5: TUI v2 - Phase Visualization
+  # ============================================================================
+
+  # Track A: Phase Tree View
+
+  - id: task-5-1-1-design-phase-tree-structure
+    name: Design Phase Tree Structure
+    description: |
+      Hierarchical tree view for phases and tasks.
+
+      Features:
+      - Collapsible phase sections
+      - Indented task display
+      - Strategy indicators (icons: ⏩ parallel, ➡️ sequential)
+      - Status colors (pending, running, complete, failed)
+      - Keyboard navigation
+
+      Deliverables:
+      - Tree renders correctly
+      - Collapse/expand works
+      - Strategy icons visible
+    files:
+      - src/ui/phase-tree-view.ts
+      - src/ui/__tests__/phase-tree-view.test.ts
+    acceptance_criteria:
+      - Tree renders correctly
+      - Collapse/expand works
+      - Strategy icons visible
+      - Status colors update live
+      - All tests pass
+    estimated_hours: 14
+
+  - id: task-5-1-2-implement-tree-rendering
+    name: Implement Tree Rendering
+    description: |
+      Efficient tree rendering with Ink components.
+
+      Features:
+      - Box layout for tree structure
+      - Text components for phase/task names
+      - Dynamic updates without flicker
+      - Performance optimization (memo, lazy rendering)
+
+      Deliverables:
+      - 60fps rendering
+      - No flicker on updates
+      - Handles large plans (50+ tasks)
+    files:
+      - src/ui/phase-tree-view.ts
+    dependencies:
+      - task-5-1-1-design-phase-tree-structure
+    acceptance_criteria:
+      - 60fps rendering
+      - No flicker on updates
+      - Handles large plans (50+ tasks)
+      - Responsive to terminal resize
+      - All tests pass
+    estimated_hours: 12
+
+  # Track B: Progress Indicators
+
+  - id: task-5-1-3-implement-phase-progress-bars
+    name: Implement Phase Progress Bars
+    description: |
+      Progress bars per phase.
+
+      Features:
+      - Show completed/total tasks
+      - Percentage display
+      - Color coding (blue=running, green=complete, red=failed)
+      - Estimated time remaining
+
+      Deliverables:
+      - Accurate progress calculation
+      - Updates in real-time
+      - Visual clarity
+    files:
+      - src/ui/phase-progress.ts
+      - src/ui/__tests__/phase-progress.test.ts
+    acceptance_criteria:
+      - Accurate progress calculation
+      - Updates in real-time
+      - Estimation based on task hours
+      - Visual clarity
+      - All tests pass
+    estimated_hours: 10
+
+  - id: task-5-1-4-implement-phase-transition-animations
+    name: Implement Phase Transition Animations
+    description: |
+      Animated transitions between phases.
+
+      Features:
+      - Fade out completed phase
+      - Highlight active phase
+      - Smooth scrolling
+      - Duration < 200ms
+
+      Deliverables:
+      - Smooth animations
+      - No performance impact
+      - Accessible (can disable animations)
+    files:
+      - src/ui/phase-transitions.ts
+      - src/ui/__tests__/phase-transitions.test.ts
+    acceptance_criteria:
+      - Smooth animations
+      - No performance impact
+      - Accessible (can disable animations)
+      - Test on various terminals
+      - All tests pass
+    estimated_hours: 8
+
+  # Track C: Status Panel Updates
+
+  - id: task-5-1-5-enhance-status-panel-for-phases
+    name: Enhance Status Panel for Phases
+    description: |
+      Update status panel with phase info.
+
+      Features:
+      - Current phase display
+      - Overall progress (phases + tasks)
+      - Active tasks count (parallel phases)
+      - Time elapsed/remaining
+
+      Deliverables:
+      - Phase info always visible
+      - Accurate metrics
+      - Clean layout
+    files:
+      - src/ui/status-panel.ts
+      - src/ui/__tests__/status-panel.test.ts
+    acceptance_criteria:
+      - Phase info always visible
+      - Accurate metrics
+      - Clean layout
+      - Updates without lag
+      - All tests pass
+    estimated_hours: 8
+
+  # Integration & Polish
+
+  - id: task-5-2-1-integrate-tui-with-phase-executor
+    name: Integrate TUI with Phase Executor
+    description: |
+      Connect TUI components to phase execution.
+
+      Features:
+      - Subscribe to phase events (start, progress, complete)
+      - Update tree view on task state changes
+      - Update progress bars on task completion
+      - Trigger animations on phase transitions
+
+      Deliverables:
+      - TUI reflects execution state accurately
+      - No lag between events and UI updates
+      - Performance: 60fps sustained
+    files:
+      - src/ui/phase-tui.ts
+      - src/ui/__tests__/phase-tui.test.ts
+    dependencies:
+      - task-5-1-2-implement-tree-rendering
+      - task-5-1-3-implement-phase-progress-bars
+      - task-5-1-4-implement-phase-transition-animations
+      - task-5-1-5-enhance-status-panel-for-phases
+    acceptance_criteria:
+      - TUI reflects execution state accurately
+      - No lag between events and UI updates
+      - Error states displayed correctly
+      - Performance 60fps sustained
+      - All tests pass
+    estimated_hours: 12
+
+  - id: task-5-2-2-tui-testing-ux-polish
+    name: TUI Testing & UX Polish
+    description: |
+      Comprehensive TUI testing and refinement.
+
+      Tasks:
+      - Manual testing on different terminals (iTerm, Terminal.app, Windows Terminal)
+      - Color scheme accessibility
+      - Layout refinement for various terminal sizes
+      - Performance testing with large plans
+
+      Deliverables:
+      - Works on all major terminals
+      - Colors accessible (contrast ratios met)
+      - Responsive to small/large terminals
+    files:
+      - Various UI files
+    dependencies:
+      - task-5-2-1-integrate-tui-with-phase-executor
+    acceptance_criteria:
+      - Works on all major terminals
+      - Colors accessible (contrast ratios met)
+      - Responsive to small/large terminals
+      - 60fps sustained with 50+ tasks
+      - All tests pass
+    estimated_hours: 10
+
+  # ============================================================================
+  # PHASE 6: Validation Mode
+  # ============================================================================
+
+  - id: task-6-1-1-design-validation-architecture
+    name: Design Validation Architecture
+    description: |
+      Comprehensive validation system design.
+
+      Components:
+      - Acceptance criteria validation (agent-based)
+      - Success metrics assessment (quantitative + qualitative)
+      - Cross-artifact analysis (gaps, duplication, ambiguity)
+      - Project principles validation (from CLAUDE.md, .cursorrules)
+      - Report generation with priorities
+
+      Deliverables:
+      - Architecture document complete
+      - Types defined for all validation components
+      - Extensible design
+    files:
+      - docs/validation-architecture.md
+      - src/services/validation/validation-types.ts
+    acceptance_criteria:
+      - Architecture document complete
+      - Types defined for all validation components
+      - Clear separation of concerns
+      - Extensible design
+      - All tests pass
+    estimated_hours: 8
+
+  - id: task-6-1-2-implement-project-principles-discovery
+    name: Implement Project Principles Discovery
+    description: |
+      Extract principles from existing project docs.
+
+      Features:
+      - Scan for CLAUDE.md, .cursorrules, CONTRIBUTING.md, .github/CODING_STANDARDS.md
+      - Parse markdown for coding standards
+      - Extract principles with categories (code style, architecture, testing)
+      - Return ProjectPrinciples[]
+
+      Deliverables:
+      - Discovers all principle sources
+      - Categorizes principles correctly
+      - Handles missing files gracefully
+    files:
+      - src/services/validation/principles-discovery.ts
+      - src/services/validation/__tests__/principles-discovery.test.ts
+    dependencies:
+      - task-6-1-1-design-validation-architecture
+    acceptance_criteria:
+      - Discovers all principle sources
+      - Categorizes principles correctly
+      - Handles missing files gracefully
+      - Test with real project files
+      - All tests pass
+    estimated_hours: 10
+
+  # Track A: Criteria & Metrics
+
+  - id: task-6-2-1-implement-criteria-checker
+    name: Implement Criteria Checker
+    description: |
+      Agent-based acceptance criteria validation.
+
+      Features:
+      - For each criterion, build validation prompt
+      - Include spec context + implementation code
+      - Agent returns: passed (bool) + evidence (string)
+      - Aggregate results
+
+      Deliverables:
+      - Validates all criteria from plan
+      - Evidence clearly explains pass/fail
+      - Handles complex criteria
+    files:
+      - src/services/validation/criteria-checker.ts
+      - src/services/validation/__tests__/criteria-checker.test.ts
+    dependencies:
+      - task-6-1-1-design-validation-architecture
+    acceptance_criteria:
+      - Validates all criteria from plan
+      - Evidence clearly explains pass/fail
+      - Handles complex criteria
+      - Test with mock agent
+      - All tests pass
+    estimated_hours: 12
+
+  - id: task-6-2-2-implement-success-metrics-validator
+    name: Implement Success Metrics Validator
+    description: |
+      Validate quantitative and qualitative metrics.
+
+      Features:
+      - Quantitative: Run checks (test coverage %, performance benchmarks)
+      - Qualitative: Agent assessment with prompts
+      - Compare actual vs target values
+      - Return metric results with pass/fail
+
+      Deliverables:
+      - Quantitative metrics run correctly
+      - Qualitative assessments accurate
+      - Clear comparison of actual vs target
+    files:
+      - src/services/validation/metrics-validator.ts
+      - src/services/validation/__tests__/metrics-validator.test.ts
+    dependencies:
+      - task-6-1-1-design-validation-architecture
+    acceptance_criteria:
+      - Quantitative metrics run correctly
+      - Qualitative assessments accurate
+      - Clear comparison of actual vs target
+      - Test with various metric types
+      - All tests pass
+    estimated_hours: 12
+
+  # Track B: Cross-Artifact Analysis
+
+  - id: task-6-2-3-implement-cross-artifact-analyzer
+    name: Implement Cross-Artifact Analyzer
+    description: |
+      Detect gaps, duplication, ambiguity across artifacts.
+
+      Features:
+      - Duplication: Calculate task description similarity (> 80% → flag)
+      - Gap: Requirements not mapped to tasks
+      - Ambiguity: Unclear/conflicting requirements
+      - Inconsistency: Spec vs implementation mismatches
+      - Categorize by severity
+
+      Deliverables:
+      - All finding categories detected
+      - Severity correctly assigned
+      - False positive rate < 10%
+    files:
+      - src/services/validation/cross-artifact-analyzer.ts
+      - src/services/validation/__tests__/cross-artifact-analyzer.test.ts
+    dependencies:
+      - task-6-1-1-design-validation-architecture
+    acceptance_criteria:
+      - All finding categories detected
+      - Severity correctly assigned
+      - False positive rate < 10%
+      - Test with real plans and specs
+      - All tests pass
+    estimated_hours: 14
+
+  # Track C: Principles Validation
+
+  - id: task-6-2-4-implement-principle-checker
+    name: Implement Principle Checker
+    description: |
+      Validate implementation against project principles.
+
+      Features:
+      - Load discovered principles
+      - For each principle, build validation prompt
+      - Agent checks implementation for violations
+      - Report violations with file/line/description
+      - Generate remediation steps
+
+      Deliverables:
+      - Checks all discovered principles
+      - Violations accurately detected
+      - Remediation steps actionable
+    files:
+      - src/services/validation/principle-checker.ts
+      - src/services/validation/__tests__/principle-checker.test.ts
+    dependencies:
+      - task-6-1-2-implement-project-principles-discovery
+    acceptance_criteria:
+      - Checks all discovered principles
+      - Violations accurately detected
+      - Remediation steps actionable
+      - Test with known violations
+      - All tests pass
+    estimated_hours: 12
+
+  # Validation Engine & Reporting
+
+  - id: task-6-3-1-implement-validation-engine
+    name: Implement Validation Engine
+    description: |
+      Orchestrate all validation components.
+
+      Features:
+      - Run criteria checker
+      - Run metrics validator
+      - Run cross-artifact analyzer
+      - Run principle checker
+      - Calculate overall completion %
+      - Identify critical issues
+      - Generate next steps with priorities
+      - Return ValidationReport
+
+      Deliverables:
+      - Orchestrates all validators correctly
+      - Overall completion accurate
+      - Next steps prioritized correctly
+    files:
+      - src/services/validation/validation-engine.ts
+      - src/services/validation/__tests__/validation-engine.test.ts
+    dependencies:
+      - task-6-2-1-implement-criteria-checker
+      - task-6-2-2-implement-success-metrics-validator
+      - task-6-2-3-implement-cross-artifact-analyzer
+      - task-6-2-4-implement-principle-checker
+    acceptance_criteria:
+      - Orchestrates all validators correctly
+      - Overall completion accurate
+      - Next steps prioritized correctly
+      - Test with complete workflow
+      - All tests pass
+    estimated_hours: 10
+
+  - id: task-6-3-2-implement-validation-report-generator
+    name: Implement Validation Report Generator
+    description: |
+      Generate comprehensive validation reports.
+
+      Features:
+      - Markdown format with sections: criteria, metrics, findings, violations, next steps
+      - Color-coded pass/fail indicators
+      - Summary at top
+      - Detailed breakdowns per section
+      - Actionable recommendations
+
+      Deliverables:
+      - Report format clear and comprehensive
+      - All validation results included
+      - Actionable next steps
+    files:
+      - src/services/validation/report-generator.ts
+      - src/services/validation/__tests__/report-generator.test.ts
+    dependencies:
+      - task-6-3-1-implement-validation-engine
+    acceptance_criteria:
+      - Report format clear and comprehensive
+      - All validation results included
+      - Actionable next steps
+      - Test with various validation outcomes
+      - All tests pass
+    estimated_hours: 8
+
+  - id: task-6-3-3-add-validate-flag-to-run-command
+    name: Add --validate Flag to Run Command
+    description: |
+      Integrate validation into run command.
+
+      Features:
+      - Add --validate flag
+      - After execution, run validation engine
+      - Generate and write validation report
+      - Display summary in TUI
+      - Exit with appropriate code
+
+      Deliverables:
+      - Flag works correctly
+      - Validation runs after execution
+      - Report written to file
+    files:
+      - src/commands/run-v2.ts
+      - src/commands/__tests__/run-v2-validate.test.ts
+    dependencies:
+      - task-6-3-2-implement-validation-report-generator
+    acceptance_criteria:
+      - Flag works correctly
+      - Validation runs after execution
+      - Report written to file
+      - TUI shows summary
+      - All tests pass
+    estimated_hours: 6
+
+  # ============================================================================
+  # PHASE 7: Integration, Testing & Release
+  # ============================================================================
+
+  # Track A: E2E Testing
+
+  - id: task-7-1-1-e2e-test-full-workflow-dark-mode
+    name: E2E Test - Full Workflow (Dark Mode)
+    description: |
+      Complete workflow test with dark mode feature.
+
+      Flow:
+      - Run chopstack specify "add dark mode"
+      - Verify rich spec generation
+      - Run chopstack analyze --spec dark-mode.md
+      - Verify completeness scoring
+      - Run chopstack decompose --spec dark-mode.md
+      - Verify phase-based plan
+      - Run chopstack run --plan dark-mode.plan.yaml --spec dark-mode.md
+      - Verify execution with context injection
+      - Run chopstack run --plan dark-mode.plan.yaml --validate
+      - Verify validation report
+
+      Deliverables:
+      - End-to-end flow works
+      - All commands succeed
+      - Context injection verified
+    files:
+      - test/e2e/dark-mode-workflow.test.ts
+    acceptance_criteria:
+      - End-to-end flow works
+      - All commands succeed
+      - Context injection verified
+      - Validation catches issues
+      - All tests pass
+    estimated_hours: 16
+
+  - id: task-7-1-2-e2e-test-complex-refactor-auth-service
+    name: E2E Test - Complex Refactor (Auth Service)
+    description: |
+      Test with complex refactor scenario.
+
+      Flow:
+      - Specify refactor with multiple components
+      - Analyze completeness
+      - Decompose into phases
+      - Execute with parallel phases
+      - Validate against refactor criteria
+
+      Deliverables:
+      - Handles complex multi-component refactor
+      - Parallel phases execute correctly
+      - Zero conflicts
+    files:
+      - test/e2e/auth-refactor-workflow.test.ts
+    acceptance_criteria:
+      - Handles complex multi-component refactor
+      - Parallel phases execute correctly
+      - Zero conflicts
+      - Performance acceptable
+      - All tests pass
+    estimated_hours: 14
+
+  # Track B: Documentation
+
+  - id: task-7-1-3-update-claude-md-with-v2-patterns
+    name: Update CLAUDE.md with v2 Patterns
+    description: |
+      Document v2 patterns and best practices.
+
+      Sections:
+      - Phase-based planning guidelines
+      - Specification expansion best practices
+      - Specification analysis workflow
+      - Context injection patterns
+      - Validation mode usage
+      - Performance considerations
+
+      Deliverables:
+      - Comprehensive v2 documentation
+      - Code examples for all patterns
+      - References to implementation files
+    files:
+      - CLAUDE.md
+    acceptance_criteria:
+      - Comprehensive v2 documentation
+      - Code examples for all patterns
+      - Best practices clearly stated
+      - References to implementation files
+      - All documentation accurate
+    estimated_hours: 12
+
+  - id: task-7-1-4-create-cli-reference-documentation
+    name: Create CLI Reference Documentation
+    description: |
+      Complete CLI documentation.
+
+      Content:
+      - All commands documented (specify, analyze, decompose, run, validate, stack)
+      - All flags with examples
+      - Error messages reference
+      - Troubleshooting guide
+
+      Deliverables:
+      - Every CLI option documented
+      - Examples for common workflows
+      - Error code reference
+    files:
+      - docs/cli-reference.md
+    acceptance_criteria:
+      - Every CLI option documented
+      - Examples for common workflows
+      - Error code reference
+      - Troubleshooting section
+      - All documentation clear
+    estimated_hours: 10
+
+  - id: task-7-1-5-create-migration-guide-v1-v2
+    name: Create Migration Guide (v1 → v2)
+    description: |
+      Conceptual migration guide (no automated tool).
+
+      Content:
+      - Key differences between v1 and v2
+      - Workflow changes
+      - Plan format changes
+      - When to use v2 features
+      - Migration strategies
+
+      Deliverables:
+      - Clear explanation of v2 benefits
+      - Migration strategy for each use case
+      - Decision tree for v1 vs v2
+    files:
+      - docs/v1-to-v2-migration.md
+    acceptance_criteria:
+      - Clear explanation of v2 benefits
+      - Migration strategy for each use case
+      - Code examples showing differences
+      - Decision tree for v1 vs v2
+      - All documentation accurate
+    estimated_hours: 8
+
+  # Track C: Performance & Quality
+
+  - id: task-7-1-6-performance-benchmarking
+    name: Performance Benchmarking
+    description: |
+      Measure and optimize performance.
+
+      Targets:
+      - Spec generation: target < 30s
+      - Spec analysis: target < 10s
+      - Decomposition: target < 60s
+      - Phase transition: target < 500ms
+      - TUI rendering: target 60fps
+
+      Deliverables:
+      - All performance targets met
+      - Benchmark suite automated
+      - Performance report generated
+    files:
+      - test/performance/benchmarks.test.ts
+      - docs/performance-report.md
+    acceptance_criteria:
+      - All performance targets met
+      - Benchmark suite automated
+      - Performance report generated
+      - Optimization opportunities documented
+      - All tests pass
+    estimated_hours: 14
+
+  - id: task-7-1-7-code-quality-audit
+    name: Code Quality Audit
+    description: |
+      Final quality pass.
+
+      Checklist:
+      - Run linter, fix all issues (0 errors, 0 warnings)
+      - Run type checker, fix all errors
+      - Check for any types (0 in production code)
+      - Verify test coverage (target 95%+)
+      - Code review for patterns compliance
+
+      Deliverables:
+      - 0 ESLint errors/warnings
+      - 0 TypeScript errors
+      - 0 any types in production
+      - 95%+ test coverage
+    files:
+      - All source files
+    acceptance_criteria:
+      - 0 ESLint errors/warnings
+      - 0 TypeScript errors
+      - 0 any types in production
+      - 95%+ test coverage
+      - All code follows patterns
+      - All tests pass
+    estimated_hours: 12
+
+  # Integration & Release
+
+  - id: task-7-2-1-final-integration-testing
+    name: Final Integration Testing
+    description: |
+      Comprehensive integration testing.
+
+      Tests:
+      - Test all CLI commands together
+      - Test error scenarios
+      - Test edge cases
+      - Stress test with large plans (50+ tasks)
+      - Multi-platform testing (macOS, Linux, Windows)
+
+      Deliverables:
+      - All integration tests pass
+      - Error handling robust
+      - Works on all platforms
+    files:
+      - test/integration/final-validation.test.ts
+    dependencies:
+      - task-7-1-1-e2e-test-full-workflow-dark-mode
+      - task-7-1-2-e2e-test-complex-refactor-auth-service
+      - task-7-1-6-performance-benchmarking
+      - task-7-1-7-code-quality-audit
+    acceptance_criteria:
+      - All integration tests pass
+      - Error handling robust
+      - Edge cases handled
+      - Works on all platforms
+      - All tests pass
+    estimated_hours: 16
+
+  - id: task-7-2-2-examples-tutorials
+    name: Examples & Tutorials
+    description: |
+      Create real-world examples and tutorials.
+
+      Content:
+      - Example 1: Add feature (dark mode)
+      - Example 2: Refactor service (auth)
+      - Example 3: Fix bug (memory leak)
+      - Tutorial: First-time user walkthrough
+      - Tutorial: Advanced phase-based planning
+
+      Deliverables:
+      - 3 complete examples with code
+      - 2 tutorials with step-by-step instructions
+      - Examples work with real codebases
+    files:
+      - examples/
+      - docs/tutorials/
+    dependencies:
+      - task-7-1-3-update-claude-md-with-v2-patterns
+      - task-7-1-4-create-cli-reference-documentation
+    acceptance_criteria:
+      - 3 complete examples with code
+      - 2 tutorials with step-by-step instructions
+      - Examples work with real codebases
+      - Clear learning progression
+      - All examples tested
+    estimated_hours: 14
+
+  - id: task-7-2-3-release-preparation
+    name: Release Preparation
+    description: |
+      Prepare for v2.0.0 release.
+
+      Tasks:
+      - Write comprehensive CHANGELOG
+      - Update package.json version
+      - Update README with v2 features
+      - Create release notes
+      - Tag release
+
+      Deliverables:
+      - CHANGELOG complete with all changes
+      - Version bumped to 2.0.0
+      - README accurate
+    files:
+      - CHANGELOG.md
+      - package.json
+      - README.md
+    dependencies:
+      - task-7-2-1-final-integration-testing
+      - task-7-2-2-examples-tutorials
+    acceptance_criteria:
+      - CHANGELOG complete with all changes
+      - Version bumped to 2.0.0
+      - README accurate
+      - Release notes compelling
+      - All files updated
+    estimated_hours: 6
+
+  - id: task-7-2-4-final-qa-release
+    name: Final QA & Release
+    description: |
+      Final quality assurance and release.
+
+      Tasks:
+      - Fresh install testing
+      - Smoke testing all features
+      - Security audit
+      - Final performance validation
+      - Publish to npm
+      - Create GitHub release
+
+      Deliverables:
+      - Fresh install works
+      - All features smoke tested
+      - Published to npm successfully
+    files:
+      - All files
+    dependencies:
+      - task-7-2-3-release-preparation
+    acceptance_criteria:
+      - Fresh install works
+      - All features smoke tested
+      - Security audit passed
+      - Performance validated
+      - Published to npm successfully
+      - GitHub release created
+      - All tests pass
+    estimated_hours: 8
+
+acceptance_criteria:
+  # Must Have
+  - chopstack specify generates rich specs from brief prompts
+  - Codebase analyzer provides architectural context
+  - chopstack analyze validates spec completeness with gap detection
+  - Analysis reports categorize gaps by severity (CRITICAL/HIGH/MEDIUM/LOW)
+  - chopstack decompose produces phase-based plans
+  - Plans have < 1 file conflict (baseline ~3)
+  - 80% first-attempt success rate (baseline 40%)
+  - Execution engine respects phases correctly
+  - TUI displays phases clearly
+  - Validation mode checks criteria and metrics
+  - Full spec context injected to every task
+  - All performance targets met
+  - 95%+ test coverage
+  - Zero any types in production code
+  - All ESLint checks pass
+
+  # Performance
+  - Specification generation < 30s
+  - Specification analysis < 10s
+  - Decomposition < 60s
+  - Phase transition overhead < 500ms
+  - TUI rendering 60fps
+
+  # Quality
+  - Test coverage 95% average
+  - Zero any types in production code
+  - All ESLint checks pass
+  - Plans follow DB → API → UI ordering
+
+estimated_total_hours: 680
+actual_work_hours: 476
+time_saved_via_parallelization: 204
+
+success_metrics:
+  quantitative:
+    - File conflicts < 1 per plan (70% reduction)
+    - First-attempt success rate 80% (100% improvement)
+    - Retry reduction 60% fewer retries
+    - Specification size 1000+ lines from brief prompts
+    - Spec generation time < 30s
+    - Spec analysis time < 10s
+    - Decomposition time < 60s
+    - Phase transition overhead < 500ms
+    - TUI rendering 60fps
+    - Test coverage 95%+
+  qualitative:
+    - Architectural awareness Plans follow correct layered ordering (DB → API → UI)
+    - Task quality Descriptions explain why not just what
+    - Dependency logic Minimal, logical dependencies only
+    - Phase clarity Execution flow is immediately understandable
+    - Validation usefulness Reports are actionable with clear next steps
+    - Developer experience Clear error messages, helpful documentation
