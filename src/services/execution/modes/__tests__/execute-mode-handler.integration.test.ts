@@ -9,7 +9,7 @@ import type { VcsEngineService } from '@/core/vcs/interfaces';
 import type { VcsStrategy, WorktreeContext } from '@/core/vcs/vcs-strategy';
 import type { TaskOrchestrator } from '@/services/orchestration';
 import type { VcsStrategyFactory } from '@/services/vcs/strategies/vcs-strategy-factory';
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
 
@@ -144,16 +144,15 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
 
   describe('Real State Transition Tests', () => {
     it('should properly track task state transitions through execution', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
-          agentPrompt: 'Do task 1',
-          touches: ['file1.ts'],
-          requires: [],
+          name: 'Task 1',
+          complexity: 'S',
           description: 'Test task',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file1.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
       ];
 
@@ -196,36 +195,33 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
     });
 
     it('should handle task dependencies correctly', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
-          agentPrompt: 'Do task 1',
-          touches: ['file1.ts'],
-          requires: [],
+          name: 'Task 1',
+          complexity: 'S',
           description: 'First task',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file1.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
         {
           id: 'task2',
-          title: 'Task 2',
-          agentPrompt: 'Do task 2',
-          touches: ['file2.ts'],
-          requires: ['task1'],
+          name: 'Task 2',
+          complexity: 'S',
           description: 'Second task depends on first',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file2.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task1'],
         },
         {
           id: 'task3',
-          title: 'Task 3',
-          agentPrompt: 'Do task 3',
-          touches: ['file3.ts'],
-          requires: ['task1'],
+          name: 'Task 3',
+          complexity: 'S',
           description: 'Third task also depends on first',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file3.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task1'],
         },
       ];
 
@@ -263,16 +259,15 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
     });
 
     it('should properly handle retry logic with real state tracking', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
-          agentPrompt: 'Do task 1',
-          touches: ['file1.ts'],
-          requires: [],
+          name: 'Task 1',
+          complexity: 'S',
           description: 'Test task',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file1.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
       ];
 
@@ -331,26 +326,24 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
     });
 
     it('should detect circular dependencies via state management', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
-          agentPrompt: 'Do task 1',
-          touches: ['file1.ts'],
-          requires: ['task2'],
+          name: 'Task 1',
+          complexity: 'S',
           description: 'Circular dep 1',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file1.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task2'],
         },
         {
           id: 'task2',
-          title: 'Task 2',
-          agentPrompt: 'Do task 2',
-          touches: ['file2.ts'],
-          requires: ['task1'],
+          name: 'Task 2',
+          complexity: 'S',
           description: 'Circular dep 2',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file2.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task1'],
         },
       ];
 
@@ -379,26 +372,24 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
     });
 
     it('should skip dependent tasks when parent fails', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
-          agentPrompt: 'Do task 1',
-          touches: ['file1.ts'],
-          requires: [],
+          name: 'Task 1',
+          complexity: 'S',
           description: 'Parent task',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file1.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
         {
           id: 'task2',
-          title: 'Task 2',
-          agentPrompt: 'Do task 2',
-          touches: ['file2.ts'],
-          requires: ['task1'],
+          name: 'Task 2',
+          complexity: 'S',
           description: 'Dependent task',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file2.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task1'],
         },
       ];
 
@@ -432,26 +423,24 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
     });
 
     it('should continue execution when continueOnError is true', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
-          agentPrompt: 'Do task 1',
-          touches: ['file1.ts'],
-          requires: [],
+          name: 'Task 1',
+          complexity: 'S',
           description: 'First task',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file1.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
         {
           id: 'task2',
-          title: 'Task 2',
-          agentPrompt: 'Do task 2',
-          touches: ['file2.ts'],
-          requires: [],
+          name: 'Task 2',
+          complexity: 'S',
           description: 'Second independent task',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file2.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
       ];
 
@@ -507,36 +496,33 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
     });
 
     it('should track execution statistics accurately', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
-          agentPrompt: 'Do task 1',
-          touches: ['file1.ts'],
-          requires: [],
+          name: 'Task 1',
+          complexity: 'S',
           description: 'Task 1',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file1.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
         {
           id: 'task2',
-          title: 'Task 2',
-          agentPrompt: 'Do task 2',
-          touches: ['file2.ts'],
-          requires: ['task1'],
+          name: 'Task 2',
+          complexity: 'S',
           description: 'Task 2',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file2.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task1'],
         },
         {
           id: 'task3',
-          title: 'Task 3',
-          agentPrompt: 'Do task 3',
-          touches: ['file3.ts'],
-          requires: ['task1'],
+          name: 'Task 3',
+          complexity: 'S',
           description: 'Task 3',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file3.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task1'],
         },
       ];
 
@@ -611,26 +597,24 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
           created: new Date(),
         },
       ]);
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
-          agentPrompt: 'Do task 1',
-          touches: ['file1.ts'],
-          requires: [],
+          name: 'Task 1',
+          complexity: 'S',
           description: 'Task 1',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file1.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
         {
           id: 'task2',
-          title: 'Task 2',
-          agentPrompt: 'Do task 2',
-          touches: ['file2.ts'],
-          requires: [],
+          name: 'Task 2',
+          complexity: 'S',
           description: 'Task 2',
-          produces: [],
-          estimatedLines: 10,
+          files: ['file2.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
       ];
 
