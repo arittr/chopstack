@@ -641,7 +641,7 @@ export class GitSpiceBackend implements VcsBackend {
     baseRef: string,
   ): string {
     // If task has no dependencies, use base ref
-    if (task.requires.length === 0) {
+    if (task.dependencies.length === 0) {
       return baseRef;
     }
 
@@ -651,7 +651,7 @@ export class GitSpiceBackend implements VcsBackend {
     }
 
     // Find the most recent dependency that has a branch
-    for (const depId of task.requires.reverse()) {
+    for (const depId of task.dependencies.reverse()) {
       const depBranch = existingBranches.find((b: { taskId: string }) => b.taskId === depId);
       if (depBranch !== undefined) {
         return depBranch.name;
