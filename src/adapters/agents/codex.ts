@@ -4,7 +4,7 @@ import { clearTimeout, setTimeout } from 'node:timers';
 import chalk from 'chalk';
 
 import type { AgentCapabilities, AgentType, DecomposerAgent } from '@/core/agents/interfaces';
-import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { type ParsedContent, YamlPlanParser } from '@/io/yaml-parser';
 import { PromptBuilder } from '@/services/planning/prompts';
@@ -112,7 +112,7 @@ export class CodexDecomposer implements DecomposerAgent {
     specContent: string,
     cwd: string,
     options?: { verbose?: boolean },
-  ): Promise<Plan> {
+  ): Promise<PlanV2> {
     try {
       const prompt = PromptBuilder.buildDecompositionPrompt(specContent);
       const stdout = await this._executeCodexCommand(prompt, cwd, options?.verbose ?? false);
@@ -202,8 +202,8 @@ export class CodexDecomposer implements DecomposerAgent {
     return null;
   }
 
-  private _validateAndReturnPlan(parsedContent: ParsedContent): Plan {
-    return YamlPlanParser.parseAndValidatePlan(parsedContent);
+  private _validateAndReturnPlan(parsedContent: ParsedContent): PlanV2 {
+    return YamlPlanParser.parse(parsedContent.content);
   }
 
   getCapabilities(): AgentCapabilities {
