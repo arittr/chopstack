@@ -359,3 +359,288 @@ export const executionContextSchema = z.object({
 });
 
 export type ExecutionContext = z.infer<typeof executionContextSchema>;
+
+// ============================================================================
+// Analysis Types
+// ============================================================================
+
+/**
+ * Severity levels for gap categorization and prioritization
+ *
+ * @remarks
+ * - CRITICAL: Blocks decomposition, must be fixed before proceeding
+ * - HIGH: Significantly reduces quality, should be fixed before decomposition
+ * - MEDIUM: Improves quality, recommended to fix
+ * - LOW: Minor improvement, optional to fix
+ *
+ * @example
+ * ```typescript
+ * const gap: Gap = {
+ *   id: 'gap-missing-architecture',
+ *   severity: 'CRITICAL',
+ *   category: 'gap',
+ *   message: 'Missing required section: architecture',
+ *   artifacts: ['spec.md'],
+ *   remediation: 'Add architecture section with diagrams and component descriptions',
+ * };
+ * ```
+ */
+export const severitySchema = z
+  .enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'])
+  .describe('Severity level for gap categorization and prioritization');
+
+export type Severity = z.infer<typeof severitySchema>;
+
+/**
+ * Project principles discovered from existing documentation
+ *
+ * @remarks
+ * Leverages CLAUDE.md, .cursorrules, CONTRIBUTING.md instead of custom constitution.
+ * These principles are extracted by the analyzer and used during validation to check
+ * if the implementation follows project standards.
+ *
+ * @example
+ * ```typescript
+ * const principles: ProjectPrinciples = {
+ *   source: 'CLAUDE.md',
+ *   principles: [
+ *     {
+ *       category: 'Code Style',
+ *       rule: 'Use ts-pattern for complex conditional logic instead of switch statements',
+ *       examples: ['const result = match(value).with(...).exhaustive()'],
+ *     },
+ *     {
+ *       category: 'Testing',
+ *       rule: 'Co-locate tests next to source files in __tests__ directories',
+ *     },
+ *   ],
+ * };
+ * ```
+ */
+export const projectPrinciplesSchema = z.object({
+  source: z.string().describe('File where principles were found (CLAUDE.md, .cursorrules, etc.)'),
+  principles: z
+    .array(
+      z.object({
+        category: z
+          .string()
+          .describe('Principle category (e.g., "Code Style", "Architecture", "Testing")'),
+        rule: z.string().describe('The actual principle or rule'),
+        examples: z.array(z.string()).optional().describe('Code examples if provided'),
+      }),
+    )
+    .describe('List of principles extracted from the source'),
+});
+
+export type ProjectPrinciples = z.infer<typeof projectPrinciplesSchema>;
+
+/**
+ * Gap finding with severity categorization
+ *
+ * @remarks
+ * Represents a missing or incomplete element in the specification.
+ * Gaps are categorized by severity to help prioritize remediation efforts.
+ *
+ * @example
+ * ```typescript
+ * const gap: Gap = {
+ *   id: 'gap-spec-acceptance-criteria',
+ *   severity: 'HIGH',
+ *   category: 'gap',
+ *   message: 'Missing required section: acceptance-criteria',
+ *   artifacts: ['dark-mode.md'],
+ *   remediation: 'Add acceptance-criteria section with testable criteria',
+ * };
+ * ```
+ */
+export const gapSchema = z.object({
+  id: z.string().describe('Stable ID for tracking (hash of category + message)'),
+  severity: severitySchema.describe('Severity level for prioritization'),
+  category: z
+    .enum(['gap', 'duplication', 'ambiguity', 'inconsistency'])
+    .describe('Type of issue found'),
+  message: z.string().describe('Human-readable description of the gap'),
+  artifacts: z.array(z.string()).describe('Files/sections affected by this gap'),
+  remediation: z.string().optional().describe('How to fix this gap'),
+});
+
+export type Gap = z.infer<typeof gapSchema>;
+
+/**
+ * Prioritized remediation step
+ *
+ * @remarks
+ * Remediation steps are generated from gaps and sorted by priority.
+ * They provide actionable guidance for fixing specification issues.
+ *
+ * @example
+ * ```typescript
+ * const step: RemediationStep = {
+ *   priority: 'CRITICAL',
+ *   order: 1,
+ *   action: 'Add architecture section with component diagrams',
+ *   reasoning: 'Critical gap prevents successful decomposition: missing architecture',
+ *   artifacts: ['codebase.md'],
+ * };
+ * ```
+ */
+export const remediationStepSchema = z.object({
+  priority: severitySchema.describe('Priority level (same as severity)'),
+  order: z.number().int().positive().describe('Execution order (1, 2, 3...)'),
+  action: z.string().describe('What needs to be done'),
+  reasoning: z.string().describe('Why this remediation is needed'),
+  artifacts: z.array(z.string()).describe('Files that need to be modified'),
+});
+
+export type RemediationStep = z.infer<typeof remediationStepSchema>;
+
+/**
+ * Cross-artifact validation finding
+ *
+ * @remarks
+ * Validation findings represent issues discovered through cross-artifact analysis,
+ * such as duplication between spec and codebase docs, inconsistencies, or
+ * principle violations.
+ *
+ * @example
+ * ```typescript
+ * const finding: ValidationFinding = {
+ *   id: 'dup-task-1-task-2',
+ *   severity: 'MEDIUM',
+ *   category: 'duplication',
+ *   message: 'Tasks task-1 and task-2 appear to duplicate work',
+ *   artifacts: ['task-1', 'task-2'],
+ *   remediation: 'Consider merging these tasks or clarifying their distinct purposes',
+ *   relatedPrinciple: 'DRY principle',
+ * };
+ * ```
+ */
+export const validationFindingSchema = z.object({
+  id: z.string().describe('Stable ID for tracking'),
+  severity: severitySchema.describe('Severity level'),
+  category: z
+    .enum(['duplication', 'gap', 'ambiguity', 'inconsistency', 'principle-violation'])
+    .describe('Type of validation issue'),
+  message: z.string().describe('Human-readable description'),
+  artifacts: z.array(z.string()).describe('Files/tasks affected'),
+  remediation: z.string().optional().describe('How to fix'),
+  relatedPrinciple: z.string().optional().describe('Which principle was violated (if applicable)'),
+});
+
+export type ValidationFinding = z.infer<typeof validationFindingSchema>;
+
+/**
+ * Flexible, agent-driven codebase analysis
+ *
+ * @remarks
+ * Allows LLM to describe what it discovers without rigid classification.
+ * The structure is intentionally extensible to support various types of
+ * codebases and agent discoveries.
+ *
+ * @example
+ * ```typescript
+ * const analysis: CodebaseAnalysis = {
+ *   summary: '# Codebase Analysis\n\nThis is a TypeScript monorepo using pnpm...',
+ *   findings: {
+ *     techStack: {
+ *       languages: ['TypeScript'],
+ *       frameworks: ['React', 'Vitest'],
+ *       runtimes: ['Node.js 18+'],
+ *       buildTools: ['tsup', 'pnpm'],
+ *       dependencies: ['zod', 'ts-pattern'],
+ *     },
+ *     architecture: {
+ *       description: 'Layered architecture with services, types, and CLI layers',
+ *       patterns: ['Dependency Injection', 'Repository Pattern'],
+ *       directories: {
+ *         'src/services': 'Core business logic and orchestration',
+ *         'src/types': 'Type definitions and schemas',
+ *         'src/commands': 'CLI command implementations',
+ *       },
+ *     },
+ *   },
+ *   observations: [
+ *     'Uses React Context for global state',
+ *     'Follows Airbnb style guide',
+ *   ],
+ *   examples: {
+ *     component: 'export const Component: React.FC = () => {...}',
+ *     test: 'describe("Component", () => { it("renders", () => {...}) })',
+ *   },
+ *   relatedFeatures: [
+ *     {
+ *       name: 'Theme System',
+ *       files: ['src/components/ThemeProvider.tsx', 'src/hooks/useTheme.ts'],
+ *       description: 'Existing theme implementation',
+ *       relevance: 'Similar pattern can be used for dark mode',
+ *     },
+ *   ],
+ * };
+ * ```
+ */
+export const codebaseAnalysisSchema = z.object({
+  summary: z.string().describe('Structured markdown summary of the codebase (most important!)'),
+  findings: z.any().describe('Structured findings from the analysis'),
+  observations: z.array(z.string()).describe("Agent's raw observations and qualitative insights"),
+  examples: z.any().describe('Code examples discovered for pattern matching'),
+  relatedFeatures: z
+    .array(
+      z.object({
+        name: z.string().describe('Feature name'),
+        files: z.array(z.string()).describe('Files implementing this feature'),
+        description: z.string().optional().describe('How this feature works'),
+        relevance: z.string().optional().describe('Why this is related to current task'),
+      }),
+    )
+    .describe('Related features found in the codebase'),
+});
+
+export type CodebaseAnalysis = z.infer<typeof codebaseAnalysisSchema>;
+
+/**
+ * Specification completeness analysis report
+ *
+ * @remarks
+ * The analysis report provides a comprehensive view of specification quality,
+ * including completeness score, categorized gaps, and prioritized remediation steps.
+ * This is the output of the `chopstack analyze` command.
+ *
+ * @example
+ * ```typescript
+ * const report: AnalysisReport = {
+ *   completeness: 75,
+ *   gaps: [
+ *     {
+ *       id: 'gap-missing-architecture',
+ *       severity: 'CRITICAL',
+ *       category: 'gap',
+ *       message: 'Missing architecture section',
+ *       artifacts: ['spec.md'],
+ *       remediation: 'Add architecture diagrams',
+ *     },
+ *   ],
+ *   remediation: [
+ *     {
+ *       priority: 'CRITICAL',
+ *       order: 1,
+ *       action: 'Add architecture section',
+ *       reasoning: 'Blocks decomposition',
+ *       artifacts: ['spec.md'],
+ *     },
+ *   ],
+ *   summary: 'Completeness: 75% - 1 CRITICAL gap, 2 HIGH priority gaps',
+ * };
+ * ```
+ */
+export const analysisReportSchema = z.object({
+  completeness: z
+    .number()
+    .min(0)
+    .max(100)
+    .describe('Completeness score from 0-100 (100 = ready for decomposition)'),
+  gaps: z.array(gapSchema).describe('List of gaps categorized by severity'),
+  remediation: z.array(remediationStepSchema).describe('Prioritized remediation steps'),
+  summary: z.string().describe('Human-readable summary of the analysis'),
+});
+
+export type AnalysisReport = z.infer<typeof analysisReportSchema>;
