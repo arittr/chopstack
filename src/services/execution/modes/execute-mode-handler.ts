@@ -127,7 +127,7 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
       // Map task IDs to task objects
       const executableTasks = executableTaskIds
         .map((id) => tasks.find((t) => t.id === id))
-        .filter((t): t is Task => t !== undefined);
+        .filter((t): t is TaskV2 => t !== undefined);
 
       logger.info(`[chopstack] Executing ${executableTasks.length} tasks in parallel`);
 
