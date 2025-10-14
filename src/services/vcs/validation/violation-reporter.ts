@@ -4,14 +4,14 @@
  * Formats file modification violations into user-friendly error messages
  */
 
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 import type { FileValidationResult, FileViolation } from '@/types/validation';
 
 export class ViolationReporter {
   /**
    * Format a single violation for display
    */
-  formatViolation(violation: FileViolation, _task: Task): string {
+  formatViolation(violation: FileViolation, _task: TaskV2): string {
     const { file, reason, conflictingTask } = violation;
 
     switch (reason) {
@@ -40,7 +40,7 @@ export class ViolationReporter {
   /**
    * Create comprehensive error message for validation failure
    */
-  formatValidationError(result: FileValidationResult, task: Task): string {
+  formatValidationError(result: FileValidationResult, task: TaskV2): string {
     const { violations, warnings } = result;
 
     const parts: string[] = [`❌ Task '${task.id}' failed file modification validation:`];
@@ -54,7 +54,7 @@ export class ViolationReporter {
     }
 
     // Add allowed files info
-    const allowedFiles = [...task.touches, ...task.produces];
+    const allowedFiles = [...task.files];
     if (allowedFiles.length > 0) {
       parts.push('', 'Only allowed to modify:');
       for (const file of allowedFiles) {
@@ -76,7 +76,7 @@ export class ViolationReporter {
   /**
    * Create warning message for permissive mode
    */
-  formatValidationWarning(result: FileValidationResult, task: Task): string {
+  formatValidationWarning(result: FileValidationResult, task: TaskV2): string {
     const { violations } = result;
 
     const parts: string[] = [

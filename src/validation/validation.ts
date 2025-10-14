@@ -6,6 +6,7 @@
 import { z } from 'zod';
 
 import { PlanSchema, TaskSchema } from '@/types/decomposer';
+import { planSchemaV2, taskV2Schema } from '@/types/schemas-v2';
 
 import { isNonNullish } from './guards';
 
@@ -51,7 +52,7 @@ export function strictValidate<T>(schema: z.ZodSchema<T>, data: unknown): T {
 }
 
 /**
- * Validates task dependencies are properly structured
+ * Validates task dependencies are properly structured (supports both v1 and v2)
  */
 export function validateTaskDependencies(tasks: unknown[]): SafeValidationResult<string[]> {
   const taskIds = new Set<string>();
@@ -59,7 +60,12 @@ export function validateTaskDependencies(tasks: unknown[]): SafeValidationResult
 
   // Collect all task IDs and validate basic structure
   for (const [index, task] of tasks.entries()) {
-    const taskValidation = safeValidate(TaskSchema, task);
+    // Try v2 first, then fall back to v1
+    let taskValidation = safeValidate(taskV2Schema, task);
+    if (!taskValidation.success) {
+      taskValidation = safeValidate(TaskSchema, task);
+    }
+
     if (!taskValidation.success) {
       errors.push(`Task ${index}: ${taskValidation.errors?.join(', ')}`);
       continue;
@@ -79,7 +85,12 @@ export function validateTaskDependencies(tasks: unknown[]): SafeValidationResult
 
   // Validate dependencies reference existing tasks
   for (const task of tasks) {
-    const taskValidation = safeValidate(TaskSchema, task);
+    // Try v2 first, then fall back to v1
+    let taskValidation = safeValidate(taskV2Schema, task);
+    if (!taskValidation.success) {
+      taskValidation = safeValidate(TaskSchema, task);
+    }
+
     if (!taskValidation.success) {
       continue;
     }
@@ -89,7 +100,9 @@ export function validateTaskDependencies(tasks: unknown[]): SafeValidationResult
     }
 
     const validTask = taskValidation.data;
-    for (const dependencyId of validTask.requires) {
+    // v2 uses 'dependencies', v1 uses 'requires'
+    const dependencies = 'dependencies' in validTask ? validTask.dependencies : validTask.requires;
+    for (const dependencyId of dependencies) {
       if (!taskIds.has(dependencyId)) {
         errors.push(`Task ${validTask.id}: Unknown dependency '${dependencyId}'`);
       }
@@ -104,14 +117,19 @@ export function validateTaskDependencies(tasks: unknown[]): SafeValidationResult
 }
 
 /**
- * Validates file paths in task definitions
+ * Validates file paths in task definitions (supports both v1 and v2)
  */
 export function validateTaskFilePaths(tasks: unknown[]): SafeValidationResult<string[]> {
   const allFiles = new Set<string>();
   const errors: string[] = [];
 
   for (const task of tasks) {
-    const taskValidation = safeValidate(TaskSchema, task);
+    // Try v2 first, then fall back to v1
+    let taskValidation = safeValidate(taskV2Schema, task);
+    if (!taskValidation.success) {
+      taskValidation = safeValidate(TaskSchema, task);
+    }
+
     if (!taskValidation.success) {
       continue;
     }
@@ -122,8 +140,11 @@ export function validateTaskFilePaths(tasks: unknown[]): SafeValidationResult<st
 
     const validTask = taskValidation.data;
 
+    // v2 uses 'files', v1 uses 'touches' + 'produces'
+    const taskFiles = 'files' in validTask ? validTask.files : [...validTask.touches, ...validTask.produces];
+
     // Check for file path conflicts (parallel tasks shouldn't touch same files)
-    for (const file of [...validTask.touches, ...validTask.produces]) {
+    for (const file of taskFiles) {
       if (allFiles.has(file)) {
         errors.push(`File conflict: '${file}' is used by multiple tasks`);
       }
@@ -131,7 +152,7 @@ export function validateTaskFilePaths(tasks: unknown[]): SafeValidationResult<st
     }
 
     // Validate file path format (basic checks)
-    for (const file of [...validTask.touches, ...validTask.produces]) {
+    for (const file of taskFiles) {
       if (file.includes('..')) {
         errors.push(`Task ${validTask.id}: Invalid file path '${file}' (contains '..')`);
       }
@@ -149,10 +170,15 @@ export function validateTaskFilePaths(tasks: unknown[]): SafeValidationResult<st
 }
 
 /**
- * Validates execution plan coherence
+ * Validates execution plan coherence (supports both v1 and v2)
  */
 export function validateExecutionPlan(plan: unknown): SafeValidationResult<boolean> {
-  const planValidation = safeValidate(PlanSchema, plan);
+  // Try v2 first, then fall back to v1
+  let planValidation = safeValidate(planSchemaV2, plan);
+  if (!planValidation.success) {
+    planValidation = safeValidate(PlanSchema, plan);
+  }
+
   if (!planValidation.success) {
     return {
       ...(planValidation.errors !== undefined && { errors: planValidation.errors }),
