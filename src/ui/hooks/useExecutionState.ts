@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TaskResult } from '@/core/execution/interfaces';
 import type { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
 import type { Plan } from '@/types/decomposer';
+import type { PlanV2, TaskV2 } from '@/types/schemas-v2';
 
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
 
@@ -21,7 +22,7 @@ export type TaskUIState = {
   progress: number;
   startTime?: Date;
   status: 'pending' | 'running' | 'success' | 'failure' | 'skipped';
-  title: string;
+  title: string; // Display name (supports both v1 'title' and v2 'name')
 };
 
 export type ExecutionMetrics = {
@@ -47,9 +48,33 @@ export type UseExecutionStateOptions = {
   verbose?: boolean;
 };
 
+/**
+ * Helper to check if plan is PlanV2
+ */
+function isPlanV2(plan: Plan | PlanV2): plan is PlanV2 {
+  // PlanV2 has 'name' field, v1 Plan does not
+  return 'name' in plan;
+}
+
+/**
+ * Helper to extract task display name (supports both v1 and v2)
+ */
+function getTaskDisplayName(task: Plan['tasks'][number] | TaskV2): string {
+  // v2 uses 'name', v1 uses 'title'
+  return 'name' in task ? task.name : task.title;
+}
+
+/**
+ * Helper to extract task dependencies (supports both v1 and v2)
+ */
+function getTaskDependencies(task: Plan['tasks'][number] | TaskV2): string[] {
+  // v2 uses 'dependencies', v1 uses 'requires'
+  return 'dependencies' in task ? task.dependencies : task.requires;
+}
+
 export function useExecutionState(
   orchestrator: ExecutionOrchestrator,
-  plan: Plan,
+  plan: Plan | PlanV2,
   options: UseExecutionStateOptions = {},
 ): ExecutionState {
   const verbose = options.verbose ?? false;
@@ -57,12 +82,12 @@ export function useExecutionState(
     const initialTasks = new Map<string, TaskUIState>();
     for (const task of plan.tasks) {
       initialTasks.set(task.id, {
-        dependencies: task.requires,
+        dependencies: getTaskDependencies(task),
         id: task.id,
         ...(isNonNullish(task.layer) && { layer: task.layer }),
         progress: 0,
         status: 'pending',
-        title: task.title,
+        title: getTaskDisplayName(task),
       });
     }
     return initialTasks;
