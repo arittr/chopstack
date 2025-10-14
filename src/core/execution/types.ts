@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { type Task, TaskSchema } from '@/types/decomposer';
+import { taskV2Schema, type TaskV2 } from '@/types/schemas-v2';
 
 export const ExecutionModeSchema = z.enum(['plan', 'dry-run', 'execute', 'validate']);
 export type ExecutionMode = z.infer<typeof ExecutionModeSchema>;
@@ -38,7 +38,7 @@ export const TaskStateTransitionSchema = z.object({
 });
 export type TaskStateTransition = z.infer<typeof TaskStateTransitionSchema>;
 
-export const ExecutionTaskSchema = TaskSchema.extend({
+export const ExecutionTaskSchema = taskV2Schema.extend({
   branchName: z.string().optional(),
   commitHash: z.string().optional(),
   duration: z.number().min(0).optional(),
@@ -80,7 +80,7 @@ export type ExecutionPlan = {
   id: string;
   mode: ExecutionMode;
   plan: {
-    tasks: Task[];
+    tasks: TaskV2[];
   };
   status: 'pending' | 'running' | 'completed' | 'failed';
   tasks: Map<string, ExecutionTask>;

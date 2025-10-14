@@ -1,46 +1,47 @@
 import type { VcsMode } from '@/core/execution/types';
-import type { Plan, Task, ValidationResult } from '@/types/decomposer';
+import type { PlanV2, TaskV2 } from '@/types/schemas-v2';
+import type { ValidationResult } from '@/types/decomposer';
 
 /**
  * Core interface for task execution
  */
 export type TaskExecutor = {
-  execute(task: Task, context: ExecutionContext): Promise<TaskResult>;
+  execute(task: TaskV2, context: ExecutionContext): Promise<TaskResult>;
 };
 
 /**
  * Core interface for plan generation
  */
 export type PlanGenerator = {
-  generate(spec: string, options: PlanGenerationOptions): Promise<Plan>;
+  generate(spec: string, options: PlanGenerationOptions): Promise<PlanV2>;
 };
 
 /**
  * Core interface for plan validation
  */
 export type PlanValidator = {
-  validate(plan: Plan): Promise<ValidationResult>;
+  validate(plan: PlanV2): Promise<ValidationResult>;
 };
 
 /**
  * Handler for plan mode execution
  */
 export type PlanModeHandler = {
-  handle(tasks: Task[], context: ExecutionContext): Promise<PlanModeResult>;
+  handle(tasks: TaskV2[], context: ExecutionContext): Promise<PlanModeResult>;
 };
 
 /**
  * Handler for execute mode
  */
 export type ExecuteModeHandler = {
-  handle(tasks: Task[], context: ExecutionContext): Promise<ExecutionResult>;
+  handle(tasks: TaskV2[], context: ExecutionContext): Promise<ExecutionResult>;
 };
 
 /**
  * Handler for validate mode
  */
 export type ValidateModeHandler = {
-  handle(plan: Plan): Promise<ValidationResult>;
+  handle(plan: PlanV2): Promise<ValidationResult>;
 };
 
 /**

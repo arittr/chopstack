@@ -76,7 +76,7 @@ export class StateManager {
   }
 
   shouldSkip(task: ExecutionTask, dependencies: Map<string, ExecutionTask>): boolean {
-    const hasFailedDependency = task.requires.some((depId) => {
+    const hasFailedDependency = task.dependencies.some((depId) => {
       const dep = dependencies.get(depId);
       return dep?.state === 'failed' || dep?.state === 'skipped';
     });
@@ -97,11 +97,11 @@ export class StateManager {
     }
 
     for (const task of tasks.values()) {
-      if (!task.requires.includes(taskId)) {
+      if (!task.dependencies.includes(taskId)) {
         continue;
       }
 
-      const allDependenciesCompleted = task.requires.every((depId) => {
+      const allDependenciesCompleted = task.dependencies.every((depId) => {
         const dep = tasks.get(depId);
         return dep?.state === 'completed';
       });
@@ -124,7 +124,7 @@ export class StateManager {
           },
         )
         .with({ allDependenciesCompleted: false, currentState: 'pending' }, () => {
-          const hasRunningDependency = task.requires.some((depId) => {
+          const hasRunningDependency = task.dependencies.some((depId) => {
             const dep = tasks.get(depId);
             return dep?.state === 'running' || dep?.state === 'queued';
           });
