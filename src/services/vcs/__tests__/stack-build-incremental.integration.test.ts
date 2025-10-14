@@ -66,13 +66,12 @@ describe('StackBuildService Integration - Incremental Building', () => {
 
   const createTask = (overrides: Partial<ExecutionTask> = {}): ExecutionTask => ({
     id: 'task-1',
-    title: 'Test Task',
+    name: 'Test Task',
     description: 'A test task',
-    touches: [],
-    produces: [],
-    requires: [],
-    estimatedLines: 10,
-    agentPrompt: 'Do something',
+    files: [],
+    dependencies: [],
+    complexity: 'S',
+    acceptanceCriteria: ['Task completes successfully'],
     commitHash: 'abc1234',
     maxRetries: 3,
     retryCount: 0,
@@ -132,12 +131,12 @@ describe('StackBuildService Integration - Incremental Building', () => {
       const task2 = createTask({
         id: 'task-2',
         commitHash: 'hash2',
-        requires: ['task-1'],
+        dependencies: ['task-1'],
       });
       const task3 = createTask({
         id: 'task-3',
         commitHash: 'hash3',
-        requires: ['task-2'],
+        dependencies: ['task-2'],
       });
 
       // Initialize stack state
@@ -191,12 +190,12 @@ describe('StackBuildService Integration - Incremental Building', () => {
       const task2 = createTask({
         id: 'task-2',
         commitHash: 'hash2',
-        requires: ['task-1'],
+        dependencies: ['task-1'],
       });
       const task3 = createTask({
         id: 'task-3',
         commitHash: 'hash3',
-        requires: ['task-1'],
+        dependencies: ['task-1'],
       });
 
       service.initializeStackState('main');
@@ -315,9 +314,9 @@ describe('StackBuildService Integration - Incremental Building', () => {
     it('maintains stack state across multiple operations', async () => {
       const tasks = [
         createTask({ id: 'task-1', commitHash: 'hash1' }),
-        createTask({ id: 'task-2', commitHash: 'hash2', requires: ['task-1'] }),
-        createTask({ id: 'task-3', commitHash: 'hash3', requires: ['task-1'] }),
-        createTask({ id: 'task-4', commitHash: 'hash4', requires: ['task-2', 'task-3'] }),
+        createTask({ id: 'task-2', commitHash: 'hash2', dependencies: ['task-1'] }),
+        createTask({ id: 'task-3', commitHash: 'hash3', dependencies: ['task-1'] }),
+        createTask({ id: 'task-4', commitHash: 'hash4', dependencies: ['task-2', 'task-3'] }),
       ];
 
       service.initializeStackState('main');
@@ -346,7 +345,7 @@ describe('StackBuildService Integration - Incremental Building', () => {
     it('maintains backward compatibility with buildStack method', async () => {
       const tasks = [
         createTask({ id: 'task-1', commitHash: 'hash1' }),
-        createTask({ id: 'task-2', commitHash: 'hash2', requires: ['task-1'] }),
+        createTask({ id: 'task-2', commitHash: 'hash2', dependencies: ['task-1'] }),
       ];
 
       const result = await service.buildStack(tasks, '/repo', {
