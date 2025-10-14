@@ -156,6 +156,7 @@ export class PlanOutputter {
       complexity: task.complexity,
       description: task.description,
       files: task.files,
+      // eslint-disable-next-line @typescript-eslint/naming-convention
       ...(task.acceptanceCriteria.length > 0 && { acceptance_criteria: task.acceptanceCriteria }),
       ...(task.dependencies.length > 0 && { dependencies: task.dependencies }),
       ...(task.phase !== undefined && { phase: task.phase }),

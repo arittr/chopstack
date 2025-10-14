@@ -9,7 +9,8 @@ import type { PlanV2 } from '@/types/schemas-v2';
  * without making any external API calls. Useful for testing and development.
  */
 export class MockAgent implements Agent {
-  decompose(_prompt: string, _cwd: string, _options: DecomposeOptions): Promise<PlanV2> {
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async decompose(_prompt: string, _cwd: string, _options: DecomposeOptions): Promise<PlanV2> {
     // Mock implementation for testing - returns a simple PlanV2
     const plan: PlanV2 = {
       name: 'Mock User Management Feature',
@@ -117,12 +118,13 @@ export class MockAgent implements Agent {
       },
     };
 
-    return Promise.resolve(plan);
+    return plan;
   }
 
-  execute(_prompt: string, files: string[], _cwd: string): Promise<TaskResult> {
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async execute(_prompt: string, files: string[], _cwd: string): Promise<TaskResult> {
     // Mock execution - simulate successful file modification
-    return Promise.resolve({
+    return {
       success: true,
       filesModified: files,
       output: 'Mock task executed successfully',
@@ -130,12 +132,13 @@ export class MockAgent implements Agent {
         executionTime: 100,
         agentType: 'mock',
       },
-    });
+    };
   }
 
-  validate(_prompt: string, criteria: string[], _cwd: string): Promise<ValidationResult> {
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async validate(_prompt: string, criteria: string[], _cwd: string): Promise<ValidationResult> {
     // Mock validation - all criteria pass
-    return Promise.resolve({
+    return {
       passed: true,
       criteriaResults: criteria.map((criterion) => ({
         criterion,
@@ -143,6 +146,6 @@ export class MockAgent implements Agent {
         evidence: 'Mock validation evidence - criterion automatically passed',
       })),
       summary: `All ${criteria.length} criteria passed (mock validation)`,
-    });
+    };
   }
 }
