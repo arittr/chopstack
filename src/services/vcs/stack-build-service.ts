@@ -142,7 +142,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
     if (this._stackState === null) {
       return false;
     }
-    return task.requires.every((depId) => this._stackState?.stacked.has(depId) ?? false);
+    return task.dependencies.every((depId) => this._stackState?.stacked.has(depId) ?? false);
   }
 
   /**
@@ -221,10 +221,10 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       if (isNonEmptyString(worktreeContext?.baseRef)) {
         parentBranch = worktreeContext.baseRef;
         logger.info(`  📍 Using WorktreeContext baseRef as parent: ${parentBranch}`);
-      } else if (task.requires.length > 0 && isDefined(this._stackState)) {
+      } else if (task.dependencies.length > 0 && isDefined(this._stackState)) {
         // Priority 2: Calculate parent based on task dependencies (for dependency-order stacking)
         const dependencyBranches: string[] = [];
-        for (const depId of task.requires) {
+        for (const depId of task.dependencies) {
           const depBranch = this._stackState?.taskToBranch.get(depId);
           if (isNonEmptyString(depBranch)) {
             dependencyBranches.push(depBranch);
@@ -330,7 +330,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
 
     logger.info(`📋 Stack order (${orderedTasks.length} tasks):`);
     for (const [index, task] of orderedTasks.entries()) {
-      logger.info(`  ${index + 1}. ${task.id}: ${task.title}`);
+      logger.info(`  ${index + 1}. ${task.id}: ${task.name}`);
     }
 
     // Build stack incrementally using git-spice
@@ -731,7 +731,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
       }
 
       // Visit all dependencies first
-      for (const depId of task.requires) {
+      for (const depId of task.dependencies) {
         const dep = tasks.find((t) => t.id === depId);
         if (dep !== undefined && !processed.has(dep.id)) {
           visit(dep);
@@ -761,13 +761,13 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
   private _orderByFileImpact(tasks: ExecutionTask[]): ExecutionTask[] {
     // Order by number of files touched (fewer files first for easier review)
     return [...tasks].sort((a, b) => {
-      return a.touches.length - b.touches.length;
+      return a.files.length - b.files.length;
     });
   }
 
   private _estimateComplexity(task: ExecutionTask): number {
     // Simple complexity estimation based on files touched and description length
-    const fileCount = task.touches.length;
+    const fileCount = task.files.length;
     const descriptionLength = task.description.length;
 
     return fileCount * 10 + descriptionLength / 10;
@@ -947,7 +947,7 @@ export class StackBuildServiceImpl extends EventEmitter implements StackBuildSer
   ): Promise<string> {
     // Generate commit message
     const message =
-      options.message ?? `Complete task ${task.id}: ${task.title}\n\n${task.description}`;
+      options.message ?? `Complete task ${task.id}: ${task.name}\n\n${task.description}`;
 
     // Use git-spice commit for proper stacking
     const commitOptions: { files?: string[]; noRestack?: boolean } = {
