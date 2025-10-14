@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { match } from 'ts-pattern';
 
 import type { AgentCapabilities, AgentType, DecomposerAgent } from '@/core/agents/interfaces';
-import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { type ParsedContent, YamlPlanParser } from '@/io/yaml-parser';
 import { PromptBuilder } from '@/services/planning/prompts';
@@ -33,7 +33,7 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
     specContent: string,
     cwd: string,
     options?: { verbose?: boolean },
-  ): Promise<Plan> {
+  ): Promise<PlanV2> {
     try {
       const prompt = PromptBuilder.buildDecompositionPrompt(specContent);
       const stdout = await this._executeClaudeCommand(prompt, cwd, options?.verbose ?? false);
@@ -214,8 +214,8 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
     throw new Error('No YAML or JSON plan found in Claude output');
   }
 
-  private _validateAndReturnPlan(parsedContent: ParsedContent): Plan {
-    return YamlPlanParser.parseAndValidatePlan(parsedContent);
+  private _validateAndReturnPlan(parsedContent: ParsedContent): PlanV2 {
+    return YamlPlanParser.parse(parsedContent.content);
   }
 }
 
