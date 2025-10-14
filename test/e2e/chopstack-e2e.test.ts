@@ -9,7 +9,7 @@ import {
 } from '@test/utils/testing-harness-worktree-manager';
 import { parse as parseYaml } from 'yaml';
 
-import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { DagValidator } from '@/validation/dag-validator';
 import { hasContent } from '@/validation/guards';
@@ -19,7 +19,7 @@ describe('Chopstack E2E Integration Tests', () => {
   const REPO_ROOT = path.resolve(__dirname, '../..');
 
   describe('decompose command with Claude agent', () => {
-    let generatedPlan: Plan;
+    let generatedPlan: PlanV2;
     let planOutput: string;
     let tempOutputFile: string;
     let worktreeContext: TestWorktreeContext;
@@ -81,7 +81,7 @@ describe('Chopstack E2E Integration Tests', () => {
           console.log(`✅ Found output file with ${planOutput.length} characters`);
 
           // Parse the YAML output
-          generatedPlan = parseYaml(planOutput) as Plan;
+          generatedPlan = parseYaml(planOutput) as PlanV2;
           console.log(`📋 Parsed plan with ${generatedPlan.tasks.length} tasks`);
         } else {
           throw new Error('❌ No output file was generated');
@@ -142,24 +142,20 @@ describe('Chopstack E2E Integration Tests', () => {
         expect(typeof task.id).toBe('string');
         expect(task.id.trim()).not.toBe('');
 
-        expect(task.title).toBeDefined();
-        expect(typeof task.title).toBe('string');
-        expect(task.title.trim()).not.toBe('');
+        expect(task.name).toBeDefined();
+        expect(typeof task.name).toBe('string');
+        expect(task.name.trim()).not.toBe('');
 
         expect(task.description).toBeDefined();
         expect(typeof task.description).toBe('string');
         expect(task.description.trim()).not.toBe('');
 
-        expect(Array.isArray(task.touches)).toBe(true);
-        expect(Array.isArray(task.produces)).toBe(true);
-        expect(Array.isArray(task.requires)).toBe(true);
+        expect(Array.isArray(task.files)).toBe(true);
+        expect(Array.isArray(task.dependencies)).toBe(true);
+        expect(Array.isArray(task.acceptanceCriteria)).toBe(true);
 
-        expect(typeof task.estimatedLines).toBe('number');
-        expect(task.estimatedLines).toBeGreaterThan(0);
-
-        expect(task.agentPrompt).toBeDefined();
-        expect(typeof task.agentPrompt).toBe('string');
-        expect(task.agentPrompt.trim()).not.toBe('');
+        expect(task.complexity).toBeDefined();
+        expect(['XS', 'S', 'M', 'L', 'XL']).toContain(task.complexity);
       }
     });
 
@@ -180,11 +176,11 @@ describe('Chopstack E2E Integration Tests', () => {
       expect(generatedPlan.tasks.length).toBeLessThan(15); // Reasonable upper bound
 
       // Check for expected task types in a stack summary implementation
-      const taskTitles = generatedPlan.tasks.map((t) => t.title.toLowerCase()).join(' ');
+      const taskNames = generatedPlan.tasks.map((t) => t.name.toLowerCase()).join(' ');
       const taskDescriptions = generatedPlan.tasks
         .map((t) => t.description.toLowerCase())
         .join(' ');
-      const combinedContent = `${taskTitles} ${taskDescriptions}`;
+      const combinedContent = `${taskNames} ${taskDescriptions}`;
 
       // Should mention key concepts for stack inspection
       expect(combinedContent).toMatch(/stack/i);
@@ -193,10 +189,7 @@ describe('Chopstack E2E Integration Tests', () => {
     });
 
     it('should generate tasks with appropriate file targeting', () => {
-      const allFiles = [
-        ...generatedPlan.tasks.flatMap((t) => t.touches),
-        ...generatedPlan.tasks.flatMap((t) => t.produces),
-      ];
+      const allFiles = generatedPlan.tasks.flatMap((t) => t.files);
 
       // Should target TypeScript sources within the chopstack CLI
       const touchesStackCommand = allFiles.some((file) => file.includes('src/commands/stack'));
@@ -238,10 +231,11 @@ describe('Chopstack E2E Integration Tests', () => {
     it('should generate output that can be saved and parsed', () => {
       // Verify the raw output is valid YAML
       expect(planOutput.trim()).not.toBe('');
-      expect(() => parseYaml(planOutput) as Plan).not.toThrow();
+      expect(() => parseYaml(planOutput) as PlanV2).not.toThrow();
 
-      // Verify it starts with tasks key (basic YAML structure check)
-      expect(planOutput.trim()).toMatch(/^tasks:\s*$/m);
+      // Verify it contains required v2 fields
+      expect(planOutput.trim()).toMatch(/name:/);
+      expect(planOutput.trim()).toMatch(/tasks:/);
     });
   });
 

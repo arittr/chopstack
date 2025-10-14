@@ -8,7 +8,7 @@ import { execa } from 'execa';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecutionContext } from '@/core/execution/interfaces';
-import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
 import { ExecuteModeHandlerImpl } from '@/services/execution/modes/execute-mode-handler';
@@ -158,47 +158,45 @@ describe('Parallel Execution Integration', () => {
     // - task-feature-a and task-feature-b depend on foundation (run in parallel)
     // - task-integration depends on both features (runs last)
 
-    const plan: Plan = {
+    const plan: PlanV2 = {
+      name: 'Parallel Execution Test',
+      strategy: 'parallel',
       tasks: [
         {
           id: 'task-foundation',
-          title: 'Create Foundation',
+          name: 'Create Foundation',
+          complexity: 'S',
           description: 'Base functionality that other features depend on',
-          touches: [],
-          produces: ['foundation.ts'],
-          requires: [], // No dependencies
-          estimatedLines: 20,
-          agentPrompt: 'Create foundation.ts with base functionality',
+          files: ['foundation.ts'],
+          acceptanceCriteria: [],
+          dependencies: [], // No dependencies
         },
         {
           id: 'task-feature-a',
-          title: 'Create Feature A',
+          name: 'Create Feature A',
+          complexity: 'S',
           description: 'Feature A that depends on foundation',
-          touches: [],
-          produces: ['feature-a.ts'],
-          requires: ['task-foundation'], // Depends on foundation
-          estimatedLines: 30,
-          agentPrompt: 'Create feature-a.ts that uses foundation',
+          files: ['feature-a.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task-foundation'], // Depends on foundation
         },
         {
           id: 'task-feature-b',
-          title: 'Create Feature B',
+          name: 'Create Feature B',
+          complexity: 'S',
           description: 'Feature B that depends on foundation',
-          touches: [],
-          produces: ['feature-b.ts'],
-          requires: ['task-foundation'], // Depends on foundation
-          estimatedLines: 30,
-          agentPrompt: 'Create feature-b.ts that uses foundation',
+          files: ['feature-b.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task-foundation'], // Depends on foundation
         },
         {
           id: 'task-integration',
-          title: 'Create Integration',
+          name: 'Create Integration',
+          complexity: 'S',
           description: 'Integration layer that uses both features',
-          touches: [],
-          produces: ['integration.ts'],
-          requires: ['task-feature-a', 'task-feature-b'], // Depends on both features
-          estimatedLines: 25,
-          agentPrompt: 'Create integration.ts that combines features',
+          files: ['integration.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task-feature-a', 'task-feature-b'], // Depends on both features
         },
       ],
     };
@@ -318,37 +316,36 @@ describe('Parallel Execution Integration', () => {
 
   it('should handle worktree mode with parallel task execution', async () => {
     // Test parallel execution using worktree mode instead of stacked mode
-    const plan: Plan = {
+    const plan: PlanV2 = {
+      name: 'Worktree Parallel Test',
+      strategy: 'parallel',
       tasks: [
         {
           id: 'task-foundation',
-          title: 'Create Foundation',
+          name: 'Create Foundation',
+          complexity: 'S',
           description: 'Base functionality',
-          touches: [],
-          produces: ['foundation.ts'],
-          requires: [],
-          estimatedLines: 20,
-          agentPrompt: 'Create foundation.ts',
+          files: ['foundation.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
         {
           id: 'task-feature-a',
-          title: 'Create Feature A',
+          name: 'Create Feature A',
+          complexity: 'S',
           description: 'Feature A',
-          touches: [],
-          produces: ['feature-a.ts'],
-          requires: ['task-foundation'],
-          estimatedLines: 30,
-          agentPrompt: 'Create feature-a.ts',
+          files: ['feature-a.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task-foundation'],
         },
         {
           id: 'task-feature-b',
-          title: 'Create Feature B',
+          name: 'Create Feature B',
+          complexity: 'S',
           description: 'Feature B',
-          touches: [],
-          produces: ['feature-b.ts'],
-          requires: ['task-foundation'],
-          estimatedLines: 30,
-          agentPrompt: 'Create feature-b.ts',
+          files: ['feature-b.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task-foundation'],
         },
       ],
     };
@@ -402,37 +399,36 @@ describe('Parallel Execution Integration', () => {
 
   it('should handle error conditions gracefully in parallel execution', async () => {
     // Create a plan where one task will fail
-    const plan: Plan = {
+    const plan: PlanV2 = {
+      name: 'Error Handling Test',
+      strategy: 'parallel',
       tasks: [
         {
           id: 'task-foundation',
-          title: 'Create Foundation',
+          name: 'Create Foundation',
+          complexity: 'S',
           description: 'Base functionality',
-          touches: [],
-          produces: ['foundation.ts'],
-          requires: [],
-          estimatedLines: 20,
-          agentPrompt: 'Create foundation.ts',
+          files: ['foundation.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
         {
           id: 'task-failing',
-          title: 'Failing Task',
+          name: 'Failing Task',
+          complexity: 'S',
           description: 'This task will fail',
-          touches: [],
-          produces: ['failing.ts'],
-          requires: ['task-foundation'],
-          estimatedLines: 30,
-          agentPrompt: 'This task will fail',
+          files: ['failing.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task-foundation'],
         },
         {
           id: 'task-dependent',
-          title: 'Dependent Task',
+          name: 'Dependent Task',
+          complexity: 'S',
           description: 'This task depends on the failing task',
-          touches: [],
-          produces: ['dependent.ts'],
-          requires: ['task-failing'],
-          estimatedLines: 25,
-          agentPrompt: 'Create dependent.ts',
+          files: ['dependent.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task-failing'],
         },
       ],
     };
