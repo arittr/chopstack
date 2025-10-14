@@ -1,5 +1,5 @@
 import type { DecomposerAgent } from '@/core/agents/interfaces';
-import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { logger } from '@/utils/global-logger';
 import { DagValidator } from '@/validation/dag-validator';
@@ -13,7 +13,7 @@ export type PlanGenerationOptions = {
 export type PlanGenerationResult = {
   attempts: number;
   conflicts: string[];
-  plan: Plan;
+  plan: PlanV2;
   success: boolean;
 };
 
