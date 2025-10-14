@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { ExecutionTask } from '@/core/execution/types';
 import type { VcsStrategyContext } from '@/core/vcs/vcs-strategy';
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { StackedVcsStrategy } from '@/services/vcs/strategies/stacked-vcs-strategy';
 import { VcsEngineServiceImpl } from '@/services/vcs/vcs-engine-service';
@@ -62,26 +62,24 @@ describe('File Validation Integration', () => {
   describe('Strict Mode (Default)', () => {
     it('should fail when task modifies file belonging to another task', async () => {
       // Create tasks with clear file boundaries
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task-1',
-          title: 'Update file1',
+          name: 'Update file1',
           description: 'Update file1.txt only',
-          touches: ['file1.txt'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Update file1.txt',
+          files: ['file1.txt'],
+          dependencies: [],
+          complexity: 'S',
+          acceptanceCriteria: ['file1.txt updated'],
         },
         {
           id: 'task-2',
-          title: 'Update file2',
+          name: 'Update file2',
           description: 'Update file2.txt only',
-          touches: ['file2.txt'],
-          produces: [],
-          requires: ['task-1'], // Depends on task-1
-          estimatedLines: 10,
-          agentPrompt: 'Update file2.txt',
+          files: ['file2.txt'],
+          dependencies: ['task-1'], // Depends on task-1
+          complexity: 'S',
+          acceptanceCriteria: ['file2.txt updated'],
         },
       ];
 
@@ -135,16 +133,15 @@ describe('File Validation Integration', () => {
     });
 
     it('should succeed when task only modifies its declared files', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task-1',
-          title: 'Update file1',
+          name: 'Update file1',
           description: 'Update file1.txt only',
-          touches: ['file1.txt'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Update file1.txt',
+          files: ['file1.txt'],
+          dependencies: [],
+          complexity: 'S',
+          acceptanceCriteria: ['file1.txt updated'],
         },
       ];
 
@@ -196,26 +193,24 @@ describe('File Validation Integration', () => {
 
     it('should detect cross-task contamination in parallel tasks', async () => {
       // Two parallel tasks that should not interfere
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task-a',
-          title: 'Update file1',
+          name: 'Update file1',
           description: 'Update file1.txt',
-          touches: ['file1.txt'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Test task',
+          files: ['file1.txt'],
+          dependencies: [],
+          complexity: 'S',
+          acceptanceCriteria: ['file1.txt updated'],
         },
         {
           id: 'task-b',
-          title: 'Update file2',
+          name: 'Update file2',
           description: 'Update file2.txt',
-          touches: ['file2.txt'],
-          produces: [],
-          requires: [], // Parallel, no dependency on task-a
-          estimatedLines: 10,
-          agentPrompt: 'Test task',
+          files: ['file2.txt'],
+          dependencies: [], // Parallel, no dependency on task-a
+          complexity: 'S',
+          acceptanceCriteria: ['file2.txt updated'],
         },
       ];
 
@@ -285,26 +280,24 @@ describe('File Validation Integration', () => {
 
   describe('Permissive Mode', () => {
     it('should warn but continue when task modifies file belonging to another task', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task-1',
-          title: 'Update file1',
+          name: 'Update file1',
           description: 'Update file1.txt only',
-          touches: ['file1.txt'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Test task',
+          files: ['file1.txt'],
+          dependencies: [],
+          complexity: 'S',
+          acceptanceCriteria: ['file1.txt updated'],
         },
         {
           id: 'task-2',
-          title: 'Update file2',
+          name: 'Update file2',
           description: 'Update file2.txt only',
-          touches: ['file2.txt'],
-          produces: [],
-          requires: ['task-1'],
-          estimatedLines: 10,
-          agentPrompt: 'Test task',
+          files: ['file2.txt'],
+          dependencies: ['task-1'],
+          complexity: 'S',
+          acceptanceCriteria: ['file2.txt updated'],
         },
       ];
 
@@ -358,16 +351,15 @@ describe('File Validation Integration', () => {
     });
 
     it('should commit all changes including violations in permissive mode', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task-1',
-          title: 'Update multiple files',
+          name: 'Update multiple files',
           description: 'Should only touch file1',
-          touches: ['file1.txt'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Test task',
+          files: ['file1.txt'],
+          dependencies: [],
+          complexity: 'S',
+          acceptanceCriteria: ['file1.txt updated'],
         },
       ];
 
@@ -427,16 +419,15 @@ describe('File Validation Integration', () => {
 
   describe('Edge Cases', () => {
     it('should handle task with no file modifications', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task-1',
-          title: 'No-op task',
+          name: 'No-op task',
           description: 'Does not modify any files',
-          touches: ['file1.txt'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Test task',
+          files: ['file1.txt'],
+          dependencies: [],
+          complexity: 'S',
+          acceptanceCriteria: ['Task completes'],
         },
       ];
 
@@ -491,26 +482,24 @@ describe('File Validation Integration', () => {
       await git.add('.');
       await git.commit('Add subdirectories');
 
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task-1',
-          title: 'Update src',
+          name: 'Update src',
           description: 'Only modify src files',
-          touches: ['src/app.ts'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Test task',
+          files: ['src/app.ts'],
+          dependencies: [],
+          complexity: 'S',
+          acceptanceCriteria: ['src/app.ts updated'],
         },
         {
           id: 'task-2',
-          title: 'Update tests',
+          name: 'Update tests',
           description: 'Only modify test files',
-          touches: ['test/app.test.ts'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Test task',
+          files: ['test/app.test.ts'],
+          dependencies: [],
+          complexity: 'S',
+          acceptanceCriteria: ['test/app.test.ts updated'],
         },
       ];
 

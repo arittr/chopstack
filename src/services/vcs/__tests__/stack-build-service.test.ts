@@ -87,13 +87,12 @@ const defaultConfig = {
 
 const baseTask: ExecutionTask = {
   id: 'task-1',
-  title: 'Task 1',
+  name: 'Task 1',
   description: 'Demo task',
-  touches: [],
-  produces: [],
-  requires: [],
-  estimatedLines: 5,
-  agentPrompt: 'do work',
+  files: [],
+  dependencies: [],
+  complexity: 'S',
+  acceptanceCriteria: ['Task completes successfully'],
   commitHash: 'abc1234',
   maxRetries: 1,
   retryCount: 0,
@@ -244,8 +243,8 @@ describe('StackBuildServiceImpl', () => {
       const dependentTask: ExecutionTask = {
         ...baseTask,
         id: 'task-2',
-        title: 'Task 2',
-        requires: ['task-1'],
+        name: 'Task 2',
+        dependencies: ['task-1'],
         commitHash: 'def5678',
       };
 
@@ -270,7 +269,7 @@ describe('StackBuildServiceImpl', () => {
       const task2: ExecutionTask = {
         ...baseTask,
         id: 'task-2',
-        requires: ['task-1'],
+        dependencies: ['task-1'],
         commitHash: 'def5678',
       };
 
@@ -414,8 +413,8 @@ describe('StackBuildServiceImpl', () => {
       service.initializeStackState('main');
 
       const task1 = { ...baseTask, id: 'task-1', commitHash: 'aaa111' };
-      const task2 = { ...baseTask, id: 'task-2', commitHash: 'bbb222', requires: ['task-1'] };
-      const task3 = { ...baseTask, id: 'task-3', commitHash: 'ccc333', requires: ['task-2'] };
+      const task2 = { ...baseTask, id: 'task-2', commitHash: 'bbb222', dependencies: ['task-1'] };
+      const task3 = { ...baseTask, id: 'task-3', commitHash: 'ccc333', dependencies: ['task-2'] };
 
       // Add in order
       await service.addTaskToStack(task1, '/repo');

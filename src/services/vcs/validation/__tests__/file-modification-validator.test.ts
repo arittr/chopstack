@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { FileModificationValidator } from '../file-modification-validator';
 
@@ -9,18 +9,16 @@ describe('FileModificationValidator', () => {
 
   const createTask = (
     id: string,
-    touches: string[],
-    produces: string[] = [],
-    requires: string[] = [],
-  ): Task => ({
+    files: string[],
+    dependencies: string[] = [],
+  ): TaskV2 => ({
     id,
-    title: `Task ${id}`,
+    name: `Task ${id}`,
     description: `Description for ${id}`,
-    touches,
-    produces,
-    requires,
-    estimatedLines: 10,
-    agentPrompt: `Do ${id}`,
+    files,
+    dependencies,
+    complexity: 'S',
+    acceptanceCriteria: [`Complete ${id}`],
   });
 
   beforeEach(() => {
@@ -77,8 +75,8 @@ describe('FileModificationValidator', () => {
       expect(result.violations[0]?.conflictingTask).toBe('task-2');
     });
 
-    it('should allow modifying produces files', () => {
-      const task = createTask('task-1', ['src/app/page.tsx'], ['src/components/Button.tsx']);
+    it('should allow modifying files in spec', () => {
+      const task = createTask('task-1', ['src/app/page.tsx', 'src/components/Button.tsx']);
       const allTasks = [task];
       const taskOrder = ['task-1'];
 
@@ -117,7 +115,7 @@ describe('FileModificationValidator', () => {
     });
 
     it('should pass validation for multiple files in spec', () => {
-      const task = createTask('task-1', ['file1.ts', 'file2.ts'], ['file3.ts']);
+      const task = createTask('task-1', ['file1.ts', 'file2.ts', 'file3.ts']);
       const allTasks = [task];
       const taskOrder = ['task-1'];
 
@@ -199,8 +197,8 @@ describe('FileModificationValidator', () => {
   });
 
   describe('getAllowedFiles', () => {
-    it('should return touches and produces', () => {
-      const task = createTask('task-1', ['file1.ts', 'file2.ts'], ['file3.ts']);
+    it('should return all files in spec', () => {
+      const task = createTask('task-1', ['file1.ts', 'file2.ts', 'file3.ts']);
       const allTasks = [task];
       const taskOrder = ['task-1'];
 
@@ -258,8 +256,8 @@ describe('FileModificationValidator', () => {
     it('should allow modifying files from direct dependencies', () => {
       // task-a touches layout.tsx
       // task-b requires task-a and also touches layout.tsx (refinement)
-      const taskA = createTask('task-a', ['src/app/layout.tsx'], [], []);
-      const taskB = createTask('task-b', ['src/app/layout.tsx'], [], ['task-a']);
+      const taskA = createTask('task-a', ['src/app/layout.tsx'], []);
+      const taskB = createTask('task-b', ['src/app/layout.tsx'], ['task-a']);
       const allTasks = [taskA, taskB];
       const taskOrder = ['task-a', 'task-b'];
 
@@ -276,9 +274,9 @@ describe('FileModificationValidator', () => {
       // task-a touches layout.tsx
       // task-b requires task-a, touches layout.tsx
       // task-c requires task-b, touches layout.tsx (transitive refinement)
-      const taskA = createTask('task-a', ['src/app/layout.tsx'], [], []);
-      const taskB = createTask('task-b', ['src/app/layout.tsx'], [], ['task-a']);
-      const taskC = createTask('task-c', ['src/app/layout.tsx'], [], ['task-b']);
+      const taskA = createTask('task-a', ['src/app/layout.tsx'], []);
+      const taskB = createTask('task-b', ['src/app/layout.tsx'], ['task-a']);
+      const taskC = createTask('task-c', ['src/app/layout.tsx'], ['task-b']);
       const allTasks = [taskA, taskB, taskC];
       const taskOrder = ['task-a', 'task-b', 'task-c'];
 
@@ -294,8 +292,8 @@ describe('FileModificationValidator', () => {
     it('should forbid modifying files from parallel tasks (no dependency relationship)', () => {
       // task-a touches layout.tsx
       // task-b touches layout.tsx (but no dependency relationship)
-      const taskA = createTask('task-a', ['src/app/layout.tsx'], [], []);
-      const taskB = createTask('task-b', ['src/app/layout.tsx'], [], []);
+      const taskA = createTask('task-a', ['src/app/layout.tsx'], []);
+      const taskB = createTask('task-b', ['src/app/layout.tsx'], []);
       const allTasks = [taskA, taskB];
       const taskOrder = ['task-a', 'task-b'];
 
@@ -315,9 +313,9 @@ describe('FileModificationValidator', () => {
       // task-a touches file1.ts and file2.ts
       // task-b requires task-a, touches file2.ts and file3.ts
       // task-c requires task-b, touches file2.ts, file3.ts, and file4.ts (can touch files from dependency chain)
-      const taskA = createTask('task-a', ['file1.ts', 'file2.ts'], [], []);
-      const taskB = createTask('task-b', ['file2.ts', 'file3.ts'], [], ['task-a']);
-      const taskC = createTask('task-c', ['file2.ts', 'file3.ts', 'file4.ts'], [], ['task-b']);
+      const taskA = createTask('task-a', ['file1.ts', 'file2.ts'], []);
+      const taskB = createTask('task-b', ['file2.ts', 'file3.ts'], ['task-a']);
+      const taskC = createTask('task-c', ['file2.ts', 'file3.ts', 'file4.ts'], ['task-b']);
       const allTasks = [taskA, taskB, taskC];
       const taskOrder = ['task-a', 'task-b', 'task-c'];
 
@@ -338,12 +336,10 @@ describe('FileModificationValidator', () => {
         'integrate-theme-provider',
         ['src/app/layout.tsx'],
         [],
-        [],
       );
       const addThemeScript = createTask(
         'add-theme-script',
         ['src/app/layout.tsx'],
-        [],
         ['integrate-theme-provider'],
       );
       const allTasks = [integrateProvider, addThemeScript];
