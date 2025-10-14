@@ -1,7 +1,7 @@
 import { cpus } from 'node:os';
 
 import type { ExecutionOptions, ExecutionPlan, ExecutionTask } from '@/core/execution/types';
-import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { logger } from '@/utils/global-logger';
 import { isNonNullish } from '@/validation/guards';
@@ -23,7 +23,7 @@ export type ExecutionPlannerService = {
    * Create an execution plan from a decomposed plan
    */
   createExecutionPlan(
-    plan: Plan,
+    plan: PlanV2,
     options: ExecutionOptions,
     jobId?: string,
   ): Promise<ExecutionPlan>;
@@ -31,7 +31,7 @@ export type ExecutionPlannerService = {
   /**
    * Optimize execution layers for maximum parallelism
    */
-  optimizeExecutionLayers(plan: Plan): ExecutionTask[][];
+  optimizeExecutionLayers(plan: PlanV2): ExecutionTask[][];
 };
 
 /**
@@ -52,7 +52,7 @@ export class ExecutionPlannerServiceImpl implements ExecutionPlannerService {
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async createExecutionPlan(
-    plan: Plan,
+    plan: PlanV2,
     options: ExecutionOptions,
     jobId?: string,
   ): Promise<ExecutionPlan> {
@@ -102,7 +102,7 @@ export class ExecutionPlannerServiceImpl implements ExecutionPlannerService {
     return executionPlan;
   }
 
-  optimizeExecutionLayers(plan: Plan): ExecutionTask[][] {
+  optimizeExecutionLayers(plan: PlanV2): ExecutionTask[][] {
     const tasks = plan.tasks as ExecutionTask[];
     const layers: ExecutionTask[][] = [];
     const completed = new Set<string>();
@@ -118,7 +118,7 @@ export class ExecutionPlannerServiceImpl implements ExecutionPlannerService {
 
       // Find tasks that can be executed (all dependencies completed)
       for (const [, task] of remaining) {
-        const canExecute = task.requires.every((dep) => completed.has(dep));
+        const canExecute = task.dependencies.every((dep) => completed.has(dep));
         if (canExecute) {
           currentLayer.push(task);
         }
