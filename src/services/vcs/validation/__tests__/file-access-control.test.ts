@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { FileAccessControl } from '../file-access-control';
 
@@ -8,16 +8,15 @@ describe('FileAccessControl', () => {
   const accessControl = new FileAccessControl();
 
   describe('getAllowedFiles', () => {
-    it('should return all touches and produces files', () => {
-      const task: Task = {
+    it('should return all files', () => {
+      const task: TaskV2 = {
         id: 'task-1',
-        title: 'Test Task',
+        name: 'Test Task',
         description: 'Test',
-        touches: ['file1.ts', 'file2.ts'],
-        produces: ['file3.ts'],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do something',
+        files: ['file1.ts', 'file2.ts', 'file3.ts'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Test criterion'],
       };
 
       const allowed = accessControl.getAllowedFiles(task);
@@ -26,15 +25,14 @@ describe('FileAccessControl', () => {
     });
 
     it('should return empty array for task with no files', () => {
-      const task: Task = {
+      const task: TaskV2 = {
         id: 'task-1',
-        title: 'Test Task',
+        name: 'Test Task',
         description: 'Test',
-        touches: [],
-        produces: [],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do something',
+        files: [],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Test criterion'],
       };
 
       const allowed = accessControl.getAllowedFiles(task);
@@ -45,26 +43,24 @@ describe('FileAccessControl', () => {
 
   describe('getForbiddenFiles', () => {
     it('should forbid files from later tasks', () => {
-      const task1: Task = {
+      const task1: TaskV2 = {
         id: 'task-1',
-        title: 'Task 1',
+        name: 'Task 1',
         description: 'First task',
-        touches: ['file1.ts'],
-        produces: [],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do task 1',
+        files: ['file1.ts'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Task 1 completed'],
       };
 
-      const task2: Task = {
+      const task2: TaskV2 = {
         id: 'task-2',
-        title: 'Task 2',
+        name: 'Task 2',
         description: 'Second task',
-        touches: ['file2.ts'],
-        produces: ['file3.ts'],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do task 2',
+        files: ['file2.ts', 'file3.ts'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Task 2 completed'],
       };
 
       const allTasks = [task1, task2];
@@ -78,26 +74,24 @@ describe('FileAccessControl', () => {
     });
 
     it('should not forbid files from dependency tasks', () => {
-      const task1: Task = {
+      const task1: TaskV2 = {
         id: 'task-1',
-        title: 'Task 1',
+        name: 'Task 1',
         description: 'First task',
-        touches: ['file1.ts'],
-        produces: [],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do task 1',
+        files: ['file1.ts'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Task 1 completed'],
       };
 
-      const task2: Task = {
+      const task2: TaskV2 = {
         id: 'task-2',
-        title: 'Task 2',
+        name: 'Task 2',
         description: 'Second task',
-        touches: ['file2.ts'],
-        produces: [],
-        requires: ['task-1'], // Depends on task-1
-        estimatedLines: 10,
-        agentPrompt: 'Do task 2',
+        files: ['file2.ts'],
+        dependencies: ['task-1'], // Depends on task-1
+        complexity: 'XS',
+        acceptanceCriteria: ['Task 2 completed'],
       };
 
       const allTasks = [task1, task2];
@@ -110,26 +104,24 @@ describe('FileAccessControl', () => {
     });
 
     it('should forbid files from sibling tasks (parallel execution)', () => {
-      const task1: Task = {
+      const task1: TaskV2 = {
         id: 'task-1',
-        title: 'Task 1',
+        name: 'Task 1',
         description: 'First task',
-        touches: ['file1.ts'],
-        produces: [],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do task 1',
+        files: ['file1.ts'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Task 1 completed'],
       };
 
-      const task2: Task = {
+      const task2: TaskV2 = {
         id: 'task-2',
-        title: 'Task 2',
+        name: 'Task 2',
         description: 'Second task',
-        touches: ['file2.ts'],
-        produces: [],
-        requires: [], // No dependency - sibling task
-        estimatedLines: 10,
-        agentPrompt: 'Do task 2',
+        files: ['file2.ts'],
+        dependencies: [], // No dependency - sibling task
+        complexity: 'XS',
+        acceptanceCriteria: ['Task 2 completed'],
       };
 
       const allTasks = [task1, task2];
@@ -142,15 +134,14 @@ describe('FileAccessControl', () => {
     });
 
     it('should return empty array for task not in order', () => {
-      const task: Task = {
+      const task: TaskV2 = {
         id: 'task-999',
-        title: 'Unknown Task',
+        name: 'Unknown Task',
         description: 'Not in order',
-        touches: ['file.ts'],
-        produces: [],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do something',
+        files: ['file.ts'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Task completed'],
       };
 
       const allTasks = [task];
@@ -164,30 +155,28 @@ describe('FileAccessControl', () => {
 
   describe('isFileAllowed', () => {
     it('should allow exact file matches', () => {
-      const task: Task = {
+      const task: TaskV2 = {
         id: 'task-1',
-        title: 'Test Task',
+        name: 'Test Task',
         description: 'Test',
-        touches: ['src/app/page.tsx'],
-        produces: [],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do something',
+        files: ['src/app/page.tsx'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Test criterion'],
       };
 
       expect(accessControl.isFileAllowed('src/app/page.tsx', task)).toBe(true);
     });
 
     it('should allow files under directory specifications', () => {
-      const task: Task = {
+      const task: TaskV2 = {
         id: 'task-1',
-        title: 'Test Task',
+        name: 'Test Task',
         description: 'Test',
-        touches: ['src/components/'],
-        produces: [],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do something',
+        files: ['src/components/'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Test criterion'],
       };
 
       expect(accessControl.isFileAllowed('src/components/Button.tsx', task)).toBe(true);
@@ -195,45 +184,42 @@ describe('FileAccessControl', () => {
     });
 
     it('should not allow files outside directory specifications', () => {
-      const task: Task = {
+      const task: TaskV2 = {
         id: 'task-1',
-        title: 'Test Task',
+        name: 'Test Task',
         description: 'Test',
-        touches: ['src/components/'],
-        produces: [],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do something',
+        files: ['src/components/'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Test criterion'],
       };
 
       expect(accessControl.isFileAllowed('src/utils/helper.ts', task)).toBe(false);
     });
 
     it('should not allow files with partial matches', () => {
-      const task: Task = {
+      const task: TaskV2 = {
         id: 'task-1',
-        title: 'Test Task',
+        name: 'Test Task',
         description: 'Test',
-        touches: ['src/app/page.tsx'],
-        produces: [],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do something',
+        files: ['src/app/page.tsx'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Test criterion'],
       };
 
       expect(accessControl.isFileAllowed('src/app/page.module.css', task)).toBe(false);
     });
 
-    it('should check both touches and produces', () => {
-      const task: Task = {
+    it('should check all files', () => {
+      const task: TaskV2 = {
         id: 'task-1',
-        title: 'Test Task',
+        name: 'Test Task',
         description: 'Test',
-        touches: ['file1.ts'],
-        produces: ['file2.ts'],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do something',
+        files: ['file1.ts', 'file2.ts'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Test criterion'],
       };
 
       expect(accessControl.isFileAllowed('file1.ts', task)).toBe(true);

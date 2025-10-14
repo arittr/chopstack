@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExecutionTask } from '@/core/execution/types';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
 import type { VcsStrategyContext } from '@/core/vcs/vcs-strategy';
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { StackedVcsStrategy } from '@/services/vcs/strategies/stacked-vcs-strategy';
 
@@ -36,26 +36,24 @@ describe('StackedVcsStrategy - Branch Suffix Handling', () => {
     // 2. Worktree is created from the new branch
     // 3. Commit happens using git-spice commit
 
-    const tasks: Task[] = [
+    const tasks: TaskV2[] = [
       {
         id: 'create-theme-types',
-        title: 'Create theme types',
+        name: 'Create theme types',
         description: 'Create TypeScript type definitions',
-        touches: ['theme.types.ts'],
-        produces: [],
-        requires: [],
-        estimatedLines: 50,
-        agentPrompt: 'Create theme types',
+        files: ['theme.types.ts'],
+        dependencies: [],
+        complexity: 'S',
+        acceptanceCriteria: ['Types created'],
       },
       {
         id: 'update-css-variables',
-        title: 'Update CSS variables',
+        name: 'Update CSS variables',
         description: 'Update CSS for theming',
-        touches: ['globals.css'],
-        produces: [],
-        requires: [], // No dependencies - parallel task
-        estimatedLines: 100,
-        agentPrompt: 'Update CSS variables',
+        files: ['globals.css'],
+        dependencies: [], // No dependencies - parallel task
+        complexity: 'M',
+        acceptanceCriteria: ['CSS updated'],
       },
     ];
 
@@ -124,26 +122,24 @@ describe('StackedVcsStrategy - Branch Suffix Handling', () => {
 
   it('should handle dependencies correctly in the Spice-first workflow', async () => {
     // Test for dependent tasks
-    const tasks: Task[] = [
+    const tasks: TaskV2[] = [
       {
         id: 'task-1',
-        title: 'Task 1',
+        name: 'Task 1',
         description: 'First task',
-        touches: ['file1.ts'],
-        produces: [],
-        requires: [],
-        estimatedLines: 50,
-        agentPrompt: 'Do task 1',
+        files: ['file1.ts'],
+        dependencies: [],
+        complexity: 'S',
+        acceptanceCriteria: ['Task 1 completed'],
       },
       {
         id: 'task-2',
-        title: 'Task 2',
+        name: 'Task 2',
         description: 'Second task',
-        touches: ['file2.ts'],
-        produces: [],
-        requires: ['task-1'], // Depends on task-1
-        estimatedLines: 50,
-        agentPrompt: 'Do task 2',
+        files: ['file2.ts'],
+        dependencies: ['task-1'], // Depends on task-1
+        complexity: 'S',
+        acceptanceCriteria: ['Task 2 completed'],
       },
     ];
 
