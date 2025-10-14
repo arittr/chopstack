@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExecutionTask } from '@/core/execution/types';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
 import type { VcsStrategyContext, WorktreeContext } from '@/core/vcs/vcs-strategy';
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { StackedVcsStrategy } from '../stacked-vcs-strategy';
 
@@ -34,16 +34,15 @@ describe('StackedVcsStrategy', () => {
 
   describe('initialize', () => {
     it('should initialize with base branch and set currentStackTip', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
+          name: 'Task 1',
           description: 'Test task 1',
-          touches: ['file1.ts'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Do task 1',
+          files: ['file1.ts'],
+          dependencies: [],
+          complexity: 'XS',
+          acceptanceCriteria: ['Task completed'],
         },
       ];
 
@@ -65,15 +64,14 @@ describe('StackedVcsStrategy', () => {
 
   describe('prepareTaskExecution', () => {
     it('should always use base branch for worktree creation', async () => {
-      const task: Task = {
+      const task: TaskV2 = {
         id: 'task1',
-        title: 'Task 1',
+        name: 'Task 1',
         description: 'Test task',
-        touches: ['file1.ts'],
-        produces: [],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do task 1',
+        files: ['file1.ts'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Task completed'],
       };
 
       const executionTask: ExecutionTask = {
@@ -107,15 +105,14 @@ describe('StackedVcsStrategy', () => {
     });
 
     it('should use base branch even for tasks with dependencies', async () => {
-      const task: Task = {
+      const task: TaskV2 = {
         id: 'task2',
-        title: 'Task 2',
+        name: 'Task 2',
         description: 'Dependent task',
-        touches: ['file2.ts'],
-        produces: [],
-        requires: ['task1'], // Has dependency
-        estimatedLines: 10,
-        agentPrompt: 'Do task 2',
+        files: ['file2.ts'],
+        dependencies: ['task1'], // Has dependency
+        complexity: 'XS',
+        acceptanceCriteria: ['Task completed'],
       };
 
       const executionTask: ExecutionTask = {
@@ -150,15 +147,14 @@ describe('StackedVcsStrategy', () => {
 
   describe('handleTaskCompletion', () => {
     it('should use git-spice commit for task completion', async () => {
-      const task: Task = {
+      const task: TaskV2 = {
         id: 'task1',
-        title: 'Task 1',
+        name: 'Task 1',
         description: 'Test task',
-        touches: ['file1.ts'],
-        produces: [],
-        requires: [],
-        estimatedLines: 10,
-        agentPrompt: 'Do task 1',
+        files: ['file1.ts'],
+        dependencies: [],
+        complexity: 'XS',
+        acceptanceCriteria: ['Task completed'],
       };
 
       const executionTask: ExecutionTask = {
@@ -199,26 +195,24 @@ describe('StackedVcsStrategy', () => {
 
   describe('finalize', () => {
     it('should process completion queue in order and update currentStackTip', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
+          name: 'Task 1',
           description: 'First task',
-          touches: ['file1.ts'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Do task 1',
+          files: ['file1.ts'],
+          dependencies: [],
+          complexity: 'XS',
+          acceptanceCriteria: ['Task completed'],
         },
         {
           id: 'task2',
-          title: 'Task 2',
+          name: 'Task 2',
           description: 'Second task',
-          touches: ['file2.ts'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Do task 2',
+          files: ['file2.ts'],
+          dependencies: [],
+          complexity: 'XS',
+          acceptanceCriteria: ['Task completed'],
         },
       ];
 
@@ -249,16 +243,15 @@ describe('StackedVcsStrategy', () => {
     });
 
     it('should handle stacking failures gracefully', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
+          name: 'Task 1',
           description: 'Task that fails to stack',
-          touches: ['file1.ts'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Do task 1',
+          files: ['file1.ts'],
+          dependencies: [],
+          complexity: 'XS',
+          acceptanceCriteria: ['Task completed'],
         },
       ];
 
@@ -282,36 +275,33 @@ describe('StackedVcsStrategy', () => {
     });
 
     it('should create cumulative stack with proper parent relationships', async () => {
-      const tasks: Task[] = [
+      const tasks: TaskV2[] = [
         {
           id: 'task1',
-          title: 'Task 1',
+          name: 'Task 1',
           description: 'First layer task',
-          touches: ['file1.ts'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Do task 1',
+          files: ['file1.ts'],
+          dependencies: [],
+          complexity: 'XS',
+          acceptanceCriteria: ['Task completed'],
         },
         {
           id: 'task2',
-          title: 'Task 2',
+          name: 'Task 2',
           description: 'First layer task',
-          touches: ['file2.ts'],
-          produces: [],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Do task 2',
+          files: ['file2.ts'],
+          dependencies: [],
+          complexity: 'XS',
+          acceptanceCriteria: ['Task completed'],
         },
         {
           id: 'task3',
-          title: 'Task 3',
+          name: 'Task 3',
           description: 'Second layer task',
-          touches: ['file3.ts'],
-          produces: [],
-          requires: ['task1', 'task2'],
-          estimatedLines: 10,
-          agentPrompt: 'Do task 3',
+          files: ['file3.ts'],
+          dependencies: ['task1', 'task2'],
+          complexity: 'XS',
+          acceptanceCriteria: ['Task completed'],
         },
       ];
 
