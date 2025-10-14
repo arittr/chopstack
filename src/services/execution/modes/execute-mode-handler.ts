@@ -14,7 +14,7 @@ import type {
 } from '@/core/vcs/vcs-strategy';
 import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/orchestration';
 import type { VcsStrategyFactory } from '@/services/vcs/strategies/vcs-strategy-factory';
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { logger } from '@/utils/global-logger';
 import { isDefined, isNonEmptyString, isNonNullish } from '@/validation/guards';
@@ -30,7 +30,7 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     private readonly _transitionManager: TaskTransitionManager,
   ) {}
 
-  async handle(tasks: Task[], context: ExecutionContext): Promise<ExecutionResult> {
+  async handle(tasks: TaskV2[], context: ExecutionContext): Promise<ExecutionResult> {
     logger.info(
       `[chopstack] Executing ${tasks.length} tasks in execute mode with VCS mode: ${context.vcsMode}`,
     );
@@ -217,7 +217,7 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
 
   // This method is no longer needed as TaskTransitionManager handles dependency logic
 
-  private async _executeLayer(layer: Task[], context: ExecutionContext): Promise<TaskResult[]> {
+  private async _executeLayer(layer: TaskV2[], context: ExecutionContext): Promise<TaskResult[]> {
     // Always run smart parallel execution based on DAG
     if (layer.length === 1) {
       // Single task can be run "serially" (it's just one task)
@@ -227,7 +227,7 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
   }
 
   private async _executeLayerSerially(
-    layer: Task[],
+    layer: TaskV2[],
     context: ExecutionContext,
   ): Promise<TaskResult[]> {
     const results: TaskResult[] = [];
@@ -289,7 +289,7 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
   }
 
   private async _executeLayerInParallel(
-    layer: Task[],
+    layer: TaskV2[],
     context: ExecutionContext,
   ): Promise<TaskResult[]> {
     // Transition all tasks to running state BEFORE starting async execution
@@ -351,7 +351,7 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     return Promise.all(promises);
   }
 
-  private async _executeTask(task: Task, context: ExecutionContext): Promise<TaskResult> {
+  private async _executeTask(task: TaskV2, context: ExecutionContext): Promise<TaskResult> {
     const taskStart = Date.now();
 
     try {
@@ -392,11 +392,14 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
         `[chopstack] Task ${task.id}: Calling orchestrator.executeTask with workdir: ${workdir}`,
       );
 
+      // Generate agent prompt for v2 task
+      const agentPrompt = this._generateAgentPrompt(task);
+
       const result: OrchestratorTaskResult = await this._orchestrator.executeTask(
         task.id,
-        task.title,
-        task.agentPrompt,
-        task.touches,
+        task.name,
+        agentPrompt,
+        task.files,
         workdir,
         'execute',
         context.agentType,
@@ -484,7 +487,7 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     }
   }
 
-  private _shouldRetryTask(task: Task, context: ExecutionContext): boolean {
+  private _shouldRetryTask(task: TaskV2, context: ExecutionContext): boolean {
     // Get current retry count from task transitions
     const transitions = this._transitionManager.getTaskTransitions(task.id);
     const retryCount = transitions.filter((t) => t.from === 'failed' && t.to === 'queued').length;
@@ -492,7 +495,29 @@ export class ExecuteModeHandlerImpl implements ExecuteModeHandler {
     return retryCount < context.maxRetries;
   }
 
-  private _prepareExecution(tasks: Task[], context: ExecutionContext): void {
+  /**
+   * Generate agent prompt for v2 task with acceptance criteria
+   */
+  private _generateAgentPrompt(task: TaskV2): string {
+    let prompt = task.description;
+
+    // Add acceptance criteria if present
+    if (isNonNullish(task.acceptanceCriteria) && task.acceptanceCriteria.length > 0) {
+      prompt += '\n\n## Acceptance Criteria\n';
+      for (const criterion of task.acceptanceCriteria) {
+        prompt += `- ${criterion}\n`;
+      }
+    }
+
+    // Add complexity information
+    if (isNonNullish(task.complexity)) {
+      prompt += `\n\n## Task Complexity: ${task.complexity}`;
+    }
+
+    return prompt;
+  }
+
+  private _prepareExecution(tasks: TaskV2[], context: ExecutionContext): void {
     // Convert tasks to ExecutionTasks
     for (const task of tasks) {
       const executionTask: ExecutionTask = {
