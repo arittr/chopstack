@@ -1,6 +1,6 @@
 import { parse as parseYaml } from 'yaml';
 
-import { type Plan, PlanSchema } from '@/types/decomposer';
+import { planSchemaV2, type PlanV2 } from '@/types/schemas-v2';
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
 
 export type ParsedContent = {
@@ -35,9 +35,9 @@ export class YamlPlanParser {
   }
 
   /**
-   * Parse YAML/JSON content directly to a Plan
+   * Parse YAML/JSON content directly to a PlanV2
    */
-  static parse(content: string): Plan {
+  static parse(content: string): PlanV2 {
     // Determine format based on content
     const trimmed = content.trim();
     const source = trimmed.startsWith('{') || trimmed.startsWith('[') ? 'json' : 'yaml';
@@ -47,10 +47,10 @@ export class YamlPlanParser {
   /**
    * Parse and validate a plan from parsed content
    */
-  static parseAndValidatePlan(parsedContent: ParsedContent): Plan {
+  static parseAndValidatePlan(parsedContent: ParsedContent): PlanV2 {
     try {
       const rawPlan = this._parseContentBySource(parsedContent);
-      const validatedPlan = PlanSchema.parse(rawPlan);
+      const validatedPlan = planSchemaV2.parse(rawPlan);
 
       return validatedPlan;
     } catch (error) {

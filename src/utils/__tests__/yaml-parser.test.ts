@@ -3,8 +3,8 @@ import { vi } from 'vitest';
 import { YamlPlanParser } from '@/io/yaml-parser';
 
 // Mock the Zod schema validation
-vi.mock('../@/types/decomposer', () => ({
-  PlanSchema: {
+vi.mock('@/types/schemas-v2', () => ({
+  planSchemaV2: {
     parse: vi.fn((data: unknown) => {
       // Simple mock - return the data if it has tasks array
       if (
@@ -30,7 +30,7 @@ Some text before
 \`\`\`yaml
 tasks:
   - id: test
-    title: Test task
+    name: Test task
 \`\`\`
 
 Some text after
@@ -39,7 +39,7 @@ Some text after
       const result = YamlPlanParser.extractYamlFromMarkdown(markdown);
       expect(result).toBe(`tasks:
   - id: test
-    title: Test task`);
+    name: Test task`);
     });
 
     it('returns null if no YAML block found', () => {
@@ -61,7 +61,7 @@ Some text after
 \`\`\`json
 {
   "tasks": [
-    {"id": "test", "title": "Test task"}
+    {"id": "test", "name": "Test task"}
   ]
 }
 \`\`\`
@@ -70,7 +70,7 @@ Some text after
       const result = YamlPlanParser.extractJsonFromMarkdown(markdown);
       expect(result).toBe(`{
   "tasks": [
-    {"id": "test", "title": "Test task"}
+    {"id": "test", "name": "Test task"}
   ]
 }`);
     });
@@ -84,30 +84,32 @@ Some text after
 
   describe('parseAndValidatePlan', () => {
     const mockPlan = {
+      name: 'Test Plan',
+      strategy: 'sequential',
       tasks: [
         {
           id: 'test-task',
-          title: 'Test Task',
-          description: 'A test task',
-          touches: [],
-          produces: ['test.ts'],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Create a test',
+          name: 'Test Task',
+          description: 'A test task that does something useful for testing purposes',
+          files: ['test.ts'],
+          dependencies: [],
+          complexity: 'M',
+          acceptanceCriteria: ['Task completes successfully'],
         },
       ],
     };
 
     it('parses and validates YAML content', () => {
-      const yamlContent = `tasks:
+      const yamlContent = `name: Test Plan
+strategy: sequential
+tasks:
   - id: test
-    title: Test
-    description: A test
-    touches: []
-    produces: []
-    requires: []
-    estimatedLines: 1
-    agentPrompt: test`;
+    name: Test
+    description: A test task description with sufficient length for validation
+    files:
+      - test.ts
+    dependencies: []
+    complexity: M`;
 
       const result = YamlPlanParser.parseAndValidatePlan({
         content: yamlContent,
