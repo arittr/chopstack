@@ -2,11 +2,23 @@ import type { Graph } from '@dagrejs/graphlib';
 
 import pkg from '@dagrejs/graphlib';
 
-import type { Plan, PlanMetrics, Task } from '@/types/decomposer';
+import type { PlanV2, TaskV2 } from '@/types/schemas-v2';
 
 import { PlanValidationError } from '@/utils/errors';
 
 const { alg, Graph: GraphConstructor } = pkg;
+
+/**
+ * Plan metrics calculated from DAG analysis
+ */
+export type PlanMetrics = {
+  criticalPathLength: number;
+  estimatedSpeedup: number;
+  executionLayers: number;
+  maxParallelization: number;
+  taskCount: number;
+  totalComplexityScore: number;
+};
 
 export type ValidationResult = {
   circularDependencies?: string[];
@@ -24,7 +36,7 @@ export class DagValidator {
   /**
    * Validate a plan using graphlib DAG analysis
    */
-  static validatePlan(plan: Plan): ValidationResult {
+  static validatePlan(plan: PlanV2): ValidationResult {
     const errors: string[] = [];
     const conflicts: string[] = [];
 
@@ -75,7 +87,7 @@ export class DagValidator {
   /**
    * Calculate enhanced metrics using DAG analysis
    */
-  static calculateMetrics(plan: Plan): PlanMetrics {
+  static calculateMetrics(plan: PlanV2): PlanMetrics {
     const graph = this._buildDependencyGraph(plan.tasks);
 
     // Check if the graph has cycles before trying to calculate metrics
@@ -86,9 +98,9 @@ export class DagValidator {
         taskCount: plan.tasks.length,
         maxParallelization: 1,
         estimatedSpeedup: 1,
-        totalEstimatedLines: plan.tasks.reduce((sum, task) => sum + task.estimatedLines, 0),
+        totalComplexityScore: this._calculateTotalComplexity(plan.tasks),
         executionLayers: 1,
-        criticalPathLength: plan.tasks.reduce((sum, task) => sum + task.estimatedLines, 0),
+        criticalPathLength: this._calculateTotalComplexity(plan.tasks),
       };
     }
 
@@ -101,23 +113,56 @@ export class DagValidator {
 
     // Calculate estimated speedup based on critical path
     const criticalPathLength = this._calculateCriticalPathLength(graph, plan.tasks);
-    const totalSequentialTime = plan.tasks.reduce((sum, task) => sum + task.estimatedLines, 0);
+    const totalSequentialTime = this._calculateTotalComplexity(plan.tasks);
     const estimatedSpeedup = totalSequentialTime / Math.max(criticalPathLength, 1);
 
     return {
       taskCount: plan.tasks.length,
       maxParallelization,
       estimatedSpeedup,
-      totalEstimatedLines: totalSequentialTime,
+      totalComplexityScore: totalSequentialTime,
       executionLayers: layers.length,
       criticalPathLength,
     };
   }
 
   /**
+   * Convert t-shirt size complexity to numeric score for calculations
+   */
+  private static _complexityToScore(complexity: string): number {
+    switch (complexity) {
+      case 'XS': {
+        return 1;
+      }
+      case 'S': {
+        return 2;
+      }
+      case 'M': {
+        return 4;
+      }
+      case 'L': {
+        return 8;
+      }
+      case 'XL': {
+        return 16;
+      }
+      default: {
+        return 4;
+      } // Default to M
+    }
+  }
+
+  /**
+   * Calculate total complexity score from all tasks
+   */
+  private static _calculateTotalComplexity(tasks: TaskV2[]): number {
+    return tasks.reduce((sum, task) => sum + this._complexityToScore(task.complexity), 0);
+  }
+
+  /**
    * Get tasks in topological order for execution
    */
-  static getExecutionOrder(plan: Plan): Task[] {
+  static getExecutionOrder(plan: PlanV2): TaskV2[] {
     const graph = this._buildDependencyGraph(plan.tasks);
 
     // Check for cycles before trying to get topological order
@@ -142,7 +187,7 @@ export class DagValidator {
   /**
    * Get tasks grouped by execution layers for parallel processing
    */
-  static getExecutionLayers(plan: Plan): Task[][] {
+  static getExecutionLayers(plan: PlanV2): TaskV2[][] {
     const graph = this._buildDependencyGraph(plan.tasks);
 
     // Check for cycles before trying to get topological order
@@ -167,7 +212,7 @@ export class DagValidator {
     );
   }
 
-  private static _buildDependencyGraph(tasks: Task[]): Graph {
+  private static _buildDependencyGraph(tasks: TaskV2[]): Graph {
     const graph = new GraphConstructor({ directed: true });
 
     // Add all tasks as nodes
@@ -177,7 +222,7 @@ export class DagValidator {
 
     // Add dependencies as edges
     for (const task of tasks) {
-      for (const depId of task.requires) {
+      for (const depId of task.dependencies) {
         graph.setEdge(depId, task.id);
       }
     }
@@ -204,13 +249,13 @@ export class DagValidator {
     return cycles;
   }
 
-  private static _detectFileConflicts(tasks: Task[]): string[] {
+  private static _detectFileConflicts(tasks: TaskV2[]): string[] {
     const fileToTasks = new Map<string, string[]>();
     const graph = this._buildDependencyGraph(tasks);
 
     // Group tasks by files they modify
     for (const task of tasks) {
-      for (const file of task.touches) {
+      for (const file of task.files) {
         if (!fileToTasks.has(file)) {
           fileToTasks.set(file, []);
         }
@@ -286,12 +331,12 @@ export class DagValidator {
     return false;
   }
 
-  private static _detectMissingDependencies(tasks: Task[]): string[] {
+  private static _detectMissingDependencies(tasks: TaskV2[]): string[] {
     const taskIds = new Set(tasks.map((task) => task.id));
     const missing: string[] = [];
 
     for (const task of tasks) {
-      for (const depId of task.requires) {
+      for (const depId of task.dependencies) {
         if (!taskIds.has(depId)) {
           missing.push(`Task '${task.id}' depends on missing task '${depId}'`);
         }
@@ -301,7 +346,7 @@ export class DagValidator {
     return missing;
   }
 
-  private static _detectOrphanedTasks(graph: Graph, tasks: Task[]): string[] {
+  private static _detectOrphanedTasks(graph: Graph, tasks: TaskV2[]): string[] {
     const orphaned: string[] = [];
 
     for (const task of tasks) {
@@ -320,7 +365,7 @@ export class DagValidator {
     return orphaned;
   }
 
-  private static _validateTaskStructure(tasks: Task[]): string[] {
+  private static _validateTaskStructure(tasks: TaskV2[]): string[] {
     const errors: string[] = [];
 
     for (const task of tasks) {
@@ -328,20 +373,22 @@ export class DagValidator {
         errors.push('Task missing ID');
       }
 
-      if (task.title.length === 0 || task.title.trim().length === 0) {
-        errors.push(`Task '${task.id}' missing title`);
+      if (task.name.length === 0 || task.name.trim().length === 0) {
+        errors.push(`Task '${task.id}' missing name`);
       }
 
       if (task.description.length === 0 || task.description.trim().length === 0) {
         errors.push(`Task '${task.id}' missing description`);
       }
 
-      if (task.estimatedLines <= 0) {
-        errors.push(`Task '${task.id}' has invalid estimated lines: ${task.estimatedLines}`);
+      if (task.files.length === 0) {
+        errors.push(`Task '${task.id}' has no files specified`);
       }
 
-      if (task.agentPrompt.length === 0 || task.agentPrompt.trim().length === 0) {
-        errors.push(`Task '${task.id}' missing agent prompt`);
+      // Validate complexity is one of the allowed values
+      const validComplexities = ['XS', 'S', 'M', 'L', 'XL'];
+      if (!validComplexities.includes(task.complexity)) {
+        errors.push(`Task '${task.id}' has invalid complexity: ${task.complexity}`);
       }
     }
 
@@ -384,7 +431,7 @@ export class DagValidator {
     return layers;
   }
 
-  private static _calculateCriticalPathLength(graph: Graph, tasks: Task[]): number {
+  private static _calculateCriticalPathLength(graph: Graph, tasks: TaskV2[]): number {
     const taskMap = new Map(tasks.map((task) => [task.id, task]));
     const memoized = new Map<string, number>();
 
@@ -399,8 +446,10 @@ export class DagValidator {
       }
 
       const dependencies = graph.inEdges(taskId);
+      const taskComplexity = this._complexityToScore(task.complexity);
+
       if (dependencies === undefined) {
-        return task.estimatedLines;
+        return taskComplexity;
       }
       let maxDepPath = 0;
 
@@ -409,7 +458,7 @@ export class DagValidator {
         maxDepPath = Math.max(maxDepPath, depPath);
       }
 
-      const totalPath = maxDepPath + task.estimatedLines;
+      const totalPath = maxDepPath + taskComplexity;
       memoized.set(taskId, totalPath);
       return totalPath;
     };
