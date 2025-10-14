@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  type AnalysisReport,
+  analysisReportSchema,
+  type CodebaseAnalysis,
+  codebaseAnalysisSchema,
   type Complexity,
   complexitySchema,
   type ExecutionContext,
   executionContextSchema,
+  type Gap,
+  gapSchema,
   type Phase,
   phaseSchema,
   type PhaseStrategy,
@@ -13,10 +19,18 @@ import {
   type PlanStrategy,
   planStrategySchema,
   type PlanV2,
+  type ProjectPrinciples,
+  projectPrinciplesSchema,
+  type RemediationStep,
+  remediationStepSchema,
+  type Severity,
+  severitySchema,
   type SuccessMetrics,
   successMetricsSchema,
   type TaskV2,
   taskV2Schema,
+  type ValidationFinding,
+  validationFindingSchema,
 } from '../schemas-v2';
 
 describe('schemas-v2', () => {
@@ -776,6 +790,538 @@ describe('schemas-v2', () => {
         expect(error).toBeDefined();
         expect(error?.message).toContain('at least one task');
       }
+    });
+  });
+
+  // ============================================================================
+  // Analysis Type Tests
+  // ============================================================================
+
+  describe('severitySchema', () => {
+    it('should accept all valid severity values', () => {
+      const validSeverities: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+
+      for (const severity of validSeverities) {
+        const result = severitySchema.safeParse(severity);
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data).toBe(severity);
+        }
+      }
+    });
+
+    it('should reject invalid severity values', () => {
+      const invalidValues = ['critical', 'high', 'Critical', '', null, undefined, 'URGENT'];
+
+      for (const value of invalidValues) {
+        const result = severitySchema.safeParse(value);
+        expect(result.success).toBe(false);
+      }
+    });
+  });
+
+  describe('projectPrinciplesSchema', () => {
+    const validPrinciples: ProjectPrinciples = {
+      source: 'CLAUDE.md',
+      principles: [
+        {
+          category: 'Code Style',
+          rule: 'Use ts-pattern for complex conditional logic',
+          examples: ['match(value).with(...).exhaustive()'],
+        },
+        {
+          category: 'Testing',
+          rule: 'Co-locate tests next to source files',
+        },
+      ],
+    };
+
+    it('should validate complete project principles', () => {
+      const result = projectPrinciplesSchema.safeParse(validPrinciples);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(validPrinciples);
+      }
+    });
+
+    it('should require source field', () => {
+      const invalid = {
+        principles: validPrinciples.principles,
+      };
+
+      const result = projectPrinciplesSchema.safeParse(invalid);
+      expect(result.success).toBe(false);
+    });
+
+    it('should require principles array', () => {
+      const invalid = {
+        source: 'CLAUDE.md',
+      };
+
+      const result = projectPrinciplesSchema.safeParse(invalid);
+      expect(result.success).toBe(false);
+    });
+
+    it('should accept principles without examples', () => {
+      const principlesNoExamples: ProjectPrinciples = {
+        source: '.cursorrules',
+        principles: [
+          {
+            category: 'Architecture',
+            rule: 'Follow SOLID principles',
+          },
+        ],
+      };
+
+      const result = projectPrinciplesSchema.safeParse(principlesNoExamples);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.principles[0]?.examples).toBeUndefined();
+      }
+    });
+
+    it('should accept empty principles array', () => {
+      const emptyPrinciples: ProjectPrinciples = {
+        source: 'README.md',
+        principles: [],
+      };
+
+      const result = projectPrinciplesSchema.safeParse(emptyPrinciples);
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('gapSchema', () => {
+    const validGap: Gap = {
+      id: 'gap-missing-architecture',
+      severity: 'CRITICAL',
+      category: 'gap',
+      message: 'Missing required section: architecture',
+      artifacts: ['spec.md'],
+      remediation: 'Add architecture section with diagrams',
+    };
+
+    it('should validate a complete gap', () => {
+      const result = gapSchema.safeParse(validGap);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(validGap);
+      }
+    });
+
+    it('should accept all valid gap categories', () => {
+      const categories = ['gap', 'duplication', 'ambiguity', 'inconsistency'] as const;
+
+      for (const category of categories) {
+        const result = gapSchema.safeParse({ ...validGap, category });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should accept gap without remediation', () => {
+      const gapNoRemediation = {
+        id: 'gap-test',
+        severity: 'LOW' as const,
+        category: 'gap' as const,
+        message: 'Minor issue',
+        artifacts: ['file.md'],
+      };
+
+      const result = gapSchema.safeParse(gapNoRemediation);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.remediation).toBeUndefined();
+      }
+    });
+
+    it('should require all mandatory fields', () => {
+      const incompleteGap = {
+        id: 'gap-test',
+        severity: 'HIGH',
+      };
+
+      const result = gapSchema.safeParse(incompleteGap);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('remediationStepSchema', () => {
+    const validStep: RemediationStep = {
+      priority: 'CRITICAL',
+      order: 1,
+      action: 'Add architecture section',
+      reasoning: 'Blocks decomposition',
+      artifacts: ['spec.md'],
+    };
+
+    it('should validate a complete remediation step', () => {
+      const result = remediationStepSchema.safeParse(validStep);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(validStep);
+      }
+    });
+
+    it('should require positive order number', () => {
+      const invalidOrders = [0, -1, -100];
+
+      for (const order of invalidOrders) {
+        const result = remediationStepSchema.safeParse({ ...validStep, order });
+        expect(result.success).toBe(false);
+      }
+    });
+
+    it('should accept valid order numbers', () => {
+      const validOrders = [1, 5, 10, 100];
+
+      for (const order of validOrders) {
+        const result = remediationStepSchema.safeParse({ ...validStep, order });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should reject non-integer order numbers', () => {
+      const result = remediationStepSchema.safeParse({ ...validStep, order: 1.5 });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('validationFindingSchema', () => {
+    const validFinding: ValidationFinding = {
+      id: 'dup-task-1-task-2',
+      severity: 'MEDIUM',
+      category: 'duplication',
+      message: 'Tasks appear to duplicate work',
+      artifacts: ['task-1', 'task-2'],
+      remediation: 'Consider merging tasks',
+      relatedPrinciple: 'DRY principle',
+    };
+
+    it('should validate a complete validation finding', () => {
+      const result = validationFindingSchema.safeParse(validFinding);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(validFinding);
+      }
+    });
+
+    it('should accept all valid finding categories', () => {
+      const categories = [
+        'duplication',
+        'gap',
+        'ambiguity',
+        'inconsistency',
+        'principle-violation',
+      ] as const;
+
+      for (const category of categories) {
+        const result = validationFindingSchema.safeParse({ ...validFinding, category });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should accept finding without remediation and relatedPrinciple', () => {
+      const minimalFinding = {
+        id: 'finding-test',
+        severity: 'LOW' as const,
+        category: 'ambiguity' as const,
+        message: 'Unclear specification',
+        artifacts: ['spec.md'],
+      };
+
+      const result = validationFindingSchema.safeParse(minimalFinding);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.remediation).toBeUndefined();
+        expect(result.data.relatedPrinciple).toBeUndefined();
+      }
+    });
+  });
+
+  describe('codebaseAnalysisSchema', () => {
+    const validAnalysis: CodebaseAnalysis = {
+      summary: '# Codebase Analysis\n\nThis is a TypeScript monorepo using pnpm...',
+      findings: {
+        techStack: {
+          languages: ['TypeScript'],
+          frameworks: ['React', 'Vitest'],
+          runtimes: ['Node.js 18+'],
+          buildTools: ['tsup', 'pnpm'],
+          dependencies: ['zod', 'ts-pattern'],
+        },
+        architecture: {
+          description: 'Layered architecture with services, types, and CLI layers',
+          patterns: ['Dependency Injection', 'Repository Pattern'],
+          directories: {
+            'src/services': 'Core business logic',
+            'src/types': 'Type definitions',
+          },
+        },
+      },
+      observations: ['Uses React Context for global state', 'Follows Airbnb style guide'],
+      examples: {
+        component: 'export const Component: React.FC = () => {...}',
+        test: 'describe("Component", () => { it("renders", () => {...}) })',
+        api: 'export async function handler(req, res) {...}',
+        utility: 'export function formatDate(date: Date): string {...}',
+      },
+      relatedFeatures: [
+        {
+          name: 'Theme System',
+          files: ['src/components/ThemeProvider.tsx', 'src/hooks/useTheme.ts'],
+          description: 'Existing theme implementation',
+          relevance: 'Similar pattern can be used for dark mode',
+        },
+      ],
+    };
+
+    it('should validate a complete codebase analysis', () => {
+      const result = codebaseAnalysisSchema.safeParse(validAnalysis);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(validAnalysis);
+      }
+    });
+
+    it('should accept minimal analysis with just summary, observations, and empty arrays', () => {
+      const minimalAnalysis: CodebaseAnalysis = {
+        summary: 'Brief summary',
+        findings: {},
+        observations: [],
+        examples: {},
+        relatedFeatures: [],
+      };
+
+      const result = codebaseAnalysisSchema.safeParse(minimalAnalysis);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept analysis with partial findings', () => {
+      const partialAnalysis: CodebaseAnalysis = {
+        summary: 'Analysis summary',
+        findings: {
+          techStack: {
+            languages: ['TypeScript'],
+          },
+        },
+        observations: ['Observation 1'],
+        examples: {},
+        relatedFeatures: [],
+      };
+
+      const result = codebaseAnalysisSchema.safeParse(partialAnalysis);
+      expect(result.success).toBe(true);
+    });
+
+    it('should support extensible findings with any structure', () => {
+      const extendedAnalysis = {
+        ...validAnalysis,
+        findings: {
+          ...validAnalysis.findings,
+          customField: 'Custom value',
+          customArray: ['value1', 'value2'],
+          customObject: { nested: 'value' },
+        },
+      };
+
+      const result = codebaseAnalysisSchema.safeParse(extendedAnalysis);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.findings.customField).toBe('Custom value');
+        expect(result.data.findings.customArray).toEqual(['value1', 'value2']);
+      }
+    });
+
+    it('should support extensible examples with any string values', () => {
+      const extendedAnalysis = {
+        ...validAnalysis,
+        examples: {
+          ...validAnalysis.examples,
+          customExample: 'custom code example',
+          anotherExample: 'another example',
+        },
+      };
+
+      const result = codebaseAnalysisSchema.safeParse(extendedAnalysis);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.examples.customExample).toBe('custom code example');
+      }
+    });
+
+    it('should require relatedFeatures to have name and files', () => {
+      const invalidAnalysis = {
+        ...validAnalysis,
+        relatedFeatures: [
+          {
+            files: ['file.ts'],
+          },
+        ],
+      };
+
+      const result = codebaseAnalysisSchema.safeParse(invalidAnalysis);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('analysisReportSchema', () => {
+    const validReport: AnalysisReport = {
+      completeness: 75,
+      gaps: [
+        {
+          id: 'gap-missing-architecture',
+          severity: 'CRITICAL',
+          category: 'gap',
+          message: 'Missing architecture section',
+          artifacts: ['spec.md'],
+          remediation: 'Add architecture diagrams',
+        },
+      ],
+      remediation: [
+        {
+          priority: 'CRITICAL',
+          order: 1,
+          action: 'Add architecture section',
+          reasoning: 'Blocks decomposition',
+          artifacts: ['spec.md'],
+        },
+      ],
+      summary: 'Completeness: 75% - 1 CRITICAL gap, 2 HIGH priority gaps',
+    };
+
+    it('should validate a complete analysis report', () => {
+      const result = analysisReportSchema.safeParse(validReport);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual(validReport);
+      }
+    });
+
+    it('should enforce completeness score between 0 and 100', () => {
+      const validScores = [0, 25, 50, 75, 100];
+
+      for (const score of validScores) {
+        const result = analysisReportSchema.safeParse({ ...validReport, completeness: score });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should reject completeness score outside 0-100 range', () => {
+      const invalidScores = [-1, -100, 101, 200];
+
+      for (const score of invalidScores) {
+        const result = analysisReportSchema.safeParse({ ...validReport, completeness: score });
+        expect(result.success).toBe(false);
+      }
+    });
+
+    it('should accept empty gaps and remediation arrays', () => {
+      const emptyReport: AnalysisReport = {
+        completeness: 100,
+        gaps: [],
+        remediation: [],
+        summary: 'Completeness: 100% - Ready for decomposition',
+      };
+
+      const result = analysisReportSchema.safeParse(emptyReport);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept report with multiple gaps', () => {
+      const multiGapReport: AnalysisReport = {
+        completeness: 60,
+        gaps: [
+          {
+            id: 'gap-1',
+            severity: 'CRITICAL',
+            category: 'gap',
+            message: 'Gap 1',
+            artifacts: ['file1.md'],
+          },
+          {
+            id: 'gap-2',
+            severity: 'HIGH',
+            category: 'duplication',
+            message: 'Gap 2',
+            artifacts: ['file2.md'],
+          },
+          {
+            id: 'gap-3',
+            severity: 'MEDIUM',
+            category: 'ambiguity',
+            message: 'Gap 3',
+            artifacts: ['file3.md'],
+          },
+        ],
+        remediation: [
+          {
+            priority: 'CRITICAL',
+            order: 1,
+            action: 'Fix gap 1',
+            reasoning: 'Critical',
+            artifacts: ['file1.md'],
+          },
+        ],
+        summary: 'Multiple gaps found',
+      };
+
+      const result = analysisReportSchema.safeParse(multiGapReport);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.gaps).toHaveLength(3);
+      }
+    });
+  });
+
+  describe('analysis type inference', () => {
+    it('should correctly infer TypeScript types for analysis schemas', () => {
+      const severity: Severity = 'HIGH';
+      const principles: ProjectPrinciples = {
+        source: 'CLAUDE.md',
+        principles: [{ category: 'Testing', rule: 'Write tests' }],
+      };
+      const gap: Gap = {
+        id: 'gap-1',
+        severity: 'CRITICAL',
+        category: 'gap',
+        message: 'Missing section',
+        artifacts: ['spec.md'],
+      };
+      const step: RemediationStep = {
+        priority: 'HIGH',
+        order: 1,
+        action: 'Fix it',
+        reasoning: 'Important',
+        artifacts: ['file.md'],
+      };
+      const finding: ValidationFinding = {
+        id: 'finding-1',
+        severity: 'MEDIUM',
+        category: 'duplication',
+        message: 'Duplicate code',
+        artifacts: ['file1.ts', 'file2.ts'],
+      };
+      const analysis: CodebaseAnalysis = {
+        summary: 'Summary',
+        findings: {},
+        observations: [],
+        examples: {},
+        relatedFeatures: [],
+      };
+      const report: AnalysisReport = {
+        completeness: 100,
+        gaps: [],
+        remediation: [],
+        summary: 'Complete',
+      };
+
+      expect(severity).toBeDefined();
+      expect(principles).toBeDefined();
+      expect(gap).toBeDefined();
+      expect(step).toBeDefined();
+      expect(finding).toBeDefined();
+      expect(analysis).toBeDefined();
+      expect(report).toBeDefined();
     });
   });
 });
