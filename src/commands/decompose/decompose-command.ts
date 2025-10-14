@@ -14,13 +14,21 @@ import { RegisterCommand } from '@/commands/command-factory';
 import { BaseCommand, type CommandDependencies } from '@/commands/types';
 import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { PlanOutputter } from '@/services/planning/plan-outputter';
-import { DecomposeOptionsSchema } from '@/types/decomposer';
+import { z } from 'zod';
+
 import { DagValidator } from '@/validation/dag-validator';
 import { isValidArray } from '@/validation/guards';
 
-// Infer DecomposeOptions type from schema
+// DecomposeOptions schema - using v2 types internally
+const DecomposeOptionsSchema = z.object({
+  agent: z.enum(['claude', 'codex', 'mock']),
+  output: z.string().optional(),
+  spec: z.string().min(1),
+  targetDir: z.string().optional(),
+  verbose: z.boolean().optional(),
+});
+
 type DecomposeOptions = z.infer<typeof DecomposeOptionsSchema>;
-import { z } from 'zod';
 
 /**
  * Decompose markdown specs into parallel task DAGs
@@ -56,7 +64,7 @@ export class DecomposeCommand extends BaseCommand {
 
       // Calculate metrics and output the plan
       const metrics = DagValidator.calculateMetrics(result.plan);
-      await PlanOutputter.outputPlan(result.plan, metrics, options.output);
+      await PlanOutputter.outputPlan(result.plan, options.output);
 
       if (!result.success) {
         // Final validation failed

@@ -7,7 +7,7 @@
  */
 
 import type { ExecutionTask } from '@/core/execution/types';
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 import type { ValidationConfig } from '@/types/validation';
 
 import type { WorktreeContext } from './domain-services';
@@ -52,7 +52,7 @@ export type VcsStrategy = {
    * Handle task completion (e.g., commit changes)
    */
   handleTaskCompletion(
-    task: Task,
+    task: TaskV2,
     executionTask: ExecutionTask,
     context: WorktreeContext,
     output?: string,
@@ -61,14 +61,14 @@ export type VcsStrategy = {
   /**
    * Initialize the strategy for a set of tasks
    */
-  initialize(tasks: Task[], context: VcsStrategyContext): Promise<void>;
+  initialize(tasks: TaskV2[], context: VcsStrategyContext): Promise<void>;
 
   /**
    * Prepare a single task for execution (e.g., create worktree if needed)
    * Returns the execution context for the task
    */
   prepareTaskExecution?(
-    task: Task,
+    task: TaskV2,
     executionTask: ExecutionTask,
     context: VcsStrategyContext,
   ): Promise<WorktreeContext | null>;

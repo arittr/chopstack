@@ -2,12 +2,12 @@
  * File Access Control
  *
  * Determines which files a task is allowed to modify based on:
- * - Task specification (touches/produces)
+ * - Task specification (files)
  * - Execution order (can't modify files belonging to later tasks)
  * - Dependencies (can read but not write dependency files)
  */
 
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { isNonEmptyString } from '@/validation/guards';
 
@@ -15,8 +15,8 @@ export class FileAccessControl {
   /**
    * Get all files this task is allowed to modify
    */
-  getAllowedFiles(task: Task): string[] {
-    return [...task.touches, ...task.produces];
+  getAllowedFiles(task: TaskV2): string[] {
+    return [...task.files];
   }
 
   /**
@@ -27,7 +27,7 @@ export class FileAccessControl {
    *
    * Files from transitive dependencies are allowed (can modify files in dependency chain)
    */
-  getForbiddenFiles(task: Task, allTasks: Task[], taskOrder: string[]): string[] {
+  getForbiddenFiles(task: TaskV2, allTasks: TaskV2[], taskOrder: string[]): string[] {
     const currentTaskIndex = taskOrder.indexOf(task.id);
     if (currentTaskIndex === -1) {
       // Task not in order - shouldn't happen but be defensive
@@ -65,7 +65,7 @@ export class FileAccessControl {
       // 1. All later tasks (prevent task bleeding forward)
       // 2. Earlier tasks that are NOT in the dependency chain (parallel siblings)
       if (isLaterTask || (isEarlierTask && !isDependency)) {
-        forbidden.push(...otherTask.touches, ...otherTask.produces);
+        forbidden.push(...otherTask.files);
       }
     }
 
@@ -75,7 +75,7 @@ export class FileAccessControl {
   /**
    * Get all dependencies (direct + transitive) for a task
    */
-  private _getAllDependencies(task: Task, allTasks: Task[]): Set<string> {
+  private _getAllDependencies(task: TaskV2, allTasks: TaskV2[]): Set<string> {
     const dependencies = new Set<string>();
     const taskMap = new Map(allTasks.map((t) => [t.id, t]));
 
@@ -85,7 +85,7 @@ export class FileAccessControl {
         return;
       }
 
-      for (const depId of currentTask.requires) {
+      for (const depId of currentTask.dependencies) {
         if (!dependencies.has(depId)) {
           dependencies.add(depId);
           // Recursively add transitive dependencies
@@ -102,7 +102,7 @@ export class FileAccessControl {
    * Check if a file is allowed for this task
    * Handles both exact matches and directory specifications
    */
-  isFileAllowed(file: string, task: Task): boolean {
+  isFileAllowed(file: string, task: TaskV2): boolean {
     const allowedFiles = this.getAllowedFiles(task);
 
     for (const allowed of allowedFiles) {

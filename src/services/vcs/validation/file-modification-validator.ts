@@ -5,7 +5,7 @@
  * Prevents task bleeding and detects hallucinations.
  */
 
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 import type { FileValidationResult, FileViolation, ValidationConfig } from '@/types/validation';
 
 import { isNonEmptyString } from '@/validation/guards';
@@ -15,7 +15,7 @@ import { FileAccessControl } from './file-access-control';
 export class FileModificationValidator {
   private readonly accessControl: FileAccessControl;
   private readonly config: ValidationConfig;
-  private _allTasks: Task[] = [];
+  private _allTasks: TaskV2[] = [];
   private _taskOrder: string[] = [];
 
   constructor(config?: Partial<ValidationConfig>) {
@@ -31,7 +31,7 @@ export class FileModificationValidator {
    * Initialize validator with all tasks and execution order
    * Must be called before validation
    */
-  initialize(tasks: Task[], taskOrder: string[]): void {
+  initialize(tasks: TaskV2[], taskOrder: string[]): void {
     this._allTasks = tasks;
     this._taskOrder = taskOrder;
   }
@@ -40,7 +40,7 @@ export class FileModificationValidator {
    * Validate files before commit
    * Checks that modified files match task specification
    */
-  validatePreCommit(task: Task, modifiedFiles: string[]): FileValidationResult {
+  validatePreCommit(task: TaskV2, modifiedFiles: string[]): FileValidationResult {
     const violations: FileViolation[] = [];
     const warnings: string[] = [];
 
@@ -72,7 +72,7 @@ export class FileModificationValidator {
 
       if (!isAllowed) {
         // Check if it's a new file and we allow those
-        const isNewFile = !task.touches.includes(file);
+        const isNewFile = !task.files.includes(file);
         if (isNewFile && this.config.allowNewFiles) {
           warnings.push(`New file '${file}' created but not in task specification`);
           continue;
@@ -97,7 +97,7 @@ export class FileModificationValidator {
    * Validate after commit
    * Detects hallucinations (task reported success but made no changes)
    */
-  validatePostCommit(task: Task, committedFiles: string[]): FileValidationResult {
+  validatePostCommit(task: TaskV2, committedFiles: string[]): FileValidationResult {
     const violations: FileViolation[] = [];
     const warnings: string[] = [];
 
@@ -125,14 +125,14 @@ export class FileModificationValidator {
   /**
    * Get list of files this task is forbidden from modifying
    */
-  getForbiddenFiles(task: Task): string[] {
+  getForbiddenFiles(task: TaskV2): string[] {
     return this.accessControl.getForbiddenFiles(task, this._allTasks, this._taskOrder);
   }
 
   /**
    * Get list of files this task is allowed to modify
    */
-  getAllowedFiles(task: Task): string[] {
+  getAllowedFiles(task: TaskV2): string[] {
     return this.accessControl.getAllowedFiles(task);
   }
 
@@ -145,7 +145,7 @@ export class FileModificationValidator {
         continue;
       }
 
-      const taskFiles = [...task.touches, ...task.produces];
+      const taskFiles = [...task.files];
       if (taskFiles.includes(file)) {
         return task.id;
       }

@@ -1,5 +1,5 @@
 import type { TaskState, TaskStateTransition } from '@/core/execution/types';
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import {
   createStateTransition,
@@ -19,7 +19,7 @@ export class TaskTransitionManager {
   /**
    * Initialize the manager with tasks and their dependencies
    */
-  initialize(tasks: Task[]): void {
+  initialize(tasks: TaskV2[]): void {
     // Reset state
     this.taskStates.clear();
     this.transitions.clear();
@@ -29,12 +29,12 @@ export class TaskTransitionManager {
     for (const task of tasks) {
       this.taskStates.set(task.id, 'pending');
       this.transitions.set(task.id, []);
-      this.dependencies.set(task.id, new Set(task.requires));
+      this.dependencies.set(task.id, new Set(task.dependencies));
     }
 
     // Check for tasks with no dependencies and mark them as ready
     for (const task of tasks) {
-      if (task.requires.length === 0) {
+      if (task.dependencies.length === 0) {
         this._performTransition(task.id, 'ready', 'No dependencies');
       }
     }
