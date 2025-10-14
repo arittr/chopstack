@@ -1,6 +1,6 @@
 import type { VcsMode } from '@/core/execution/types';
 import type { PlanV2, TaskV2 } from '@/types/schemas-v2';
-import type { ValidationResult } from '@/types/decomposer';
+import type { ValidationResult } from '@/types/agent';
 
 /**
  * Core interface for task execution

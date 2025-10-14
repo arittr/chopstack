@@ -1,4 +1,4 @@
-import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 /**
  * Core agent interface for task decomposition
@@ -26,10 +26,10 @@ export type AgentProvider = {
 };
 
 /**
- * Legacy decomposer agent interface (for backward compatibility)
+ * Decomposer agent interface using v2 types
  */
 export type DecomposerAgent = {
-  decompose(specContent: string, cwd: string, options?: { verbose?: boolean }): Promise<Plan>;
+  decompose(specContent: string, cwd: string, options?: { verbose?: boolean }): Promise<PlanV2>;
 };
 
 /**
@@ -79,7 +79,7 @@ export type AgentConfig = {
  */
 export type DecompositionContext = {
   cwd: string;
-  existingPlan?: Plan;
+  existingPlan?: PlanV2;
   maxRetries?: number;
   verbose?: boolean;
 };
@@ -89,7 +89,7 @@ export type DecompositionContext = {
  */
 export type DecompositionResult = {
   metadata?: Record<string, unknown>;
-  plan: Plan;
+  plan: PlanV2;
   rawResponse?: string;
 };
 
