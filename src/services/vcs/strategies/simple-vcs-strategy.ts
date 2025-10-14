@@ -13,7 +13,7 @@ import type {
   VcsStrategyContext,
   WorktreeContext,
 } from '@/core/vcs/vcs-strategy';
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { CommitServiceImpl } from '@/services/vcs/commit-service';
 import { logger } from '@/utils/global-logger';
@@ -28,7 +28,7 @@ export class SimpleVcsStrategy implements VcsStrategy {
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  async initialize(tasks: Task[], context: VcsStrategyContext): Promise<void> {
+  async initialize(tasks: TaskV2[], context: VcsStrategyContext): Promise<void> {
     logger.info(`[SimpleVcsStrategy] Initializing for ${tasks.length} tasks`);
     logger.info(`  Working directory: ${context.cwd}`);
 
@@ -66,7 +66,7 @@ export class SimpleVcsStrategy implements VcsStrategy {
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async prepareTaskExecution(
-    task: Task,
+    task: TaskV2,
     _executionTask: ExecutionTask,
     _context: VcsStrategyContext,
   ): Promise<WorktreeContext | null> {
@@ -84,7 +84,7 @@ export class SimpleVcsStrategy implements VcsStrategy {
   }
 
   async handleTaskCompletion(
-    task: Task,
+    task: TaskV2,
     executionTask: ExecutionTask,
     context: WorktreeContext,
     _output?: string,

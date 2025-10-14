@@ -5,6 +5,7 @@ import { render } from 'ink';
 import type { ExecutionOptions } from '@/core/execution/types';
 import type { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
 import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { TuiApp } from './TuiApp';
 
@@ -12,7 +13,7 @@ export type TuiOptions = {
   jobIdRef?: { current: string | undefined } | undefined;
   options: ExecutionOptions;
   orchestrator: ExecutionOrchestrator;
-  plan: Plan;
+  plan: Plan | PlanV2;
 };
 
 export async function startTui({

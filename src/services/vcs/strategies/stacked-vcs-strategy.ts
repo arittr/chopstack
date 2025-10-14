@@ -22,7 +22,7 @@ import type {
   VcsStrategyContext,
   WorktreeContext,
 } from '@/core/vcs/vcs-strategy';
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { FileModificationValidator, ViolationReporter } from '@/services/vcs/validation';
 import { logger } from '@/utils/global-logger';
@@ -45,7 +45,7 @@ export class StackedVcsStrategy implements VcsStrategy {
   // File modification validator
   private readonly validator: FileModificationValidator;
   private readonly violationReporter: ViolationReporter;
-  private _allTasks: Task[] = [];
+  private _allTasks: TaskV2[] = [];
 
   constructor(vcsEngine: VcsEngineService) {
     this.vcsEngine = vcsEngine;
@@ -55,7 +55,7 @@ export class StackedVcsStrategy implements VcsStrategy {
     this.violationReporter = new ViolationReporter();
   }
 
-  async initialize(tasks: Task[], context: VcsStrategyContext): Promise<void> {
+  async initialize(tasks: TaskV2[], context: VcsStrategyContext): Promise<void> {
     logger.info(`[StackedVcsStrategy] Initializing for ${tasks.length} tasks`);
     logger.info(`  Working directory: ${context.cwd}`);
     logger.info(`  Base ref: ${context.baseRef ?? 'HEAD'}`);
@@ -142,7 +142,7 @@ export class StackedVcsStrategy implements VcsStrategy {
   }
 
   async prepareTaskExecution(
-    task: Task,
+    task: TaskV2,
     executionTask: ExecutionTask,
     context: VcsStrategyContext,
   ): Promise<WorktreeContext | null> {
@@ -157,9 +157,9 @@ export class StackedVcsStrategy implements VcsStrategy {
     let parentBranch = this._currentStackTip;
 
     // If task has dependencies, ensure parent is descended from all dependencies
-    if (task.requires.length > 0) {
+    if (task.dependencies.length > 0) {
       // Find the last dependency (in case of multiple dependencies)
-      const lastDependency = task.requires.at(-1);
+      const lastDependency = task.dependencies.at(-1);
 
       if (isNonNullish(lastDependency)) {
         // Check if dependency is in the branch stack (meaning it's been committed)
@@ -237,7 +237,7 @@ export class StackedVcsStrategy implements VcsStrategy {
   }
 
   async handleTaskCompletion(
-    task: Task,
+    task: TaskV2,
     executionTask: ExecutionTask,
     context: WorktreeContext,
     _output?: string,
@@ -352,12 +352,12 @@ export class StackedVcsStrategy implements VcsStrategy {
 
       // Determine parent branch for tracking at COMPLETION time
       // This ensures we get the latest _currentStackTip for linear stacking
-      const { requires } = task;
+      const { dependencies } = task;
       let parentBranch = this._currentStackTip;
 
       // If task has dependencies, ensure parent is descended from all dependencies
-      if (requires.length > 0) {
-        const lastDependency = requires.at(-1);
+      if (dependencies.length > 0) {
+        const lastDependency = dependencies.at(-1);
 
         if (isNonNullish(lastDependency)) {
           // Find the dependency branch
@@ -500,15 +500,18 @@ export class StackedVcsStrategy implements VcsStrategy {
     }
   }
 
-  private _determineTaskOrder(tasks: Task[]): string[] {
+  private _determineTaskOrder(tasks: TaskV2[]): string[] {
     const ordered: string[] = [];
     const remaining = new Set(tasks);
     const completed = new Set<string>();
 
+    // Complexity values for sorting (XS to XL)
+    const complexityOrder = { XS: 1, S: 2, M: 3, L: 4, XL: 5 };
+
     // Keep processing until all tasks are ordered
     while (remaining.size > 0) {
       const readyTasks = [...remaining].filter((task) =>
-        task.requires.every((dep) => completed.has(dep)),
+        task.dependencies.every((dep) => completed.has(dep)),
       );
 
       if (readyTasks.length === 0) {
@@ -522,8 +525,8 @@ export class StackedVcsStrategy implements VcsStrategy {
         break;
       }
 
-      // Sort ready tasks by estimated lines (simplest first)
-      readyTasks.sort((a, b) => a.estimatedLines - b.estimatedLines);
+      // Sort ready tasks by complexity (simplest first)
+      readyTasks.sort((a, b) => complexityOrder[a.complexity] - complexityOrder[b.complexity]);
 
       // Add the first ready task to the order
       const nextTask = readyTasks[0];

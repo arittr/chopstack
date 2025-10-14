@@ -14,7 +14,7 @@ import type {
   VcsStrategyContext,
   WorktreeContext,
 } from '@/core/vcs/vcs-strategy';
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { CommitServiceImpl } from '@/services/vcs/commit-service';
 import { logger } from '@/utils/global-logger';
@@ -30,7 +30,7 @@ export class WorktreeVcsStrategy implements VcsStrategy {
     this.commitService = new CommitServiceImpl();
   }
 
-  async initialize(tasks: Task[], context: VcsStrategyContext): Promise<void> {
+  async initialize(tasks: TaskV2[], context: VcsStrategyContext): Promise<void> {
     logger.info(`[WorktreeVcsStrategy] Initializing for ${tasks.length} tasks`);
     logger.info(`  Working directory: ${context.cwd}`);
     logger.info(`  Base ref: ${context.baseRef ?? 'HEAD'}`);
@@ -65,7 +65,7 @@ export class WorktreeVcsStrategy implements VcsStrategy {
   }
 
   async prepareTaskExecution(
-    task: Task,
+    task: TaskV2,
     _executionTask: ExecutionTask,
     _context: VcsStrategyContext,
   ): Promise<WorktreeContext | null> {
@@ -79,7 +79,7 @@ export class WorktreeVcsStrategy implements VcsStrategy {
   }
 
   async handleTaskCompletion(
-    task: Task,
+    task: TaskV2,
     executionTask: ExecutionTask,
     context: WorktreeContext,
     _output?: string,
