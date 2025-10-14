@@ -67,11 +67,22 @@ CONSTRAINTS:
 - Do NOT modify files outside your task.files list
 - Verify acceptance_criteria when complete
 
-COMMIT INSTRUCTIONS:
-After completing your task:
-1. Run `git add --all`
-2. Run `pnpm commit` to invoke gs branch create
-3. Commit message should reference task-id: "[{task-id}] {brief description}"
+COMMIT INSTRUCTIONS (CRITICAL - MUST FOLLOW EXACTLY):
+After completing your task, you MUST create a git-spice stacked branch:
+
+1. Stage all changes: `git add --all`
+2. Create stacked branch with commit: `pnpm commit` or `gs branch create`
+   - This will invoke `gs branch create` interactively
+   - When prompted for commit message, use: "[{task-id}] {brief description}"
+
+CRITICAL RULES:
+- ✅ ALWAYS use `pnpm commit` (invokes gs branch create)
+- ✅ ALWAYS create a new stacked branch for each task
+- ❌ NEVER use `git commit -m` directly
+- ❌ NEVER use `git commit --no-verify`
+- ❌ NEVER bypass git-spice branch creation
+
+If commit fails, diagnose and fix the issue. Do NOT bypass with direct git commands.
 
 SUCCESS CRITERIA:
 ✓ All files in task.files are implemented
