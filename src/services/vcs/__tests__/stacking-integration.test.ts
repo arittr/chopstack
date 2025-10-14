@@ -8,7 +8,7 @@ import { execa } from 'execa';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecutionContext } from '@/core/execution/interfaces';
-import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
@@ -148,37 +148,36 @@ describe('Stacked Branches Integration', () => {
     // Each branch should have a different commit hash, demonstrating proper stacking
 
     // Create a plan with three dependent tasks
-    const plan: Plan = {
+    const plan: PlanV2 = {
+      name: 'Stacked Branches Test',
+      strategy: 'sequential',
       tasks: [
         {
           id: 'task-a',
-          title: 'Create Feature A',
+          name: 'Create Feature A',
+          complexity: 'XS',
           description: 'First task in the stack',
-          touches: [],
-          produces: ['feature-a.ts'],
-          requires: [], // No dependencies
-          estimatedLines: 10,
-          agentPrompt: 'Create feature-a.ts file',
+          files: ['feature-a.ts'],
+          acceptanceCriteria: [],
+          dependencies: [], // No dependencies
         },
         {
           id: 'task-b',
-          title: 'Create Feature B',
+          name: 'Create Feature B',
+          complexity: 'XS',
           description: 'Second task in the stack',
-          touches: [],
-          produces: ['feature-b.ts'],
-          requires: ['task-a'], // Depends on task-a
-          estimatedLines: 10,
-          agentPrompt: 'Create feature-b.ts file',
+          files: ['feature-b.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task-a'], // Depends on task-a
         },
         {
           id: 'task-c',
-          title: 'Create Feature C',
+          name: 'Create Feature C',
+          complexity: 'XS',
           description: 'Third task in the stack',
-          touches: [],
-          produces: ['feature-c.ts'],
-          requires: ['task-b'], // Depends on task-b
-          estimatedLines: 10,
-          agentPrompt: 'Create feature-c.ts file',
+          files: ['feature-c.ts'],
+          acceptanceCriteria: [],
+          dependencies: ['task-b'], // Depends on task-b
         },
       ],
     };
@@ -284,17 +283,18 @@ describe('Stacked Branches Integration', () => {
     await git.checkoutLocalBranch('chopstack/task-a');
     await git.checkout('main');
 
-    const plan: Plan = {
+    const plan: PlanV2 = {
+      name: 'Branch Conflict Test',
+      strategy: 'sequential',
       tasks: [
         {
           id: 'task-a',
-          title: 'Create Feature A',
+          name: 'Create Feature A',
+          complexity: 'XS',
           description: 'Task with conflicting branch name',
-          touches: [],
-          produces: ['feature-a.ts'],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Create feature-a.ts file',
+          files: ['feature-a.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
       ],
     };
@@ -343,17 +343,18 @@ describe('Stacked Branches Integration', () => {
   });
 
   it('should properly clean up worktrees after stacking', async () => {
-    const plan: Plan = {
+    const plan: PlanV2 = {
+      name: 'Cleanup Test',
+      strategy: 'sequential',
       tasks: [
         {
           id: 'task-cleanup',
-          title: 'Test Cleanup Task',
+          name: 'Test Cleanup Task',
+          complexity: 'XS',
           description: 'Task to test cleanup',
-          touches: [],
-          produces: ['test-file.ts'],
-          requires: [],
-          estimatedLines: 5,
-          agentPrompt: 'Create test file',
+          files: ['test-file.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
       ],
     };
@@ -392,17 +393,18 @@ describe('Stacked Branches Integration', () => {
 
   it('should clear completion queue between runs', async () => {
     // First run: create one task
-    const plan1: Plan = {
+    const plan1: PlanV2 = {
+      name: 'First Run',
+      strategy: 'sequential',
       tasks: [
         {
           id: 'task-first-run',
-          title: 'First Run Task',
+          name: 'First Run Task',
+          complexity: 'XS',
           description: 'Task from first run',
-          touches: [],
-          produces: ['first-run.ts'],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Create first-run.ts file',
+          files: ['first-run.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
       ],
     };
@@ -426,17 +428,18 @@ describe('Stacked Branches Integration', () => {
 
     // Second run: create another task with a new plan
     // This should NOT reuse the completion queue from the first run
-    const plan2: Plan = {
+    const plan2: PlanV2 = {
+      name: 'Second Run',
+      strategy: 'sequential',
       tasks: [
         {
           id: 'task-second-run',
-          title: 'Second Run Task',
+          name: 'Second Run Task',
+          complexity: 'XS',
           description: 'Task from second run',
-          touches: [],
-          produces: ['second-run.ts'],
-          requires: [],
-          estimatedLines: 10,
-          agentPrompt: 'Create second-run.ts file',
+          files: ['second-run.ts'],
+          acceptanceCriteria: [],
+          dependencies: [],
         },
       ],
     };
