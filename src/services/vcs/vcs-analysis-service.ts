@@ -66,7 +66,7 @@ export class VcsAnalysisServiceImpl implements VcsAnalysisService {
         }
 
         // Check if all dependencies are processed
-        const dependenciesSatisfied = task.requires.every((depId) => processed.has(depId));
+        const dependenciesSatisfied = task.dependencies.every((depId) => processed.has(depId));
         if (dependenciesSatisfied) {
           currentLayer.push(task);
         }

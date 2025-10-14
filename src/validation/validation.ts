@@ -61,50 +61,55 @@ export function validateTaskDependencies(tasks: unknown[]): SafeValidationResult
   // Collect all task IDs and validate basic structure
   for (const [index, task] of tasks.entries()) {
     // Try v2 first, then fall back to v1
-    let taskValidation = safeValidate(taskV2Schema, task);
-    if (!taskValidation.success) {
-      taskValidation = safeValidate(TaskSchema, task);
-    }
-
-    if (!taskValidation.success) {
-      errors.push(`Task ${index}: ${taskValidation.errors?.join(', ')}`);
+    const taskV2Validation = safeValidate(taskV2Schema, task);
+    if (taskV2Validation.success && isNonNullish(taskV2Validation.data)) {
+      const validTask = taskV2Validation.data;
+      if (taskIds.has(validTask.id)) {
+        errors.push(`Duplicate task ID: ${validTask.id}`);
+      }
+      taskIds.add(validTask.id);
       continue;
     }
 
-    if (!isNonNullish(taskValidation.data)) {
-      errors.push(`Task ${index}: Invalid task data`);
+    // Fall back to v1
+    const taskV1Validation = safeValidate(TaskSchema, task);
+    if (taskV1Validation.success && isNonNullish(taskV1Validation.data)) {
+      const validTask = taskV1Validation.data;
+      if (taskIds.has(validTask.id)) {
+        errors.push(`Duplicate task ID: ${validTask.id}`);
+      }
+      taskIds.add(validTask.id);
       continue;
     }
 
-    const validTask = taskValidation.data;
-    if (taskIds.has(validTask.id)) {
-      errors.push(`Duplicate task ID: ${validTask.id}`);
-    }
-    taskIds.add(validTask.id);
+    // Both validations failed
+    errors.push(
+      `Task ${index}: ${taskV2Validation.errors?.join(', ') ?? taskV1Validation.errors?.join(', ') ?? 'Invalid task'}`,
+    );
   }
 
   // Validate dependencies reference existing tasks
   for (const task of tasks) {
-    // Try v2 first, then fall back to v1
-    let taskValidation = safeValidate(taskV2Schema, task);
-    if (!taskValidation.success) {
-      taskValidation = safeValidate(TaskSchema, task);
-    }
-
-    if (!taskValidation.success) {
+    // Try v2 first
+    const taskV2Validation = safeValidate(taskV2Schema, task);
+    if (taskV2Validation.success && isNonNullish(taskV2Validation.data)) {
+      const validTask = taskV2Validation.data;
+      for (const dependencyId of validTask.dependencies) {
+        if (!taskIds.has(dependencyId)) {
+          errors.push(`Task ${validTask.id}: Unknown dependency '${dependencyId}'`);
+        }
+      }
       continue;
     }
 
-    if (!isNonNullish(taskValidation.data)) {
-      continue;
-    }
-
-    const validTask = taskValidation.data;
-    // v2 uses 'dependencies', v1 uses 'requires'
-    const dependencies = 'dependencies' in validTask ? validTask.dependencies : validTask.requires;
-    for (const dependencyId of dependencies) {
-      if (!taskIds.has(dependencyId)) {
-        errors.push(`Task ${validTask.id}: Unknown dependency '${dependencyId}'`);
+    // Fall back to v1
+    const taskV1Validation = safeValidate(TaskSchema, task);
+    if (taskV1Validation.success && isNonNullish(taskV1Validation.data)) {
+      const validTask = taskV1Validation.data;
+      for (const dependencyId of validTask.requires) {
+        if (!taskIds.has(dependencyId)) {
+          errors.push(`Task ${validTask.id}: Unknown dependency '${dependencyId}'`);
+        }
       }
     }
   }
@@ -124,40 +129,54 @@ export function validateTaskFilePaths(tasks: unknown[]): SafeValidationResult<st
   const errors: string[] = [];
 
   for (const task of tasks) {
-    // Try v2 first, then fall back to v1
-    let taskValidation = safeValidate(taskV2Schema, task);
-    if (!taskValidation.success) {
-      taskValidation = safeValidate(TaskSchema, task);
-    }
+    // Try v2 first
+    const taskV2Validation = safeValidate(taskV2Schema, task);
+    if (taskV2Validation.success && isNonNullish(taskV2Validation.data)) {
+      const validTask = taskV2Validation.data;
+      const taskFiles = validTask.files;
 
-    if (!taskValidation.success) {
+      // Check for file path conflicts (parallel tasks shouldn't touch same files)
+      for (const file of taskFiles) {
+        if (allFiles.has(file)) {
+          errors.push(`File conflict: '${file}' is used by multiple tasks`);
+        }
+        allFiles.add(file);
+      }
+
+      // Validate file path format (basic checks)
+      for (const file of taskFiles) {
+        if (file.includes('..')) {
+          errors.push(`Task ${validTask.id}: Invalid file path '${file}' (contains '..')`);
+        }
+        if (file.startsWith('/') && !file.startsWith(process.cwd())) {
+          errors.push(`Task ${validTask.id}: Absolute path '${file}' outside project`);
+        }
+      }
       continue;
     }
 
-    if (!isNonNullish(taskValidation.data)) {
-      continue;
-    }
+    // Fall back to v1
+    const taskV1Validation = safeValidate(TaskSchema, task);
+    if (taskV1Validation.success && isNonNullish(taskV1Validation.data)) {
+      const validTask = taskV1Validation.data;
+      const taskFiles = [...validTask.touches, ...validTask.produces];
 
-    const validTask = taskValidation.data;
-
-    // v2 uses 'files', v1 uses 'touches' + 'produces'
-    const taskFiles = 'files' in validTask ? validTask.files : [...validTask.touches, ...validTask.produces];
-
-    // Check for file path conflicts (parallel tasks shouldn't touch same files)
-    for (const file of taskFiles) {
-      if (allFiles.has(file)) {
-        errors.push(`File conflict: '${file}' is used by multiple tasks`);
+      // Check for file path conflicts (parallel tasks shouldn't touch same files)
+      for (const file of taskFiles) {
+        if (allFiles.has(file)) {
+          errors.push(`File conflict: '${file}' is used by multiple tasks`);
+        }
+        allFiles.add(file);
       }
-      allFiles.add(file);
-    }
 
-    // Validate file path format (basic checks)
-    for (const file of taskFiles) {
-      if (file.includes('..')) {
-        errors.push(`Task ${validTask.id}: Invalid file path '${file}' (contains '..')`);
-      }
-      if (file.startsWith('/') && !file.startsWith(process.cwd())) {
-        errors.push(`Task ${validTask.id}: Absolute path '${file}' outside project`);
+      // Validate file path format (basic checks)
+      for (const file of taskFiles) {
+        if (file.includes('..')) {
+          errors.push(`Task ${validTask.id}: Invalid file path '${file}' (contains '..')`);
+        }
+        if (file.startsWith('/') && !file.startsWith(process.cwd())) {
+          errors.push(`Task ${validTask.id}: Absolute path '${file}' outside project`);
+        }
       }
     }
   }
@@ -173,44 +192,59 @@ export function validateTaskFilePaths(tasks: unknown[]): SafeValidationResult<st
  * Validates execution plan coherence (supports both v1 and v2)
  */
 export function validateExecutionPlan(plan: unknown): SafeValidationResult<boolean> {
-  // Try v2 first, then fall back to v1
-  let planValidation = safeValidate(planSchemaV2, plan);
-  if (!planValidation.success) {
-    planValidation = safeValidate(PlanSchema, plan);
-  }
+  // Try v2 first
+  const planV2Validation = safeValidate(planSchemaV2, plan);
+  if (planV2Validation.success && isNonNullish(planV2Validation.data)) {
+    const validPlan = planV2Validation.data;
+    const errors: string[] = [];
 
-  if (!planValidation.success) {
+    // Validate task dependencies
+    const depsValidation = validateTaskDependencies(validPlan.tasks);
+    if (!depsValidation.success) {
+      errors.push(...(depsValidation.errors ?? []));
+    }
+
+    // Validate file paths
+    const filesValidation = validateTaskFilePaths(validPlan.tasks);
+    if (!filesValidation.success) {
+      errors.push(...(filesValidation.errors ?? []));
+    }
+
     return {
-      ...(planValidation.errors !== undefined && { errors: planValidation.errors }),
-      success: false,
+      data: errors.length === 0,
+      ...(errors.length > 0 && { errors }),
+      success: errors.length === 0,
     };
   }
 
-  if (!isNonNullish(planValidation.data)) {
+  // Fall back to v1
+  const planV1Validation = safeValidate(PlanSchema, plan);
+  if (planV1Validation.success && isNonNullish(planV1Validation.data)) {
+    const validPlan = planV1Validation.data;
+    const errors: string[] = [];
+
+    // Validate task dependencies
+    const depsValidation = validateTaskDependencies(validPlan.tasks);
+    if (!depsValidation.success) {
+      errors.push(...(depsValidation.errors ?? []));
+    }
+
+    // Validate file paths
+    const filesValidation = validateTaskFilePaths(validPlan.tasks);
+    if (!filesValidation.success) {
+      errors.push(...(filesValidation.errors ?? []));
+    }
+
     return {
-      errors: ['Invalid plan data'],
-      success: false,
+      data: errors.length === 0,
+      ...(errors.length > 0 && { errors }),
+      success: errors.length === 0,
     };
   }
 
-  const validPlan = planValidation.data;
-  const errors: string[] = [];
-
-  // Validate task dependencies
-  const depsValidation = validateTaskDependencies(validPlan.tasks);
-  if (!depsValidation.success) {
-    errors.push(...(depsValidation.errors ?? []));
-  }
-
-  // Validate file paths
-  const filesValidation = validateTaskFilePaths(validPlan.tasks);
-  if (!filesValidation.success) {
-    errors.push(...(filesValidation.errors ?? []));
-  }
-
+  // Both validations failed
   return {
-    data: errors.length === 0,
-    ...(errors.length > 0 && { errors }),
-    success: errors.length === 0,
+    errors: planV2Validation.errors ?? planV1Validation.errors ?? ['Invalid plan data'],
+    success: false,
   };
 }

@@ -81,10 +81,13 @@ export function useExecutionState(
   const [tasks, setTasks] = useState(() => {
     const initialTasks = new Map<string, TaskUIState>();
     for (const task of plan.tasks) {
+      // Handle both v1 'layer' and v2 'phase'
+      const layerValue = 'layer' in task ? task.layer : undefined;
+
       initialTasks.set(task.id, {
         dependencies: getTaskDependencies(task),
         id: task.id,
-        ...(isNonNullish(task.layer) && { layer: task.layer }),
+        ...(isNonNullish(layerValue) && { layer: layerValue }),
         progress: 0,
         status: 'pending',
         title: getTaskDisplayName(task),
