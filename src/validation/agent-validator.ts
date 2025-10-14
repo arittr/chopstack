@@ -1,6 +1,6 @@
 import { execa } from 'execa';
 
-import type { AgentType } from '@/types/decomposer';
+import type { AgentType } from '@/types/agent';
 
 import { AgentNotFoundError } from '@/utils/errors';
 import { logger } from '@/utils/global-logger';
@@ -14,7 +14,7 @@ export class AgentValidator {
   /**
    * Validate that the required dependencies are available for the given agent type
    */
-  static async validateAgentCapabilities(agentType: AgentType | 'mock'): Promise<void> {
+  static async validateAgentCapabilities(agentType: AgentType): Promise<void> {
     switch (agentType) {
       case 'claude': {
         await this._validateClaudeCLI();
