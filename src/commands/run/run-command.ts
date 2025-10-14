@@ -11,7 +11,7 @@ import type { AgentService } from '@/core/agents/interfaces';
 import type { ExecutionEngine } from '@/services/execution';
 import type { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
 import type { RunCommandOptions } from '@/types/cli';
-import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { RegisterCommand } from '@/commands/command-factory';
 import { BaseCommand, type CommandDependencies } from '@/commands/types';
@@ -79,7 +79,7 @@ export class RunCommand extends BaseCommand {
         return container.get<ExecutionEngine>(ServiceIdentifiers.ExecutionEngine);
       };
 
-      let plan: Plan;
+      let plan: PlanV2;
 
       if (isNonEmptyString(options.spec)) {
         this.logger.info(chalk.blue(`📄 Reading spec from: ${resolve(options.spec)}`));
@@ -108,7 +108,7 @@ export class RunCommand extends BaseCommand {
         const planContent = await readFile(resolve(options.plan), 'utf8');
         const isYaml = options.plan.endsWith('.yaml') || options.plan.endsWith('.yml');
 
-        plan = isYaml ? YamlPlanParser.parse(planContent) : (JSON.parse(planContent) as Plan);
+        plan = isYaml ? YamlPlanParser.parse(planContent) : (JSON.parse(planContent) as PlanV2);
       } else {
         this.logger.error(chalk.red('❌ Either --spec or --plan must be provided'));
         return 1;
