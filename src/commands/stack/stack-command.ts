@@ -310,8 +310,8 @@ export class StackCommand extends BaseCommand {
     files: string[],
   ): {
     description: string;
-    files: string[];
-    name: string;
+    produces: string[];
+    title: string;
   } {
     // Analyze file patterns and changes
     const changes = {
@@ -389,9 +389,9 @@ export class StackCommand extends BaseCommand {
         : `${files.length} files changed across the codebase`;
 
     return {
-      name,
+      title: name,
       description,
-      files,
+      produces: files,
     };
   }
 }
