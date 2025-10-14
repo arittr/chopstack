@@ -94,7 +94,7 @@ export class PlanOutputter {
     }
 
     logger.info('  Complexity:');
-    for (const [complexity, count] of Array.from(complexityCounts.entries())) {
+    for (const [complexity, count] of complexityCounts.entries()) {
       logger.info(`    ${complexity}: ${count} tasks`);
     }
 
