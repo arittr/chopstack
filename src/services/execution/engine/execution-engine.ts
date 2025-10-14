@@ -5,7 +5,7 @@ import type { ExecutionOptions } from '@/core/execution/types';
 import type { ExecutionMonitorService } from '@/services/execution/execution-monitor-service';
 import type { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
 import type { ExecutionPlannerService } from '@/services/execution/execution-planner-service';
-import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { logger } from '@/utils/global-logger';
 
@@ -80,7 +80,7 @@ export class ExecutionEngine extends EventEmitter {
     });
   }
 
-  async execute(plan: Plan, options: ExecutionOptions, jobId?: string): Promise<ExecutionResult> {
+  async execute(plan: PlanV2, options: ExecutionOptions, jobId?: string): Promise<ExecutionResult> {
     logger.info(`🚀 Starting execution in ${options.mode} mode with modular architecture`);
 
     try {

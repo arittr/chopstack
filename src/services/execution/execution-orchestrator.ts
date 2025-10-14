@@ -14,7 +14,8 @@ import type {
 import type { ExecutionMode, ExecutionOptions } from '@/core/execution/types';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
 import type { StreamingUpdate, TaskOrchestrator } from '@/services/orchestration';
-import type { Plan, ValidationResult } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
+import type { ValidationResult } from '@/types/decomposer';
 
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
 import { VcsStrategyFactory } from '@/services/vcs/strategies/vcs-strategy-factory';
@@ -38,7 +39,7 @@ export type ExecutionOrchestratorDependencies = {
 export type ExecutionOrchestratorEvents = {
   executionComplete: ExecutionResult;
   executionError: Error;
-  executionStart: { options: ExecutionOptions; plan: Plan };
+  executionStart: { options: ExecutionOptions; plan: PlanV2 };
   taskComplete: TaskResult;
   taskError: { error: Error; taskId: string };
   taskStart: { taskId: string };
@@ -109,7 +110,7 @@ export class ExecutionOrchestrator extends EventEmitter {
   /**
    * Execute a plan with the specified mode
    */
-  async execute(plan: Plan, options: ExecutionOptions): Promise<ExecutionResult> {
+  async execute(plan: PlanV2, options: ExecutionOptions): Promise<ExecutionResult> {
     const context = this._createExecutionContext(options);
 
     try {
@@ -131,7 +132,7 @@ export class ExecutionOrchestrator extends EventEmitter {
    * Execute plan with specific mode handler
    */
   private async _executeWithMode(
-    plan: Plan,
+    plan: PlanV2,
     context: ExecutionContext,
     mode: ExecutionMode,
   ): Promise<ExecutionResult> {
