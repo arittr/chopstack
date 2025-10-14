@@ -310,8 +310,8 @@ export class StackCommand extends BaseCommand {
     files: string[],
   ): {
     description: string;
-    produces: string[];
-    title: string;
+    files: string[];
+    name: string;
   } {
     // Analyze file patterns and changes
     const changes = {
@@ -340,22 +340,22 @@ export class StackCommand extends BaseCommand {
       commands: files.filter((f) => f.includes('command')),
     };
 
-    // Generate intelligent title based on changes
-    let title = 'Update codebase';
+    // Generate intelligent name based on changes
+    let name = 'Update codebase';
     if (categories.tests.length > 0 && categories.tests.length >= files.length / 2) {
-      title = 'Add comprehensive test coverage';
+      name = 'Add comprehensive test coverage';
     } else if (categories.components.length > 0) {
-      title = 'Enhance UI components and functionality';
+      name = 'Enhance UI components and functionality';
     } else if (categories.commands.length > 0) {
-      title = 'Improve CLI command functionality';
+      name = 'Improve CLI command functionality';
     } else if (categories.apis.length > 0) {
-      title = 'Enhance API and service integration';
+      name = 'Enhance API and service integration';
     } else if (categories.types.length > 0) {
-      title = 'Update type definitions and interfaces';
+      name = 'Update type definitions and interfaces';
     } else if (categories.configs.length > 0) {
-      title = 'Update project configuration';
+      name = 'Update project configuration';
     } else if (categories.docs.length > 0) {
-      title = 'Update documentation';
+      name = 'Update documentation';
     }
 
     // Generate detailed description
@@ -389,9 +389,9 @@ export class StackCommand extends BaseCommand {
         : `${files.length} files changed across the codebase`;
 
     return {
-      title,
+      name,
       description,
-      produces: files,
+      files,
     };
   }
 }

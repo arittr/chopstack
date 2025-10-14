@@ -2,10 +2,15 @@ import { readFile } from 'node:fs/promises';
 
 import { vi } from 'vitest';
 
-import type { DecomposeOptions } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, DecomposeCommand } from '@/commands';
+import { DecomposeOptionsSchema } from '@/types/decomposer';
+import { z } from 'zod';
+
+// Infer DecomposeOptions type from schema
+type DecomposeOptions = z.infer<typeof DecomposeOptionsSchema>;
 
 // Mock only external dependencies, not our own classes
 vi.mock('node:fs/promises', () => ({
@@ -18,27 +23,27 @@ const mockReadFile = vi.mocked(readFile);
 const mockCreateDecomposerAgent = vi.mocked(createDecomposerAgent);
 
 describe('decomposeCommand integration tests', () => {
-  const mockPlan = {
+  const mockPlan: PlanV2 = {
+    name: 'Setup React App',
+    strategy: 'parallel',
     tasks: [
       {
         id: 'setup-routing',
-        title: 'Setup React Router',
+        name: 'Setup React Router',
+        complexity: 'S',
         description: 'Configure React Router for the application',
-        touches: ['src/App.tsx'],
-        produces: ['src/routes/index.ts'],
-        requires: [],
-        estimatedLines: 25,
-        agentPrompt: 'Add React Router setup to the main App component',
+        files: ['src/App.tsx', 'src/routes/index.ts'],
+        acceptanceCriteria: ['React Router configured', 'Routes file created'],
+        dependencies: [],
       },
       {
         id: 'create-homepage',
-        title: 'Create Homepage Component',
+        name: 'Create Homepage Component',
+        complexity: 'M',
         description: 'Build the main homepage component with hero section',
-        touches: [],
-        produces: ['src/pages/HomePage.tsx', 'src/components/Hero.tsx'],
-        requires: ['setup-routing'],
-        estimatedLines: 45,
-        agentPrompt: 'Create a homepage component with a hero section',
+        files: ['src/pages/HomePage.tsx', 'src/components/Hero.tsx'],
+        acceptanceCriteria: ['Homepage component created', 'Hero section implemented'],
+        dependencies: ['setup-routing'],
       },
     ],
   };
@@ -92,27 +97,27 @@ describe('decomposeCommand integration tests', () => {
 
   it('should handle plan validation using real DagValidator', async () => {
     // Create a plan with circular dependencies that should fail validation
-    const invalidPlan = {
+    const invalidPlan: PlanV2 = {
+      name: 'Invalid Plan',
+      strategy: 'parallel',
       tasks: [
         {
           id: 'task-a',
-          title: 'Task A',
-          description: 'First task',
-          touches: ['file1.ts'],
-          produces: [],
-          requires: ['task-b'], // Circular: A requires B
-          estimatedLines: 10,
-          agentPrompt: 'Do task A',
+          name: 'Task A',
+          complexity: 'S',
+          description: 'First task with circular dependency on task-b',
+          files: ['file1.ts'],
+          acceptanceCriteria: ['Task A completed'],
+          dependencies: ['task-b'], // Circular: A requires B
         },
         {
           id: 'task-b',
-          title: 'Task B',
-          description: 'Second task',
-          touches: ['file2.ts'],
-          produces: [],
-          requires: ['task-a'], // Circular: B requires A
-          estimatedLines: 15,
-          agentPrompt: 'Do task B',
+          name: 'Task B',
+          complexity: 'S',
+          description: 'Second task with circular dependency on task-a',
+          files: ['file2.ts'],
+          acceptanceCriteria: ['Task B completed'],
+          dependencies: ['task-a'], // Circular: B requires A
         },
       ],
     };
@@ -156,31 +161,33 @@ describe('decomposeCommand integration tests', () => {
 
   it('should test real retry logic with generatePlanWithRetry', async () => {
     // First call returns invalid plan, second call returns valid plan
+    const conflictingPlan: PlanV2 = {
+      name: 'Conflicting Plan',
+      strategy: 'parallel',
+      tasks: [
+        {
+          id: 'task-1',
+          name: 'Task 1',
+          complexity: 'S',
+          description: 'First task that modifies same-file.ts',
+          files: ['same-file.ts'],
+          acceptanceCriteria: ['Task 1 completed'],
+          dependencies: [],
+        },
+        {
+          id: 'task-2',
+          name: 'Task 2',
+          complexity: 'S',
+          description: 'Second task that modifies same-file.ts', // File conflict!
+          files: ['same-file.ts'],
+          acceptanceCriteria: ['Task 2 completed'],
+          dependencies: [],
+        },
+      ],
+    };
+
     mockAgent.decompose
-      .mockResolvedValueOnce({
-        tasks: [
-          {
-            id: 'task-1',
-            title: 'Task 1',
-            description: 'First task',
-            touches: ['same-file.ts'],
-            produces: [],
-            requires: [],
-            estimatedLines: 10,
-            agentPrompt: 'Do task 1',
-          },
-          {
-            id: 'task-2',
-            title: 'Task 2',
-            description: 'Second task',
-            touches: ['same-file.ts'], // File conflict!
-            produces: [],
-            requires: [],
-            estimatedLines: 15,
-            agentPrompt: 'Do task 2',
-          },
-        ],
-      })
+      .mockResolvedValueOnce(conflictingPlan)
       .mockResolvedValueOnce(mockPlan); // Valid plan on retry
 
     const options: DecomposeOptions = {

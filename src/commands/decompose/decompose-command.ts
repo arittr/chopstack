@@ -7,15 +7,20 @@ import { resolve } from 'node:path';
 
 import chalk from 'chalk';
 
-import type { DecomposeOptions } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { createDecomposerAgent } from '@/adapters/agents';
 import { RegisterCommand } from '@/commands/command-factory';
 import { BaseCommand, type CommandDependencies } from '@/commands/types';
 import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { PlanOutputter } from '@/services/planning/plan-outputter';
+import { DecomposeOptionsSchema } from '@/types/decomposer';
 import { DagValidator } from '@/validation/dag-validator';
 import { isValidArray } from '@/validation/guards';
+
+// Infer DecomposeOptions type from schema
+type DecomposeOptions = z.infer<typeof DecomposeOptionsSchema>;
+import { z } from 'zod';
 
 /**
  * Decompose markdown specs into parallel task DAGs

@@ -7,7 +7,7 @@ import type { AgentService } from '@/core/agents/interfaces';
 import type { ExecutionResult } from '@/core/execution/interfaces';
 import type { ExecutionEngine } from '@/services/execution';
 import type { RunCommandOptions } from '@/types/cli';
-import type { Plan } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { createDefaultDependencies, RunCommand } from '@/commands';
 
@@ -16,27 +16,40 @@ vi.mock('node:fs/promises');
 const mockReadFile = vi.mocked(readFile);
 
 describe('runCommand integration tests', () => {
-  const mockPlan: Plan = {
+  const mockPlan: PlanV2 = {
+    name: 'Setup React Components',
+    strategy: 'sequential',
     tasks: [
       {
         id: 'setup-components',
-        title: 'Setup Component Structure',
-        description: 'Create the basic component structure',
-        touches: ['src/App.tsx'],
-        produces: ['src/components/Button.tsx', 'src/components/Header.tsx'],
-        requires: [],
-        estimatedLines: 50,
-        agentPrompt: 'Create reusable Button and Header components',
+        name: 'Setup Component Structure',
+        complexity: 'M',
+        description: 'Create the basic component structure with Button and Header components',
+        files: [
+          'src/App.tsx',
+          'src/components/Button.tsx',
+          'src/components/Header.tsx',
+        ],
+        acceptanceCriteria: [
+          'Button component created',
+          'Header component created',
+          'Components are reusable',
+        ],
+        dependencies: [],
       },
       {
         id: 'add-styling',
-        title: 'Add Component Styling',
+        name: 'Add Component Styling',
+        complexity: 'S',
         description: 'Style the components with CSS modules',
-        touches: ['src/components/Button.tsx', 'src/components/Header.tsx'],
-        produces: ['src/components/Button.module.css', 'src/components/Header.module.css'],
-        requires: ['setup-components'],
-        estimatedLines: 30,
-        agentPrompt: 'Add CSS module styling to Button and Header components',
+        files: [
+          'src/components/Button.tsx',
+          'src/components/Header.tsx',
+          'src/components/Button.module.css',
+          'src/components/Header.module.css',
+        ],
+        acceptanceCriteria: ['CSS modules applied', 'Components styled correctly'],
+        dependencies: ['setup-components'],
       },
     ],
   };
@@ -122,40 +135,45 @@ describe('runCommand integration tests', () => {
       );
 
       // Verify real execution engine usage
-      expect(mockExecute).toHaveBeenCalledWith(mockPlan, {
-        agent: 'claude',
-        mode: 'execute',
-        vcsMode: 'simple',
-        verbose: false,
-        dryRun: undefined,
-        parallel: undefined,
-        continueOnError: undefined,
-      });
+      expect(mockExecute).toHaveBeenCalledWith(
+        mockPlan,
+        {
+          agent: 'claude',
+          mode: 'execute',
+          vcsMode: 'simple',
+          verbose: false,
+          dryRun: undefined,
+          continueOnError: undefined,
+          permissiveValidation: undefined,
+          workdir: '/test/project',
+        },
+        expect.any(String), // jobId
+      );
     });
 
     it('should handle plan validation failure using real DagValidator', async () => {
       // Create a plan with file conflicts
-      const conflictingPlan = {
+      const conflictingPlan: PlanV2 = {
+        name: 'Conflicting Plan',
+        strategy: 'parallel',
         tasks: [
           {
             id: 'task-1',
-            title: 'Task 1',
-            description: 'First task',
-            touches: ['conflicting-file.ts'],
-            produces: [],
-            requires: [],
-            estimatedLines: 10,
-            agentPrompt: 'Modify conflicting file',
+            name: 'Task 1',
+            complexity: 'S',
+            description: 'First task that modifies conflicting-file.ts',
+            files: ['conflicting-file.ts'],
+            acceptanceCriteria: ['Task 1 completed'],
+            dependencies: [],
           },
           {
             id: 'task-2',
-            title: 'Task 2',
-            description: 'Second task',
-            touches: ['conflicting-file.ts'], // Same file = conflict
-            produces: [],
-            requires: [], // No dependency = parallel conflict
-            estimatedLines: 15,
-            agentPrompt: 'Also modify conflicting file',
+            name: 'Task 2',
+            complexity: 'S',
+            description: 'Second task that modifies conflicting-file.ts', // Same file = conflict
+            files: ['conflicting-file.ts'],
+            acceptanceCriteria: ['Task 2 completed'],
+            dependencies: [], // No dependency = parallel conflict
           },
         ],
       };
@@ -185,16 +203,19 @@ describe('runCommand integration tests', () => {
   describe('plan mode with real YAML parsing', () => {
     it('should load and validate YAML plan using real YamlPlanParser', async () => {
       const yamlPlanContent = `
+name: Create Layout
+strategy: sequential
 tasks:
   - id: create-layout
-    title: Create Layout Component
-    description: Build the main layout component
-    touches: []
-    produces:
+    name: Create Layout Component
+    complexity: M
+    description: Build the main layout component with responsive design
+    files:
       - src/components/Layout.tsx
-    requires: []
-    estimatedLines: 40
-    agentPrompt: Create a responsive layout component
+    acceptanceCriteria:
+      - Layout component created
+      - Responsive design implemented
+    dependencies: []
       `;
 
       mockReadFile.mockResolvedValue(yamlPlanContent);
@@ -217,17 +238,18 @@ tasks:
     });
 
     it('should handle JSON plan files using real parser', async () => {
-      const jsonPlan = {
+      const jsonPlan: PlanV2 = {
+        name: 'JSON Plan',
+        strategy: 'sequential',
         tasks: [
           {
             id: 'json-task',
-            title: 'JSON Task',
-            description: 'Task from JSON',
-            touches: [],
-            produces: ['output.tsx'],
-            requires: [],
-            estimatedLines: 20,
-            agentPrompt: 'Create from JSON',
+            name: 'JSON Task',
+            complexity: 'S',
+            description: 'Task from JSON file with output creation',
+            files: ['output.tsx'],
+            acceptanceCriteria: ['Output file created'],
+            dependencies: [],
           },
         ],
       };
@@ -343,15 +365,20 @@ tasks:
 
       expect(result).toBe(0);
 
-      expect(mockExecute).toHaveBeenCalledWith(mockPlan, {
-        mode: 'plan',
-        vcsMode: 'simple',
-        verbose: true,
-        dryRun: undefined,
-        parallel: undefined,
-        continueOnError: true,
-        agent: undefined,
-      });
+      expect(mockExecute).toHaveBeenCalledWith(
+        mockPlan,
+        {
+          mode: 'plan',
+          vcsMode: 'simple',
+          verbose: true,
+          dryRun: undefined,
+          continueOnError: true,
+          agent: undefined,
+          permissiveValidation: undefined,
+          workdir: '/custom/workdir',
+        },
+        expect.any(String), // jobId
+      );
     });
   });
 });
