@@ -1,42 +1,39 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { TaskTransitionManager } from '../task-transitions';
 
 describe('TaskTransitionManager', () => {
   let manager: TaskTransitionManager;
 
-  const createTestTasks = (): Task[] => [
+  const createTestTasks = (): TaskV2[] => [
     {
       id: 'task-1',
-      title: 'Task 1',
+      name: 'Task 1',
       description: 'First task',
-      requires: [],
-      touches: ['file1.ts'],
-      produces: [],
-      estimatedLines: 10,
-      agentPrompt: 'Complete task 1',
+      dependencies: [],
+      files: ['file1.ts'],
+      complexity: 'XS',
+      acceptanceCriteria: ['Task 1 completed'],
     },
     {
       id: 'task-2',
-      title: 'Task 2',
+      name: 'Task 2',
       description: 'Second task',
-      requires: ['task-1'],
-      touches: ['file2.ts'],
-      produces: [],
-      estimatedLines: 15,
-      agentPrompt: 'Complete task 2',
+      dependencies: ['task-1'],
+      files: ['file2.ts'],
+      complexity: 'XS',
+      acceptanceCriteria: ['Task 2 completed'],
     },
     {
       id: 'task-3',
-      title: 'Task 3',
+      name: 'Task 3',
       description: 'Third task',
-      requires: ['task-1', 'task-2'],
-      touches: ['file3.ts'],
-      produces: [],
-      estimatedLines: 20,
-      agentPrompt: 'Complete task 3',
+      dependencies: ['task-1', 'task-2'],
+      files: ['file3.ts'],
+      complexity: 'XS',
+      acceptanceCriteria: ['Task 3 completed'],
     },
   ];
 
@@ -351,46 +348,42 @@ describe('TaskTransitionManager', () => {
 
   describe('complex dependency scenarios', () => {
     it('should handle diamond dependency pattern', () => {
-      const diamondTasks: Task[] = [
+      const diamondTasks: TaskV2[] = [
         {
           id: 'a',
-          title: 'A',
+          name: 'A',
           description: 'Base task',
-          requires: [],
-          touches: [],
-          produces: [],
-          estimatedLines: 5,
-          agentPrompt: '',
+          dependencies: [],
+          files: [],
+          complexity: 'XS',
+          acceptanceCriteria: [],
         },
         {
           id: 'b',
-          title: 'B',
+          name: 'B',
           description: 'Depends on A',
-          requires: ['a'],
-          touches: [],
-          produces: [],
-          estimatedLines: 5,
-          agentPrompt: '',
+          dependencies: ['a'],
+          files: [],
+          complexity: 'XS',
+          acceptanceCriteria: [],
         },
         {
           id: 'c',
-          title: 'C',
+          name: 'C',
           description: 'Depends on A',
-          requires: ['a'],
-          touches: [],
-          produces: [],
-          estimatedLines: 5,
-          agentPrompt: '',
+          dependencies: ['a'],
+          files: [],
+          complexity: 'XS',
+          acceptanceCriteria: [],
         },
         {
           id: 'd',
-          title: 'D',
+          name: 'D',
           description: 'Depends on B and C',
-          requires: ['b', 'c'],
-          touches: [],
-          produces: [],
-          estimatedLines: 5,
-          agentPrompt: '',
+          dependencies: ['b', 'c'],
+          files: [],
+          complexity: 'XS',
+          acceptanceCriteria: [],
         },
       ];
 
