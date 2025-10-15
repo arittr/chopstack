@@ -212,7 +212,7 @@ describe('Chopstack E2E Integration Tests', () => {
       expect(metrics.maxParallelization).toBeGreaterThan(0);
       expect(metrics.executionLayers).toBeGreaterThan(0);
       expect(metrics.criticalPathLength).toBeGreaterThan(0);
-      expect(metrics.totalEstimatedLines).toBeGreaterThan(0);
+      expect(metrics.totalComplexityScore).toBeGreaterThan(0);
       expect(metrics.estimatedSpeedup).toBeGreaterThan(0);
       console.log('✅ Metrics calculated successfully');
     });

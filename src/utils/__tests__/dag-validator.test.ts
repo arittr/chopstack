@@ -90,7 +90,11 @@ describe('DagValidator', () => {
     it('validates task structure', () => {
       const tasks = [
         createTask({ id: '', name: 'Bad Task' }), // Missing ID
-        createTask({ id: 'task2', name: '', description: 'Good description with sufficient detail for validation' }), // Missing name
+        createTask({
+          id: 'task2',
+          name: '',
+          description: 'Good description with sufficient detail for validation',
+        }), // Missing name
         createTask({ id: 'task3', complexity: 'INVALID' as any }), // Invalid complexity
       ];
       const plan = createPlan(tasks);
@@ -100,8 +104,17 @@ describe('DagValidator', () => {
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors.some((error) => error.includes('missing ID'))).toBe(true);
-      expect(result.errors.some((error) => error.includes('missing name') || error.includes('missing title'))).toBe(true);
-      expect(result.errors.some((error) => error.includes('invalid complexity') || error.includes('invalid estimated lines'))).toBe(true);
+      expect(
+        result.errors.some(
+          (error) => error.includes('missing name') || error.includes('missing title'),
+        ),
+      ).toBe(true);
+      expect(
+        result.errors.some(
+          (error) =>
+            error.includes('invalid complexity') || error.includes('invalid estimated lines'),
+        ),
+      ).toBe(true);
     });
   });
 
@@ -119,8 +132,8 @@ describe('DagValidator', () => {
       expect(metrics.taskCount).toBe(3);
       expect(metrics.maxParallelization).toBe(1); // Linear execution
       expect(metrics.executionLayers).toBe(3);
-      // Note: metrics may calculate differently for complexity vs estimatedLines
-      expect(metrics.totalEstimatedLines).toBeGreaterThan(0);
+      // Note: metrics now use complexity scores instead of estimated lines
+      expect(metrics.totalComplexityScore).toBeGreaterThan(0);
     });
 
     it('calculates metrics for a parallel plan', () => {
@@ -137,7 +150,7 @@ describe('DagValidator', () => {
       expect(metrics.taskCount).toBe(4);
       expect(metrics.maxParallelization).toBe(2); // task2 and task3 can run in parallel
       expect(metrics.executionLayers).toBe(3);
-      expect(metrics.totalEstimatedLines).toBeGreaterThan(0);
+      expect(metrics.totalComplexityScore).toBeGreaterThan(0);
     });
   });
 

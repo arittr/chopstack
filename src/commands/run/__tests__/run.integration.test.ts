@@ -25,11 +25,7 @@ describe('runCommand integration tests', () => {
         name: 'Setup Component Structure',
         complexity: 'M',
         description: 'Create the basic component structure with Button and Header components',
-        files: [
-          'src/App.tsx',
-          'src/components/Button.tsx',
-          'src/components/Header.tsx',
-        ],
+        files: ['src/App.tsx', 'src/components/Button.tsx', 'src/components/Header.tsx'],
         acceptanceCriteria: [
           'Button component created',
           'Header component created',

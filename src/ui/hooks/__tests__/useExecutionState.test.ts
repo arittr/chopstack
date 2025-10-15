@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+/* eslint-disable unicorn/no-unused-properties */
+import { describe, expect, it } from 'vitest';
 
 import type { Plan } from '@/types/decomposer';
 import type { PlanV2, TaskV2 } from '@/types/schemas-v2';
@@ -54,7 +55,8 @@ describe('useExecutionState helpers', () => {
         id: 'task-1',
         name: 'Create Theme Types',
         complexity: 'M',
-        description: 'Create TypeScript types for theme system.\nWhy: Foundation for theme features.',
+        description:
+          'Create TypeScript types for theme system.\nWhy: Foundation for theme features.',
         files: ['src/types/theme.ts', 'src/types/theme-context.ts'],
         acceptanceCriteria: [
           'Types exported for light/dark/system modes',
@@ -140,6 +142,7 @@ describe('useExecutionState helpers', () => {
             description: 'First task',
             files: ['file1.ts'],
             dependencies: [],
+            acceptanceCriteria: [],
           },
           {
             id: 'task-2',
@@ -148,6 +151,7 @@ describe('useExecutionState helpers', () => {
             description: 'Second task',
             files: ['file2.ts'],
             dependencies: ['task-1'],
+            acceptanceCriteria: [],
           },
           {
             id: 'task-3',
@@ -156,6 +160,7 @@ describe('useExecutionState helpers', () => {
             description: 'Third task',
             files: ['file3.ts'],
             dependencies: ['task-2'],
+            acceptanceCriteria: [],
           },
           {
             id: 'task-4',
@@ -164,6 +169,7 @@ describe('useExecutionState helpers', () => {
             description: 'Fourth task',
             files: ['file4.ts'],
             dependencies: ['task-2'],
+            acceptanceCriteria: [],
           },
         ],
       };
@@ -186,6 +192,7 @@ describe('useExecutionState helpers', () => {
             description: 'First task',
             files: ['file1.ts'],
             dependencies: [],
+            acceptanceCriteria: [],
           },
         ],
       };

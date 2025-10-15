@@ -1,8 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import type { ExecutionContext, PlanModeResult } from '@/core/execution/interfaces';
 import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/orchestration';
 import type { TaskV2 } from '@/types/schemas-v2';
-
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { PlanModeHandlerImpl } from '../plan-mode-handler';
 
@@ -155,9 +155,7 @@ describe('PlanModeHandlerImpl', () => {
         dependencies: [],
       };
 
-      vi.mocked(mockOrchestrator.executeTask).mockRejectedValue(
-        new Error('Orchestrator failed'),
-      );
+      vi.mocked(mockOrchestrator.executeTask).mockRejectedValue(new Error('Orchestrator failed'));
 
       const result = await handler.handle([task], mockContext);
 
@@ -279,18 +277,16 @@ describe('PlanModeHandlerImpl', () => {
       };
 
       vi.mocked(mockOrchestrator.executeTask).mockImplementation(
-        () =>
+        async () =>
           new Promise((resolve) => {
-            setTimeout(
-              () =>
-                resolve({
-                  status: 'completed',
-                  output: 'Done',
-                  mode: 'plan',
-                  taskId: 'task-1',
-                }),
-              10,
-            );
+            setTimeout(() => {
+              resolve({
+                status: 'completed',
+                output: 'Done',
+                mode: 'plan',
+                taskId: 'task-1',
+              });
+            }, 10);
           }),
       );
 
@@ -307,11 +303,7 @@ describe('PlanModeHandlerImpl', () => {
         complexity: 'XL',
         description: 'Detailed v2 task description',
         files: ['src/file1.ts', 'src/file2.ts'],
-        acceptanceCriteria: [
-          'Criterion 1',
-          'Criterion 2',
-          'Criterion 3',
-        ],
+        acceptanceCriteria: ['Criterion 1', 'Criterion 2', 'Criterion 3'],
         dependencies: ['other-task'],
         phase: 'phase-1',
       };

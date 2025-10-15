@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import chalk from 'chalk';
+import { z } from 'zod';
 
 import type { PlanV2 } from '@/types/schemas-v2';
 
@@ -14,8 +15,6 @@ import { RegisterCommand } from '@/commands/command-factory';
 import { BaseCommand, type CommandDependencies } from '@/commands/types';
 import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { PlanOutputter } from '@/services/planning/plan-outputter';
-import { z } from 'zod';
-
 import { DagValidator } from '@/validation/dag-validator';
 import { isValidArray } from '@/validation/guards';
 

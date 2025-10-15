@@ -1,13 +1,15 @@
+/* eslint-disable unicorn/no-unused-properties */
+import type { z } from 'zod';
+
 import { readFile } from 'node:fs/promises';
 
 import { vi } from 'vitest';
 
+import type { DecomposeOptionsSchema } from '@/types/decomposer';
 import type { PlanV2 } from '@/types/schemas-v2';
 
 import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, DecomposeCommand } from '@/commands';
-import { DecomposeOptionsSchema } from '@/types/decomposer';
-import { z } from 'zod';
 
 // Infer DecomposeOptions type from schema
 type DecomposeOptions = z.infer<typeof DecomposeOptionsSchema>;
@@ -186,9 +188,7 @@ describe('decomposeCommand integration tests', () => {
       ],
     };
 
-    mockAgent.decompose
-      .mockResolvedValueOnce(conflictingPlan)
-      .mockResolvedValueOnce(mockPlan); // Valid plan on retry
+    mockAgent.decompose.mockResolvedValueOnce(conflictingPlan).mockResolvedValueOnce(mockPlan); // Valid plan on retry
 
     const options: DecomposeOptions = {
       spec: 'test-spec.md',
