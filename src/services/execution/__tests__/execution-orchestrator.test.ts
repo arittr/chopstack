@@ -101,9 +101,13 @@ describe('ExecutionOrchestrator', () => {
       });
 
       // Start execution (don't await to allow event to fire)
-      orchestrator.execute(plan, options).catch(() => {
-        // Ignore errors for this test
-      });
+      void (async () => {
+        try {
+          await orchestrator.execute(plan, options);
+        } catch {
+          // Ignore errors for this test
+        }
+      })();
 
       const event = await eventPromise;
       expect(event).toBeDefined();
@@ -179,8 +183,8 @@ describe('ExecutionOrchestrator', () => {
       };
 
       // Should not throw type errors
-      expect(() => {
-        orchestrator.execute(plan, options);
+      expect(async () => {
+        await orchestrator.execute(plan, options);
       }).not.toThrow();
     });
 
@@ -195,9 +199,13 @@ describe('ExecutionOrchestrator', () => {
         dependencies: [], // v2 uses 'dependencies' instead of 'requires'
       };
 
-      // Should compile without errors
+      // Should compile without errors - test that properties are accessible
+      expect(task.id).toBe('task-1');
       expect(task.name).toBe('Task Name');
+      expect(task.complexity).toBe('M');
+      expect(task.description).toContain('Task description');
       expect(task.files).toEqual(['file1.ts']);
+      expect(task.acceptanceCriteria).toEqual(['Criterion']);
       expect(task.dependencies).toEqual([]);
     });
   });

@@ -191,7 +191,7 @@ export class ExecutionOrchestrator extends EventEmitter {
    */
   private _convertValidationResult(result: ValidationResult): ExecutionResult {
     const isValid = result.valid;
-    const errors = result.errors ?? [];
+    const { errors } = result;
 
     return {
       totalDuration: 0,
