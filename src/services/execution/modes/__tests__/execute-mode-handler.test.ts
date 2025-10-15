@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExecutionContext } from '@/core/execution/interfaces';
 import type { TaskTransitionManager } from '@/core/execution/task-transitions';
 import type { VcsStrategy, VcsStrategyContext } from '@/core/vcs/vcs-strategy';
-import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/orchestration';
+import type { TaskOrchestrator } from '@/services/orchestration';
 import type { VcsStrategyFactory } from '@/services/vcs/strategies/vcs-strategy-factory';
 import type { TaskV2 } from '@/types/schemas-v2';
 

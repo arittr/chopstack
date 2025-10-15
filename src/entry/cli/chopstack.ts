@@ -42,11 +42,11 @@ addCommonOptions(
     // Configure logger based on CLI options
     const cliOptions = options as { silent?: boolean };
     logger.configure({
-      verbose: validatedOptions.verbose ?? false,
+      verbose: Boolean(validatedOptions.verbose),
       silent: cliOptions.silent ?? false,
     });
     // Initialize event consumer
-    initializeEventConsumer({ verbose: validatedOptions.verbose ?? false });
+    initializeEventConsumer({ verbose: Boolean(validatedOptions.verbose) });
     const deps = createDefaultDependencies({ logger });
     const command = new DecomposeCommand(deps);
     const exitCode = await command.execute(validatedOptions);
@@ -102,11 +102,11 @@ addCommonOptions(
     // Configure logger based on CLI options
     const cliOptions = options as { silent?: boolean };
     logger.configure({
-      verbose: validatedOptions.verbose ?? false,
+      verbose: Boolean(validatedOptions.verbose),
       silent: cliOptions.silent ?? false,
     });
     // Initialize event consumer
-    initializeEventConsumer({ verbose: validatedOptions.verbose ?? false });
+    initializeEventConsumer({ verbose: Boolean(validatedOptions.verbose) });
     const deps = createDefaultDependencies({ logger });
     const command = new RunCommand(deps);
     const exitCode = await command.execute(validatedOptions);
