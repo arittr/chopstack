@@ -35,7 +35,8 @@ addCommonOptions(
     .description('Decompose a spec into parallelizable tasks')
     .requiredOption('--spec <file>', 'Path to specification file')
     .option('--agent <type>', 'Agent to use: claude|aider|mock', 'claude')
-    .option('--output <file>', 'Output file for plan (optional, defaults to stdout)'),
+    .option('--output <file>', 'Output file for plan (optional, defaults to stdout)')
+    .option('--skip-gates', 'Skip quality gate checks (pre and post generation)', false),
 ).action(async (options: unknown) => {
   try {
     const validatedOptions = validateDecomposeArgs(options);
