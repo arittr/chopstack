@@ -1,0 +1,536 @@
+name: Chopstack v2.0.0 Phase 2 - Complete Feature Implementation
+description: |
+  Transform chopstack v2 from infrastructure-ready to feature-complete by implementing the missing
+  specification-driven workflow components: specification expansion (chopstack specify), specification
+  analysis (chopstack analyze), quality gates in decomposition, and implementation validation
+  (chopstack run --validate).
+
+  This builds on the solid infrastructure foundation with execution engine (90% ready), type system
+  (100% ready), VCS strategies (100% ready), and establishes the complete v2 workflow:
+  specify → analyze → decompose → run → validate
+
+specification: specs/chopstack-v2_phase2/spec.md
+mode: plan
+strategy: phased-parallel
+
+phases:
+  # Phase 1: Foundation Services (Sequential)
+  - id: phase-1-foundation
+    name: Foundation Services
+    strategy: sequential
+    tasks:
+      - task-1-1-codebase-analysis-service
+      - task-1-2-specification-service
+    complexity: M + L = Large Phase (40-55h total)
+    notes: |
+      Sequential execution required because SpecificationService depends on CodebaseAnalysisService
+      for codebase context during spec generation. These services provide the foundation for all
+      downstream commands.
+
+  # Phase 2: Analysis Services (Sequential)
+  - id: phase-2-analysis
+    name: Analysis Services
+    strategy: sequential
+    tasks:
+      - task-2-1-project-principles-service
+      - task-2-2-gap-analysis-service
+    complexity: S + M = Medium Phase (30-40h total)
+    requires: [phase-1-foundation]
+    notes: |
+      Sequential execution required because GapAnalysisService uses ProjectPrinciplesService output
+      during specification validation. These services enable the analyze command and quality gates.
+
+  # Phase 3: Quality Services (Parallel with Phase 2)
+  - id: phase-3-quality
+    name: Quality Services
+    strategy: sequential
+    tasks:
+      - task-3-1-quality-validation-service
+      - task-3-2-process-gate-service
+    complexity: M + S = Medium Phase (20-30h total)
+    requires: [phase-1-foundation]
+    notes: |
+      Sequential execution because ProcessGateService depends on QualityValidationService.
+      Can run parallel with Phase 2 since no dependencies between them.
+      These services implement the quality gates for decomposition.
+
+  # Phase 4: CLI Commands (Parallel)
+  - id: phase-4-commands
+    name: CLI Commands
+    strategy: parallel
+    tasks:
+      - task-4-1-specify-command
+      - task-4-2-analyze-command
+    complexity: M + M = Medium Phase (30-40h parallelizable)
+    requires: [phase-2-analysis, phase-3-quality]
+    notes: |
+      Parallel execution safe because these commands are independent - one calls specification
+      services, the other calls analysis services. No shared state or dependencies.
+
+  # Phase 5: Command Enhancements (Sequential)
+  - id: phase-5-enhancements
+    name: Command Enhancements
+    strategy: parallel
+    tasks:
+      - task-5-1-enhance-decompose-command
+      - task-5-2-enhance-validate-mode-handler
+    complexity: M + M = Medium Phase (30-45h parallelizable)
+    requires: [phase-2-analysis, phase-3-quality]
+    notes: |
+      Parallel execution safe because decompose enhancements and validate enhancements touch
+      different files and use different services (ProcessGateService vs ProjectPrinciplesService).
+
+  # Phase 6: Integration Testing (Sequential)
+  - id: phase-6-integration
+    name: Integration Testing
+    strategy: sequential
+    tasks:
+      - task-6-1-v2-workflow-integration-tests
+    complexity: M = Medium Phase (15-20h)
+    requires: [phase-4-commands, phase-5-enhancements]
+    notes: |
+      Sequential execution (single task). Must run after all commands and enhancements are complete
+      to test the full v2 workflow end-to-end.
+
+tasks:
+  # Phase 1: Foundation Services
+  - id: task-1-1-codebase-analysis-service
+    name: Create CodebaseAnalysisService
+    complexity: M
+    description: |
+      Implement comprehensive codebase analysis service that examines repository structure,
+      detects technology stack, identifies architecture patterns, discovers related features,
+      and extracts code examples.
+
+      Implementation approach:
+      - Analyze directory structure to identify key modules (src/services, src/types, src/commands)
+      - Parse package.json to detect frameworks (React, Vitest, tsup) and dependencies
+      - Identify architecture patterns (Service Layer, Adapter Pattern, DI) by checking for
+        characteristic directories and files
+      - Discover related features by analyzing file names and import patterns
+      - Extract code examples showing common patterns (exports, function signatures, test structure)
+      - Generate comprehensive markdown summary (500+ characters)
+      - Implement file-based caching keyed by git commit hash + modification times
+
+      Why this task exists: Provides critical codebase context for specification generation,
+      enabling the agent to create specs that align with existing architecture and patterns.
+      Without this, generated specs would be generic and miss project-specific conventions.
+    files:
+      - src/services/analysis/codebase-analysis-service.ts
+      - src/services/analysis/__tests__/codebase-analysis-service.test.ts
+      - src/services/analysis/__tests__/codebase-analysis-service.integration.test.ts
+    dependencies: []
+    acceptance_criteria:
+      - Detects all major frameworks from package.json (React, Vitest, tsup, etc.)
+      - Identifies 3+ architecture patterns (Service Layer, Adapter, DI, State Machine)
+      - Finds 3+ related features for non-trivial repos
+      - Generates 500+ character summary with structured findings
+      - Unit tests achieve 95%+ coverage
+      - Integration test runs on real repository and validates output structure
+      - Cache invalidates correctly on package.json or git commit changes
+
+  - id: task-1-2-specification-service
+    name: Create SpecificationService
+    complexity: M
+    description: |
+      Implement specification generation service that transforms brief prompts into comprehensive
+      markdown specifications using codebase context from CodebaseAnalysisService.
+
+      Implementation approach:
+      - Accept brief prompt (1-2 sentences) and cwd as input
+      - Call CodebaseAnalysisService to get repository context
+      - Build comprehensive prompt combining user request + codebase analysis + spec template
+      - Use AgentService to call Claude with specification generation prompt
+      - Parse agent response to extract markdown specification
+      - Validate generated spec has all required sections (Overview, Background, Requirements, etc.)
+      - Check for placeholder text (TODO, TBD, ???) and reject if found
+      - Implement retry logic (3 attempts) for agent failures
+      - Return validated specification content
+
+      Why this task exists: Enables chopstack specify command by providing the core logic for
+      transforming brief user requests into detailed, context-aware specifications. This is the
+      key differentiator from manual spec writing - automatic incorporation of codebase context.
+    files:
+      - src/services/specification/specification-service.ts
+      - src/services/specification/__tests__/specification-service.test.ts
+      - src/services/specification/__tests__/specification-service.integration.test.ts
+    dependencies:
+      - task-1-1-codebase-analysis-service
+    acceptance_criteria:
+      - Generates 800+ line specifications from brief prompts (tested with 3 examples)
+      - Includes all required sections (Overview, Background, Requirements, Architecture, etc.)
+      - No placeholder text (TODO, TBD, ???) in generated output
+      - Handles agent failures gracefully with retry (3 attempts max)
+      - Integration test with real agent produces valid spec that passes validation
+      - Retries succeed when agent initially fails but succeeds on retry
+      - Unit tests achieve 95%+ coverage with mocked agent and codebase analysis
+
+  # Phase 2: Analysis Services
+  - id: task-2-1-project-principles-service
+    name: Create ProjectPrinciplesService
+    complexity: M
+    description: |
+      Implement service to extract project coding principles, standards, and conventions from
+      existing documentation files (CLAUDE.md, .cursorrules, CONTRIBUTING.md).
+
+      Implementation approach:
+      - Search for principle documentation files in order: CLAUDE.md, .cursorrules, CONTRIBUTING.md
+      - Parse markdown to extract principle statements (look for bullet lists, numbered lists, headers)
+      - Categorize principles by type (Code Style, Architecture, Testing, Documentation)
+      - Extract code examples when present (fenced code blocks following principle statements)
+      - Cache results keyed by file path + modification time (invalidate on file change)
+      - Handle missing files gracefully (return empty principles, don't error)
+      - Return structured ProjectPrinciples object
+
+      Why this task exists: Project principles are needed for both gap analysis (validate specs
+      follow project conventions) and implementation validation (check code follows principles).
+      Leverages existing documentation instead of requiring a custom constitution file.
+    files:
+      - src/services/analysis/project-principles-service.ts
+      - src/services/analysis/__tests__/project-principles-service.test.ts
+    dependencies: []
+    acceptance_criteria:
+      - Extracts 10+ principles from CLAUDE.md in chopstack repo
+      - Categorizes principles correctly (Code Style, Architecture, Testing, etc.)
+      - Cache keyed by file modification time works correctly
+      - Handles missing files gracefully (no crash, returns empty principles)
+      - Extracts code examples when present in documentation
+      - Unit tests achieve 95%+ coverage
+      - Tests validate caching behavior (hit, miss, invalidation)
+
+  - id: task-2-2-gap-analysis-service
+    name: Create GapAnalysisService
+    complexity: M
+    description: |
+      Implement specification completeness validation service that detects gaps, scores completeness,
+      and generates prioritized remediation steps.
+
+      Implementation approach:
+      - Check for required sections (Overview, Background, Requirements, Architecture, Acceptance Criteria)
+      - Validate content depth (minimum character counts per section)
+      - Detect ambiguous language (should, maybe, possibly, TBD, TODO) using regex patterns
+      - Check for placeholder text (???, [fill this in], etc.)
+      - Parse "Open Tasks/Questions" section for unresolved items
+      - Validate cross-references (requirements → architecture → acceptance criteria)
+      - Calculate 0-100 completeness score using weighted algorithm (40% sections, 30% depth, 20% quality, 10% consistency)
+      - Generate Gap objects with severity (CRITICAL, HIGH, MEDIUM, LOW)
+      - Create prioritized RemediationStep objects ordered by severity then sequence
+
+      Why this task exists: Enables chopstack analyze command and pre-decompose quality gate.
+      Prevents incomplete specs from reaching decomposition, which causes poor plans and execution failures.
+    files:
+      - src/services/analysis/gap-analysis-service.ts
+      - src/services/analysis/__tests__/gap-analysis-service.test.ts
+      - src/services/analysis/__tests__/gap-analysis-service.integration.test.ts
+    dependencies:
+      - task-2-1-project-principles-service
+    acceptance_criteria:
+      - Detects all required section gaps (tested with 5 incomplete specs)
+      - Identifies ambiguous terms (should, maybe, TBD, TODO) accurately
+      - Calculates completeness score correctly (validated with 10 sample specs)
+      - Generates prioritized remediation steps in correct order (CRITICAL → HIGH → MEDIUM → LOW)
+      - Test with 10+ sample specs covering complete, incomplete, and edge cases
+      - Integration test validates full analysis flow with real specs
+      - Unit tests achieve 95%+ coverage
+
+  # Phase 3: Quality Services
+  - id: task-3-1-quality-validation-service
+    name: Create QualityValidationService
+    complexity: M
+    description: |
+      Implement post-generation task quality validation service that checks for common plan quality
+      issues that lead to execution failures.
+
+      Implementation approach:
+      - XL task detection: flag any task with complexity XL (CRITICAL issue)
+      - File count validation: flag tasks touching >10 files (HIGH issue)
+      - Vague file pattern detection: regex to find wildcards (**/ *) in file paths (HIGH issue)
+      - Short description detection: flag descriptions <50 characters (MEDIUM issue)
+      - Missing dependency validation: flag M/L complexity tasks with zero dependencies (LOW issue)
+      - Generate ValidationFinding objects with severity and actionable suggestions
+      - Calculate overall quality score and distribution metrics
+      - Format findings into structured quality report
+
+      Why this task exists: Enables post-decompose quality gate that prevents poorly scoped plans
+      from reaching execution. Catches common issues (XL tasks, vague patterns, too many files)
+      that cause mid-execution failures and manual intervention.
+    files:
+      - src/services/validation/quality-validation-service.ts
+      - src/services/validation/__tests__/quality-validation-service.test.ts
+    dependencies: []
+    acceptance_criteria:
+      - Flags all XL tasks as CRITICAL issues
+      - Detects tasks with >10 files (tested with sample plans)
+      - Identifies wildcard patterns (**, *) in file paths
+      - Reports short descriptions (<50 chars) as MEDIUM issues
+      - Flags isolated M/L tasks with zero dependencies as LOW issues
+      - Generates actionable suggestions for each issue type
+      - Test with 5+ sample plans (good and bad quality)
+      - Unit tests achieve 95%+ coverage
+
+  - id: task-3-2-process-gate-service
+    name: Create ProcessGateService
+    complexity: M
+    description: |
+      Implement process gate coordination service that checks both pre-generation (open questions)
+      and post-generation (task quality) gates.
+
+      Implementation approach:
+      - Pre-generation gate: Parse "Open Tasks/Questions" section from spec
+        - Look for section headers: ## Open Tasks/Questions, ## Open Questions, ## Unresolved Questions
+        - Detect unchecked checkboxes: - [ ], [ ]
+        - Detect question markers: ?, TODO:, TBD:
+        - Return gate result with blocking = true if any found
+      - Post-generation gate: Wrap QualityValidationService results
+        - Call quality validation service with plan
+        - Check for CRITICAL severity issues
+        - Return gate result with blocking = true if CRITICAL issues found
+      - Format gate results with clear, actionable error messages
+      - Support gate bypass via skipGates flag (for testing)
+
+      Why this task exists: Coordinates both quality gates in the decompose workflow, providing
+      a single interface for checking specification readiness (pre) and plan quality (post).
+      Ensures consistent gate behavior and error messaging.
+    files:
+      - src/services/planning/process-gate-service.ts
+      - src/services/planning/__tests__/process-gate-service.test.ts
+    dependencies:
+      - task-3-1-quality-validation-service
+    acceptance_criteria:
+      - Parses "Open Tasks/Questions" section correctly (tested with 3 formats)
+      - Detects unchecked checkboxes and question marks accurately
+      - Wraps quality validation results with proper severity mapping
+      - Returns clear gate check results with blocking flag
+      - Supports gate bypass via skipGates flag
+      - Unit tests achieve 95%+ coverage
+      - Tests cover all gate scenarios (pass, fail, bypass)
+
+  # Phase 4: CLI Commands
+  - id: task-4-1-specify-command
+    name: Create SpecifyCommand
+    complexity: M
+    description: |
+      Implement CLI command for specification generation that provides user-facing interface
+      to the specification workflow.
+
+      Implementation approach:
+      - Define SpecifyOptionsSchema in src/types/cli.ts with Zod validation
+      - Accept prompt (string) or input (file path) as mutually exclusive options
+      - Validate output path is writable before calling services
+      - Verify cwd is valid directory
+      - Call CodebaseAnalysisService to analyze repository
+      - Call SpecificationService to generate spec from prompt + codebase context
+      - Write generated spec to output file
+      - Display progress messages (Analyzing codebase, Generating specification, Writing output)
+      - Handle errors gracefully with clear, actionable messages
+      - Return exit code 0 on success, 1 on failure
+
+      Why this task exists: User entry point for spec generation workflow. Transforms chopstack
+      into a tool that can generate comprehensive specs from brief prompts, dramatically reducing
+      the manual effort required for spec writing.
+    files:
+      - src/commands/specify/specify-command.ts
+      - src/commands/specify/__tests__/specify-command.test.ts
+      - src/commands/specify/__tests__/specify-command.integration.test.ts
+      - src/types/cli.ts
+    dependencies:
+      - task-1-1-codebase-analysis-service
+      - task-1-2-specification-service
+    acceptance_criteria:
+      - Accepts prompt or input file (validated as mutually exclusive)
+      - Validates all options with Zod (invalid options rejected with clear errors)
+      - Displays progress messages at each step
+      - Writes specification to output file successfully
+      - Exit code 0 on success, 1 on failure
+      - Integration test generates real spec from sample prompt
+      - Unit tests achieve 95%+ coverage with mocked services
+
+  - id: task-4-2-analyze-command
+    name: Create AnalyzeCommand
+    complexity: M
+    description: |
+      Implement CLI command for specification analysis that validates completeness and generates
+      actionable remediation guidance.
+
+      Implementation approach:
+      - Define AnalyzeOptionsSchema in src/types/cli.ts with Zod validation
+      - Read specification file from --spec path
+      - Optionally read codebase documentation from --codebase path
+      - Call ProjectPrinciplesService to extract principles from repo
+      - Call GapAnalysisService to analyze specification completeness
+      - Format terminal output: completeness score, gaps by severity, remediation steps
+      - Support JSON output format (--output flag writes JSON report)
+      - Support text format for terminal display (default)
+      - Return exit code 0 if completeness = 100%, exit code 1 otherwise
+
+      Why this task exists: User entry point for spec validation workflow. Enables developers
+      to validate spec quality before decomposition, preventing poor plans from incomplete specs.
+      Provides clear, prioritized guidance for fixing specification gaps.
+    files:
+      - src/commands/analyze/analyze-command.ts
+      - src/commands/analyze/__tests__/analyze-command.test.ts
+      - src/commands/analyze/__tests__/analyze-command.integration.test.ts
+      - src/types/cli.ts
+    dependencies:
+      - task-2-1-project-principles-service
+      - task-2-2-gap-analysis-service
+    acceptance_criteria:
+      - Reads spec and optional codebase files successfully
+      - Displays formatted terminal report (completeness, gaps, remediation)
+      - Writes JSON report if --output specified
+      - Exit code 0 if 100% complete, exit code 1 otherwise
+      - Integration test with real spec (both complete and incomplete)
+      - Unit tests achieve 95%+ coverage with mocked services
+      - Terminal output is readable and actionable
+
+  # Phase 5: Command Enhancements
+  - id: task-5-1-enhance-decompose-command
+    name: Enhance DecomposeCommand with Quality Gates
+    complexity: M
+    description: |
+      Add pre-generation and post-generation quality gates to existing decompose command to
+      prevent poor quality plans from reaching execution.
+
+      Implementation approach:
+      - Add --skip-gates flag to DecomposeOptions schema (boolean, default false)
+      - Pre-generation gate (before calling plan generator):
+        - Read specification file if provided
+        - Call ProcessGateService.checkPreGeneration(spec)
+        - If gate fails and skipGates=false: display error message, exit 1
+      - Post-generation gate (after plan generated):
+        - Call ProcessGateService.checkPostGeneration(plan)
+        - Display formatted quality report
+        - If CRITICAL issues and skipGates=false: do NOT save plan, exit 1
+        - If HIGH/MEDIUM/LOW issues only: save plan with warnings, exit 0
+      - Preserve all existing decompose functionality
+      - Update existing tests to pass with gates enabled
+      - Add 3 new integration tests: gate pass, gate fail, gate bypass
+
+      Why this task exists: Prevents poor quality plans from reaching execution by adding
+      automated quality checks. Catches incomplete specs (open questions) and plan quality
+      issues (XL tasks, vague patterns) before execution begins.
+    files:
+      - src/commands/decompose/decompose-command.ts
+      - src/commands/decompose/__tests__/decompose-command.test.ts
+      - src/commands/decompose/__tests__/decompose-command.integration.test.ts
+    dependencies:
+      - task-2-2-gap-analysis-service
+      - task-3-2-process-gate-service
+    acceptance_criteria:
+      - Pre-generation gate blocks if open questions exist (tested)
+      - Post-generation gate validates all tasks (tested with sample plans)
+      - Displays formatted quality report with clear issues
+      - Exit 1 if CRITICAL issues found (unless skipGates=true)
+      - Saves plan only if no CRITICAL issues
+      - --skip-gates bypasses both gates successfully
+      - All existing tests still pass
+      - 3 new integration tests (gate pass, gate fail, gate bypass)
+
+  - id: task-5-2-enhance-validate-mode-handler
+    name: Enhance ValidateModeHandler with Implementation Validation
+    complexity: M
+    description: |
+      Extend existing validate mode handler to validate implementation against acceptance criteria
+      and project principles, not just plan structure.
+
+      Implementation approach:
+      - Add new validation types to src/types/validation.ts:
+        - ImplementationValidationResult with criteria checks, principle violations, metrics
+      - Preserve existing plan structure validation (DAG, task references)
+      - Add acceptance criteria validation if spec provided:
+        - Parse acceptance criteria from spec
+        - Use agent to check each criterion against implementation
+        - Mark as passed/failed/partial
+      - Add project principle validation:
+        - Call ProjectPrinciplesService to get principles
+        - Use agent to check for principle violations
+        - Report violations with severity and remediation
+      - Add success metrics assessment (quantitative and qualitative)
+      - Generate comprehensive validation report
+      - Exit code 0 if all criteria pass, 1 if any fail
+
+      Why this task exists: Automates post-implementation quality checks. Ensures implementations
+      meet acceptance criteria and follow project principles without manual review. Provides
+      early feedback on quality issues before PR submission.
+    files:
+      - src/services/execution/modes/validate-mode-handler.ts
+      - src/services/execution/modes/__tests__/validate-mode-handler.test.ts
+      - src/services/execution/modes/__tests__/validate-mode-handler.integration.test.ts
+      - src/types/validation.ts
+    dependencies:
+      - task-2-1-project-principles-service
+    acceptance_criteria:
+      - Validates plan structure (existing behavior preserved)
+      - Validates acceptance criteria if spec provided (tested with sample spec)
+      - Checks project principle violations (tested with CLAUDE.md)
+      - Assesses success metrics (quantitative and qualitative)
+      - Generates formatted terminal report with all validation results
+      - Exit 0 if all criteria pass, 1 if any fail
+      - Integration test with real plan and spec validates full flow
+      - Unit tests achieve 95%+ coverage
+
+  # Phase 6: Integration Testing
+  - id: task-6-1-v2-workflow-integration-tests
+    name: Add V2 Workflow Integration Tests
+    complexity: M
+    description: |
+      Implement comprehensive end-to-end integration tests for the complete v2 workflow,
+      validating all components work together correctly.
+
+      Implementation approach:
+      - Test full workflow: specify → analyze → decompose → run → validate
+        - Create sample feature request (brief prompt)
+        - Run specify command to generate spec
+        - Run analyze command to validate spec (should pass 100%)
+        - Run decompose command to generate plan (should pass gates)
+        - Optionally run plan mode to validate executability
+        - Run validate mode to check implementation
+      - Test quality gate scenarios:
+        - Gate pass: complete spec, good plan
+        - Gate fail (open questions): spec with unresolved questions blocks decompose
+        - Gate fail (XL tasks): plan with XL task blocks execution
+        - Gate bypass: --skip-gates allows decompose despite issues
+      - Test validation scenarios:
+        - Validation pass: implementation meets all criteria
+        - Validation fail: implementation missing criteria, principle violations
+      - Use real agents (mocked API responses) for faster, deterministic tests
+      - Total test runtime target: <5 minutes
+
+      Why this task exists: Ensures all v2 components integrate correctly and the full workflow
+      functions as designed. Catches integration issues that unit tests miss. Provides confidence
+      that the system works end-to-end.
+    files:
+      - test/e2e/v2-workflow.test.ts
+      - test/e2e/quality-gates.test.ts
+      - test/e2e/validation-mode.test.ts
+    dependencies:
+      - task-4-1-specify-command
+      - task-4-2-analyze-command
+      - task-5-1-enhance-decompose-command
+      - task-5-2-enhance-validate-mode-handler
+    acceptance_criteria:
+      - Test complete workflow with sample feature (specify → analyze → decompose → validate)
+      - Test gate failures (open questions, XL tasks) block correctly
+      - Test gate bypass (--skip-gates) works correctly
+      - Test validation pass and fail scenarios
+      - All tests pass in CI environment
+      - Total test runtime <5 minutes
+      - Tests use real agents with mocked API for determinism
+      - Tests clean up temporary files and directories
+
+success_metrics:
+  quantitative:
+    - Test coverage: 95%+ for all new services and commands
+    - File conflict reduction: <1 conflict per plan (70% reduction from ~3 baseline)
+    - First-attempt success rate: 80% (100% improvement from 40% baseline)
+    - Specification quality: 1000+ lines from brief prompts
+    - Plan quality: 100% of plans pass validation (0 CRITICAL issues)
+    - Completeness score: 95%+ average for generated specs
+    - Build time: All tests complete in <5 minutes
+  qualitative:
+    - Task descriptions explain "why" not just "what" (75%+ of tasks)
+    - Validation reports provide actionable next steps (80%+ user satisfaction)
+    - Error messages are clear and actionable (<2 support requests/week)
+    - Developer experience feels natural and efficient (≥4.0/5.0 rating)
+    - Plans demonstrate architectural awareness (correct layered ordering)
+    - Generated specs align with project conventions and patterns
