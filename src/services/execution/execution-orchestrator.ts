@@ -15,7 +15,7 @@ import type { ExecutionMode, ExecutionOptions } from '@/core/execution/types';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
 import type { StreamingUpdate, TaskOrchestrator } from '@/services/orchestration';
 import type { PlanV2 } from '@/types/schemas-v2';
-import type { ValidationResult } from '@/types/decomposer';
+import type { ValidationResult } from '@/validation/dag-validator';
 
 import { TaskTransitionManager } from '@/core/execution/task-transitions';
 import { VcsStrategyFactory } from '@/services/vcs/strategies/vcs-strategy-factory';
