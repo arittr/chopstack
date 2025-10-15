@@ -53,7 +53,7 @@ describe('StackedVcsStrategy', () => {
     });
 
     it('should handle HEAD as baseRef', async () => {
-      const tasks: Task[] = [];
+      const tasks: TaskV2[] = [];
       context.baseRef = 'HEAD';
 
       await strategy.initialize(tasks, context);

@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/no-unused-properties */
 import type { SimpleGit } from 'simple-git';
 
 import * as fs from 'node:fs';

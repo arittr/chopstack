@@ -1,11 +1,11 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import type { ExecutionContext } from '@/core/execution/interfaces';
 import type { TaskTransitionManager } from '@/core/execution/task-transitions';
 import type { VcsStrategy, VcsStrategyContext } from '@/core/vcs/vcs-strategy';
 import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/orchestration';
 import type { VcsStrategyFactory } from '@/services/vcs/strategies/vcs-strategy-factory';
 import type { TaskV2 } from '@/types/schemas-v2';
-
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { ExecuteModeHandlerImpl } from '../execute-mode-handler';
 
@@ -301,14 +301,16 @@ describe('ExecuteModeHandlerImpl', () => {
 
       // Mock getTaskState to return 'pending' for task-2 so it gets added to results
       vi.mocked(mockTransitionManager.getTaskState).mockImplementation((taskId) => {
-        if (taskId === 'task-1') return 'running';
-        if (taskId === 'task-2') return 'pending';
+        if (taskId === 'task-1') {
+          return 'running';
+        }
+        if (taskId === 'task-2') {
+          return 'pending';
+        }
         return 'ready';
       });
 
-      vi.mocked(mockOrchestrator.executeTask).mockRejectedValue(
-        new Error('Execution failed'),
-      );
+      vi.mocked(mockOrchestrator.executeTask).mockRejectedValue(new Error('Execution failed'));
 
       const result = await handler.handle(tasks, mockContext);
 

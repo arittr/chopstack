@@ -1,8 +1,8 @@
 import type { ValidateModeHandler } from '@/core/execution/interfaces';
 import type { PlanV2 } from '@/types/schemas-v2';
 
-import { DagValidator, type ValidationResult } from '@/validation/dag-validator';
 import { logger } from '@/utils/global-logger';
+import { DagValidator, type ValidationResult } from '@/validation/dag-validator';
 import { isValidArray } from '@/validation/guards';
 
 export class ValidateModeHandlerImpl implements ValidateModeHandler {
