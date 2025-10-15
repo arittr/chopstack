@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 
-import type { Task } from '@/types/decomposer.js';
+import type { TaskV2 } from '@/types/schemas-v2.js';
 import type {
   ClaudeStreamEvent,
   EventHandler,
@@ -25,7 +25,7 @@ export class ExecutionEventBus extends EventEmitter {
 
   // ==================== Task Events ====================
 
-  emitTaskStart(task: Task, context: TaskContext): void {
+  emitTaskStart(task: TaskV2, context: TaskContext): void {
     this.emit('task:start', { task, context });
   }
 

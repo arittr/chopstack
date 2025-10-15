@@ -151,14 +151,13 @@ describe('ExecutionEventConsumer', () => {
 
       eventBus.emitTaskStart(
         {
-          agentPrompt: 'Test',
+          acceptanceCriteria: ['Task completed'],
+          complexity: 'M',
+          dependencies: [],
           description: 'Test task',
-          estimatedLines: 10,
+          files: [],
           id: 'task-1',
-          produces: [],
-          requires: [],
-          title: 'Test Task',
-          touches: [],
+          name: 'Test Task',
         },
         { taskId: 'task-1', taskName: 'Test Task' },
       );
@@ -200,14 +199,13 @@ describe('ExecutionEventConsumer', () => {
 
       eventBus.emitTaskStart(
         {
-          agentPrompt: 'Test',
+          acceptanceCriteria: ['Task completed'],
+          complexity: 'M',
+          dependencies: [],
           description: 'Test task',
-          estimatedLines: 10,
+          files: [],
           id: 'task-1',
-          produces: [],
-          requires: [],
-          title: 'Test Task',
-          touches: [],
+          name: 'Test Task',
         },
         { taskId: 'task-1', taskName: 'Test Task' },
       );

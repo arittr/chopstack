@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Task } from '@/types/decomposer';
+import type { TaskV2 } from '@/types/schemas-v2';
 
 import { LogLevel } from '@/types/events';
 
@@ -13,15 +13,14 @@ describe('ExecutionEventBus', () => {
       const handler = vi.fn();
       eventBus.onTaskStart(handler);
 
-      const task: Task = {
-        agentPrompt: 'Test prompt',
+      const task: TaskV2 = {
+        acceptanceCriteria: ['Task completed'],
+        complexity: 'M',
+        dependencies: [],
         description: 'Test task',
-        estimatedLines: 10,
+        files: ['test.ts'],
         id: 'test-task',
-        produces: [],
-        requires: [],
-        title: 'Test Task',
-        touches: ['test.ts'],
+        name: 'Test Task',
       };
 
       const context = {
