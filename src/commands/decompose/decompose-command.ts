@@ -14,6 +14,7 @@ import { RegisterCommand } from '@/commands/command-factory';
 import { BaseCommand, type CommandDependencies } from '@/commands/types';
 import { generatePlanWithRetry } from '@/services/planning/plan-generator';
 import { PlanOutputter } from '@/services/planning/plan-outputter';
+import { ProcessGateService } from '@/services/planning/process-gate-service';
 import { DagValidator } from '@/validation/dag-validator';
 import { isValidArray } from '@/validation/guards';
 
@@ -35,6 +36,17 @@ export class DecomposeCommand extends BaseCommand {
       const specContent = await readFile(specPath, 'utf8');
       this.logger.info(chalk.dim(`📄 Spec content length: ${specContent.length} characters`));
 
+      // Pre-generation gate: Check for open questions in specification
+      const gateService = new ProcessGateService();
+      const preGateResult = gateService.checkPreGeneration(specContent, {
+        skipGates: options.skipGates,
+      });
+
+      if (preGateResult.blocking) {
+        this.logger.error(chalk.red(preGateResult.message));
+        return 1;
+      }
+
       this.logger.info(chalk.cyan(`🤖 Using agent: ${options.agent}`));
 
       // Create the appropriate agent (includes capability validation)
@@ -48,6 +60,25 @@ export class DecomposeCommand extends BaseCommand {
         maxRetries: 3,
         verbose: options.verbose,
       });
+
+      // Post-generation gate: Check task quality
+      const postGateResult = gateService.checkPostGeneration(result.plan, {
+        skipGates: options.skipGates,
+      });
+
+      // Display quality report (even if gate passes with warnings)
+      if (isValidArray(postGateResult.issues) && postGateResult.issues.length > 0) {
+        this.logger.warn(chalk.yellow('\n📊 Quality Gate Report:'));
+        for (const issue of postGateResult.issues) {
+          this.logger.warn(chalk.yellow(`  • ${issue}`));
+        }
+        this.logger.warn(''); // Empty line for formatting
+      }
+
+      if (postGateResult.blocking) {
+        this.logger.error(chalk.red(postGateResult.message));
+        return 1;
+      }
 
       // Calculate metrics and output the plan
       const metrics = DagValidator.calculateMetrics(result.plan);
