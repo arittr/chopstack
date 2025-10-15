@@ -98,19 +98,22 @@ tasks:
     name: Create CodebaseAnalysisService
     complexity: M
     description: |
-      Implement comprehensive codebase analysis service that examines repository structure,
-      detects technology stack, identifies architecture patterns, discovers related features,
-      and extracts code examples.
+      Implement codebase analysis service that delegates to Claude (via AgentService) to analyze
+      repository structure, technology stack, architecture patterns, related features, and code examples.
 
       Implementation approach:
-      - Analyze directory structure to identify key modules (src/services, src/types, src/commands)
-      - Parse package.json to detect frameworks (React, Vitest, tsup) and dependencies
-      - Identify architecture patterns (Service Layer, Adapter Pattern, DI) by checking for
-        characteristic directories and files
-      - Discover related features by analyzing file names and import patterns
-      - Extract code examples showing common patterns (exports, function signatures, test structure)
-      - Generate comprehensive markdown summary (500+ characters)
-      - Implement file-based caching keyed by git commit hash + modification times
+      - Use AgentService to call Claude with codebase analysis prompt
+      - Prompt asks Claude to analyze: directory structure, package.json, architecture patterns,
+        related features, and code examples
+      - Parse Claude's response into structured CodebaseAnalysis object
+      - Validate response has all required fields (tech_stack, architecture, features, summary)
+      - Implement file-based caching keyed by git commit hash + package.json mtime
+      - Cache invalidates when git commit changes OR package.json modified
+      - Handle agent failures gracefully with retry logic (3 attempts max)
+      - Generate 500+ character summary from agent's analysis
+
+      Key principle: DO NOT manually parse files or analyze code. Delegate ALL analysis to Claude,
+      who can understand context, patterns, and architecture better than static parsing.
 
       Why this task exists: Provides critical codebase context for specification generation,
       enabling the agent to create specs that align with existing architecture and patterns.
