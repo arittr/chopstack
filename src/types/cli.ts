@@ -16,6 +16,7 @@ export const DecomposeCommandOptionsSchema = z
   .object({
     agent: AgentTypeSchema,
     output: z.string().optional(),
+    skipGates: z.boolean().default(false),
     spec: z.string().min(1, 'Spec file path cannot be empty'),
     targetDir: z.string().optional(),
     verbose: z.boolean().default(false),
