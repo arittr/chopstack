@@ -5,7 +5,6 @@ import { Box, Text } from 'ink';
 
 import type { ExecutionOptions } from '@/core/execution/types';
 import type { ExecutionMetrics, TaskUIState } from '@/ui/hooks/useExecutionState';
-import type { PlanV2 } from '@/types/schemas-v2';
 
 import { theme } from '@/ui/theme';
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';

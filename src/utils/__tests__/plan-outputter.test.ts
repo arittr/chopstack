@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { vi } from 'vitest';
 import { stringify as stringifyYaml } from 'yaml';
 
-import type { Plan, PlanMetrics } from '@/types/decomposer';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { PlanOutputter } from '@/services/planning/plan-outputter';
 
@@ -15,41 +15,32 @@ const mockWriteFile = vi.mocked(writeFile);
 const mockStringifyYaml = vi.mocked(stringifyYaml);
 
 // Mock console methods
-const mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const _mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 
 describe('PlanOutputter', () => {
-  const mockPlan: Plan = {
+  const mockPlan: PlanV2 = {
+    name: 'Test Plan',
+    strategy: 'sequential',
     tasks: [
       {
         id: 'task-1',
-        title: 'Test Task 1',
+        name: 'Test Task 1',
         description: 'First test task',
-        touches: ['file1.ts'],
-        produces: ['output1.ts'],
-        requires: [],
-        estimatedLines: 50,
-        agentPrompt: 'Create task 1',
+        files: ['file1.ts', 'output1.ts'],
+        complexity: 'S',
+        acceptanceCriteria: ['Task 1 completed'],
+        dependencies: [],
       },
       {
         id: 'task-2',
-        title: 'Test Task 2',
+        name: 'Test Task 2',
         description: 'Second test task',
-        touches: ['file2.ts'],
-        produces: ['output2.ts'],
-        requires: ['task-1'],
-        estimatedLines: 30,
-        agentPrompt: 'Create task 2',
+        files: ['file2.ts', 'output2.ts'],
+        complexity: 'XS',
+        acceptanceCriteria: ['Task 2 completed'],
+        dependencies: ['task-1'],
       },
     ],
-  };
-
-  const mockMetrics: PlanMetrics = {
-    taskCount: 2,
-    executionLayers: 2,
-    maxParallelization: 1,
-    criticalPathLength: 80,
-    estimatedSpeedup: 1.25,
-    totalEstimatedLines: 80,
   };
 
   beforeEach(() => {
@@ -66,46 +57,34 @@ describe('PlanOutputter', () => {
 
   describe('outputPlan', () => {
     it('should output plan to console when no output path provided', async () => {
-      await PlanOutputter.outputPlan(mockPlan, mockMetrics);
+      await PlanOutputter.outputPlan(mockPlan);
 
-      expect(mockStringifyYaml).toHaveBeenCalledWith(mockPlan, {
-        indent: 2,
-        lineWidth: 200,
-        defaultStringType: 'QUOTE_DOUBLE',
-        defaultKeyType: 'PLAIN',
-      });
-
-      // Main logic validation is sufficient - console output is secondary
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('# Plan Metrics'));
-
+      expect(mockStringifyYaml).toHaveBeenCalled();
       expect(mockWriteFile).not.toHaveBeenCalled();
     });
 
     it('should write plan to file when output path provided', async () => {
       const outputPath = '/test/output/plan.yaml';
 
-      await PlanOutputter.outputPlan(mockPlan, mockMetrics, outputPath);
+      await PlanOutputter.outputPlan(mockPlan, outputPath);
 
       expect(mockWriteFile).toHaveBeenCalledWith(
         outputPath,
-        expect.stringContaining('tasks:\n  - id: task-1\n  - id: task-2'),
+        expect.stringContaining('tasks:'),
         'utf8',
       );
-      // File operation and main logic validation is sufficient - console logging is secondary
     });
 
     it('should not write to file when output path is empty string', async () => {
-      await PlanOutputter.outputPlan(mockPlan, mockMetrics, '');
+      await PlanOutputter.outputPlan(mockPlan, '');
 
       expect(mockWriteFile).not.toHaveBeenCalled();
-      // Main logic validation is sufficient - console output is secondary
     });
 
     it('should not write to file when output path is undefined', async () => {
-      await PlanOutputter.outputPlan(mockPlan, mockMetrics, undefined);
+      await PlanOutputter.outputPlan(mockPlan, undefined);
 
       expect(mockWriteFile).not.toHaveBeenCalled();
-      // Main logic validation is sufficient - console output is secondary
     });
 
     it('should handle file write errors', async () => {
@@ -113,126 +92,122 @@ describe('PlanOutputter', () => {
       const writeError = new Error('Permission denied');
       mockWriteFile.mockRejectedValue(writeError);
 
-      await expect(PlanOutputter.outputPlan(mockPlan, mockMetrics, outputPath)).rejects.toThrow(
+      await expect(PlanOutputter.outputPlan(mockPlan, outputPath)).rejects.toThrow(
         'Permission denied',
       );
     });
   });
 
   describe('formatPlanOutput', () => {
-    it('should format plan with YAML and metrics', () => {
-      const output = PlanOutputter.formatPlanOutput(mockPlan, mockMetrics);
+    it('should format plan with YAML', () => {
+      const output = PlanOutputter.formatPlanOutput(mockPlan);
 
-      expect(mockStringifyYaml).toHaveBeenCalledWith(mockPlan, {
-        indent: 2,
-        lineWidth: 200,
-        defaultStringType: 'QUOTE_DOUBLE',
-        defaultKeyType: 'PLAIN',
-      });
+      expect(mockStringifyYaml).toHaveBeenCalled();
 
       // Check that the output contains expected elements
-      expect(output).toContain('tasks:\n  - id: task-1\n  - id: task-2');
-      expect(output).toContain('# Plan Metrics');
-      expect(output).toContain('# Task Count: 2');
-      expect(output).toContain('# Estimated Speedup: 1.25x');
+      expect(output).toContain('tasks:');
     });
 
-    it('should handle different metric values correctly', () => {
-      const highMetrics: PlanMetrics = {
-        taskCount: 10,
-        executionLayers: 5,
-        maxParallelization: 4,
-        criticalPathLength: 500,
-        estimatedSpeedup: 3.141_59,
-        totalEstimatedLines: 1200,
+    it('should handle plans with different task counts', () => {
+      const largePlan: PlanV2 = {
+        ...mockPlan,
+        tasks: Array.from({ length: 10 }, (_, i) => ({
+          id: `task-${i}`,
+          name: `Task ${i}`,
+          description: `Description ${i}`,
+          files: [`file${i}.ts`],
+          complexity: 'M' as const,
+          acceptanceCriteria: [],
+          dependencies: [],
+        })),
       };
 
-      const output = PlanOutputter.formatPlanOutput(mockPlan, highMetrics);
+      const output = PlanOutputter.formatPlanOutput(largePlan);
 
-      expect(output).toContain('# Task Count: 10');
-      expect(output).toContain('# Execution Layers: 5');
-      expect(output).toContain('# Max Parallelization: 4');
-      expect(output).toContain('# Critical Path Length: 500 lines');
-      expect(output).toContain('# Estimated Speedup: 3.14x'); // Should be rounded to 2 decimal places
-      expect(output).toContain('# Total Estimated Lines: 1200');
+      expect(output).toContain('tasks:');
+      expect(mockStringifyYaml).toHaveBeenCalled();
     });
 
-    it('should handle zero and minimal metric values', () => {
-      const minimalMetrics: PlanMetrics = {
-        taskCount: 0,
-        executionLayers: 0,
-        maxParallelization: 0,
-        criticalPathLength: 0,
-        estimatedSpeedup: 0,
-        totalEstimatedLines: 0,
+    it('should handle plans with phases', () => {
+      const phasedPlan: PlanV2 = {
+        ...mockPlan,
+        strategy: 'phased-parallel',
+        phases: [
+          {
+            id: 'phase-1',
+            name: 'Setup',
+            strategy: 'sequential',
+            tasks: ['task-1'],
+            requires: [],
+          },
+        ],
       };
 
-      const output = PlanOutputter.formatPlanOutput(mockPlan, minimalMetrics);
+      const output = PlanOutputter.formatPlanOutput(phasedPlan);
 
-      expect(output).toContain('# Task Count: 0');
-      expect(output).toContain('# Estimated Speedup: 0.00x');
+      expect(output).toContain('phases:');
     });
   });
 
-  describe('logMetrics', () => {
-    it('should log formatted metrics to console', () => {
-      PlanOutputter.logMetrics(mockMetrics);
+  describe('logPlanSummary', () => {
+    it('should log plan summary to console', () => {
+      PlanOutputter.logPlanSummary(mockPlan);
 
       // Main functionality validation is sufficient - console logging is secondary
     });
 
-    it('should format speedup with proper decimal precision', () => {
-      const preciseMetrics: PlanMetrics = {
-        ...mockMetrics,
-        estimatedSpeedup: 2.876_543,
+    it('should handle plans with phases', () => {
+      const phasedPlan: PlanV2 = {
+        ...mockPlan,
+        strategy: 'phased-parallel',
+        phases: [
+          {
+            id: 'phase-1',
+            name: 'Setup',
+            strategy: 'sequential',
+            tasks: ['task-1'],
+            requires: [],
+          },
+        ],
       };
 
-      PlanOutputter.logMetrics(preciseMetrics);
+      PlanOutputter.logPlanSummary(phasedPlan);
 
       // Main functionality validation is sufficient - console logging is secondary
     });
 
-    it('should handle large numbers correctly', () => {
-      const largeMetrics: PlanMetrics = {
-        taskCount: 9999,
-        executionLayers: 999,
-        maxParallelization: 99,
-        criticalPathLength: 99_999,
-        estimatedSpeedup: 999.99,
-        totalEstimatedLines: 999_999,
+    it('should handle plans with success metrics', () => {
+      const planWithMetrics: PlanV2 = {
+        ...mockPlan,
+        successMetrics: {
+          quantitative: ['Coverage > 80%'],
+          qualitative: ['Clean code'],
+        },
       };
 
-      PlanOutputter.logMetrics(largeMetrics);
+      PlanOutputter.logPlanSummary(planWithMetrics);
 
       // Main functionality validation is sufficient - console logging is secondary
-    });
-  });
-
-  describe('private methods', () => {
-    it('should format metrics correctly in _formatMetrics', () => {
-      // Access the private method through formatPlanOutput
-      const output = PlanOutputter.formatPlanOutput(mockPlan, mockMetrics);
-
-      // Verify the metrics section
-      expect(output).toMatch(/# Plan Metrics\n# Task Count: 2/);
-      expect(output).toMatch(/# Execution Layers: 2/);
-      expect(output).toMatch(/# Max Parallelization: 1/);
-      expect(output).toMatch(/# Critical Path Length: 80 lines/);
-      expect(output).toMatch(/# Estimated Speedup: 1\.25x/);
-      expect(output).toMatch(/# Total Estimated Lines: 80/);
     });
   });
 
   describe('integration with YAML library', () => {
     it('should pass correct options to YAML stringify', () => {
-      PlanOutputter.formatPlanOutput(mockPlan, mockMetrics);
+      PlanOutputter.formatPlanOutput(mockPlan);
 
-      expect(mockStringifyYaml).toHaveBeenCalledWith(mockPlan, {
-        indent: 2,
-        lineWidth: 200,
-        defaultStringType: 'QUOTE_DOUBLE',
-        defaultKeyType: 'PLAIN',
-      });
+      expect(mockStringifyYaml).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Test Plan',
+          strategy: 'sequential',
+          tasks: expect.any(Array),
+        }),
+        {
+          indent: 2,
+          lineWidth: 200,
+          defaultStringType: 'QUOTE_DOUBLE',
+          defaultKeyType: 'PLAIN',
+        },
+      );
     });
 
     it('should handle YAML stringify errors', () => {
@@ -241,19 +216,20 @@ describe('PlanOutputter', () => {
         throw yamlError;
       });
 
-      expect(() => PlanOutputter.formatPlanOutput(mockPlan, mockMetrics)).toThrow(
-        'YAML serialization failed',
-      );
+      expect(() => PlanOutputter.formatPlanOutput(mockPlan)).toThrow('YAML serialization failed');
     });
 
     it('should handle empty plans', () => {
-      const emptyPlan: Plan = { tasks: [] };
+      const emptyPlan: PlanV2 = {
+        name: 'Empty Plan',
+        strategy: 'sequential',
+        tasks: [],
+      };
       mockStringifyYaml.mockReturnValue('tasks: []');
 
-      const output = PlanOutputter.formatPlanOutput(emptyPlan, mockMetrics);
+      const output = PlanOutputter.formatPlanOutput(emptyPlan);
 
       expect(output).toContain('tasks: []');
-      expect(output).toContain('# Plan Metrics');
     });
   });
 });

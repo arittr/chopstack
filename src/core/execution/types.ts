@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { taskV2Schema, type TaskV2 } from '@/types/schemas-v2';
+import { type TaskV2, taskV2Schema } from '@/types/schemas-v2';
 
 export const ExecutionModeSchema = z.enum(['plan', 'dry-run', 'execute', 'validate']);
 export type ExecutionMode = z.infer<typeof ExecutionModeSchema>;
