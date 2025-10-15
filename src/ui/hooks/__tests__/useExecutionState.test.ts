@@ -1,32 +1,10 @@
 /* eslint-disable unicorn/no-unused-properties */
 import { describe, expect, it } from 'vitest';
 
-import type { Plan } from '@/types/decomposer';
 import type { PlanV2, TaskV2 } from '@/types/schemas-v2';
 
 describe('useExecutionState helpers', () => {
   describe('Type compatibility', () => {
-    it('should support v1 Plan type', () => {
-      const v1Plan: Plan = {
-        tasks: [
-          {
-            id: 'task-1',
-            title: 'Create Types',
-            description: 'Create theme types',
-            touches: ['src/types/theme.ts'],
-            produces: [],
-            requires: [],
-            estimatedLines: 100,
-            agentPrompt: 'Create theme types',
-          },
-        ],
-      };
-
-      expect(v1Plan.tasks[0]?.title).toBe('Create Types');
-      expect(v1Plan.tasks[0]?.requires).toEqual([]);
-      expect(v1Plan.tasks[0]?.touches).toEqual(['src/types/theme.ts']);
-    });
-
     it('should support v2 PlanV2 type', () => {
       const v2Plan: PlanV2 = {
         name: 'Dark Mode Implementation',
@@ -72,43 +50,6 @@ describe('useExecutionState helpers', () => {
       expect(task.files).toHaveLength(2);
       expect(task.acceptanceCriteria).toHaveLength(3);
       expect(task.phase).toBe('phase-setup');
-    });
-
-    it('should handle v1 and v2 field differences', () => {
-      // v1 uses: title, requires, touches, produces, estimatedLines
-      // v2 uses: name, dependencies, files, complexity, acceptanceCriteria
-
-      const v1Task = {
-        id: 'task-1',
-        title: 'v1 Title',
-        requires: ['dep-1'],
-        touches: ['file1.ts'],
-        produces: ['file2.ts'],
-        estimatedLines: 100,
-      };
-
-      const v2Task: TaskV2 = {
-        id: 'task-1',
-        name: 'v2 Name',
-        dependencies: ['dep-1'],
-        files: ['file1.ts', 'file2.ts'],
-        complexity: 'M',
-        description: 'Task description',
-        acceptanceCriteria: ['criterion 1'],
-      };
-
-      // Verify v1 fields
-      expect(v1Task.title).toBe('v1 Title');
-      expect(v1Task.requires).toEqual(['dep-1']);
-      expect(v1Task.touches).toHaveLength(1);
-      expect(v1Task.produces).toHaveLength(1);
-
-      // Verify v2 fields
-      expect(v2Task.name).toBe('v2 Name');
-      expect(v2Task.dependencies).toEqual(['dep-1']);
-      expect(v2Task.files).toHaveLength(2);
-      expect(v2Task.complexity).toBe('M');
-      expect(v2Task.acceptanceCriteria).toHaveLength(1);
     });
   });
 

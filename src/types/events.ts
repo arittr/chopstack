@@ -1,6 +1,6 @@
 import type { ClaudeStreamEvent } from '@/services/orchestration/adapters/claude-stream-types.js';
 
-import type { Task } from './decomposer.js';
+import type { TaskV2 } from './schemas-v2.js';
 
 // Re-export for convenience
 export type { ClaudeStreamEvent };
@@ -39,7 +39,7 @@ export type ExecutionEvents = {
   'task:complete': { result: TaskResult; taskId: string };
   'task:failed': { error: Error; taskId: string };
   'task:progress': { progress: TaskProgress; taskId: string };
-  'task:start': { context: TaskContext; task: Task };
+  'task:start': { context: TaskContext; task: TaskV2 };
   'vcs:branch-created': { branchName: string; parentBranch: string };
   'vcs:commit': { branchName: string; filesChanged: string[]; message: string };
 };
