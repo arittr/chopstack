@@ -73,6 +73,8 @@ describe('ExecuteModeHandlerImpl', () => {
       continueOnError: false,
       maxRetries: 0,
       permissiveValidation: false,
+      dryRun: false,
+      verbose: false,
     };
   });
 
@@ -97,6 +99,8 @@ describe('ExecuteModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'completed',
         output: 'Task completed successfully',
+        mode: 'execute',
+        taskId: 'task-1',
       });
 
       const result = await handler.handle([task], mockContext);
@@ -137,6 +141,8 @@ describe('ExecuteModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'completed',
         output: 'Done',
+        mode: 'execute',
+        taskId: 'task-1',
       });
 
       await handler.handle([task], mockContext);
@@ -170,6 +176,8 @@ describe('ExecuteModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'completed',
         output: 'Done',
+        mode: 'execute',
+        taskId: 'task-v2',
       });
 
       await handler.handle([task], mockContext);
@@ -206,7 +214,8 @@ describe('ExecuteModeHandlerImpl', () => {
 
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'failed',
-        output: undefined,
+        mode: 'execute',
+        taskId: 'task-fail',
       });
 
       const result = await handler.handle([task], mockContext);
@@ -249,6 +258,8 @@ describe('ExecuteModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'completed',
         output: 'Done',
+        mode: 'execute',
+        taskId: 'task-1',
       });
 
       const result = await handler.handle(tasks, mockContext);
@@ -342,7 +353,12 @@ describe('ExecuteModeHandlerImpl', () => {
 
       vi.mocked(mockOrchestrator.executeTask)
         .mockRejectedValueOnce(new Error('Task 1 failed'))
-        .mockResolvedValueOnce({ status: 'completed', output: 'Done' });
+        .mockResolvedValueOnce({
+          status: 'completed',
+          output: 'Done',
+          mode: 'execute',
+          taskId: 'task-2',
+        });
 
       const contextWithContinue = { ...mockContext, continueOnError: true };
       const result = await handler.handle(tasks, contextWithContinue);
@@ -372,6 +388,8 @@ describe('ExecuteModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'completed',
         output: 'Done',
+        mode: 'execute',
+        taskId: 'task-1',
       });
 
       await handler.handle([task], mockContext);
@@ -412,6 +430,8 @@ describe('ExecuteModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'completed',
         output: 'Done',
+        mode: 'execute',
+        taskId: 'test',
       });
 
       await handler.handle([task], mockContext);
@@ -440,6 +460,8 @@ describe('ExecuteModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'completed',
         output: 'Done',
+        mode: 'execute',
+        taskId: 'test',
       });
 
       await handler.handle([task], mockContext);
