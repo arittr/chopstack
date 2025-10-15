@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { TaskResult } from '@/core/execution/interfaces';
 import type { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
-import type { Plan } from '@/types/decomposer';
 import type { PlanV2, TaskV2 } from '@/types/schemas-v2';
 
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
@@ -22,7 +21,7 @@ export type TaskUIState = {
   progress: number;
   startTime?: Date;
   status: 'pending' | 'running' | 'success' | 'failure' | 'skipped';
-  title: string; // Display name (supports both v1 'title' and v2 'name')
+  title: string; // Display name from v2 'name'
 };
 
 export type ExecutionMetrics = {
@@ -48,50 +47,21 @@ export type UseExecutionStateOptions = {
   verbose?: boolean;
 };
 
-/**
- * Helper to check if plan is PlanV2 (unused, kept for future use)
- */
-// eslint-disable-next-line @typescript-eslint/naming-convention
-function _isPlanV2(plan: Plan | PlanV2): plan is PlanV2 {
-  // PlanV2 has 'name' field, v1 Plan does not
-  return 'name' in plan;
-}
-
-/**
- * Helper to extract task display name (supports both v1 and v2)
- */
-function getTaskDisplayName(task: Plan['tasks'][number] | TaskV2): string {
-  // v2 uses 'name', v1 uses 'title'
-  return 'name' in task ? task.name : task.title;
-}
-
-/**
- * Helper to extract task dependencies (supports both v1 and v2)
- */
-function getTaskDependencies(task: Plan['tasks'][number] | TaskV2): string[] {
-  // v2 uses 'dependencies', v1 uses 'requires'
-  return 'dependencies' in task ? task.dependencies : task.requires;
-}
-
 export function useExecutionState(
   orchestrator: ExecutionOrchestrator,
-  plan: Plan | PlanV2,
+  plan: PlanV2,
   options: UseExecutionStateOptions = {},
 ): ExecutionState {
   const verbose = options.verbose ?? false;
   const [tasks, setTasks] = useState(() => {
     const initialTasks = new Map<string, TaskUIState>();
     for (const task of plan.tasks) {
-      // Handle both v1 'layer' and v2 'phase'
-      const layerValue = 'layer' in task ? task.layer : undefined;
-
       initialTasks.set(task.id, {
-        dependencies: getTaskDependencies(task),
+        dependencies: task.dependencies,
         id: task.id,
-        ...(isNonNullish(layerValue) && { layer: layerValue }),
         progress: 0,
         status: 'pending',
-        title: getTaskDisplayName(task),
+        title: task.name,
       });
     }
     return initialTasks;

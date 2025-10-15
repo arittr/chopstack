@@ -4,7 +4,6 @@ import { Box, useApp, useInput, useStdout } from 'ink';
 
 import type { ExecutionOptions } from '@/core/execution/types';
 import type { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
-import type { Plan } from '@/types/decomposer';
 import type { PlanV2 } from '@/types/schemas-v2';
 
 import { isNonNullish } from '@/validation/guards';
@@ -18,7 +17,7 @@ export type TuiAppProps = {
   jobIdRef?: { current: string | undefined } | undefined;
   options: ExecutionOptions;
   orchestrator: ExecutionOrchestrator;
-  plan: Plan | PlanV2;
+  plan: PlanV2;
 };
 
 export const TuiApp: FC<TuiAppProps> = ({ orchestrator, plan, options, jobIdRef }) => {
