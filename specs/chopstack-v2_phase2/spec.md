@@ -816,6 +816,866 @@ async handle(plan: PlanV2, spec: string, projectPrinciples: ProjectPrinciples): 
 
 ## Design
 
+### Implementation Decisions
+
+This section documents key architectural decisions made during specification analysis to resolve open questions and establish implementation patterns.
+
+#### Decision 1: Agent Implementation Approach (SCOPE-1)
+
+**Decision Date**: 2025-10-15
+**Status**: RESOLVED ✅
+
+**Question**: Should the 4 new agent capabilities (SpecificationAgent, AnalysisAgent, QualityValidationAgent, AcceptanceValidationAgent) be implemented as separate agent classes or use a configuration-based approach?
+
+**Options Considered**:
+
+1. **Separate Agent Classes**
+   - Create 4 new agent interfaces and 12 implementation classes (4 capabilities × 3 agent types)
+   - Each capability has its own type-safe interface
+   - Pros: Maximum type safety, clear separation of concerns
+   - Cons: More code (20-30h implementation), AgentService needs rework, harder to share infrastructure
+
+2. **Configuration-Based (Reuse Existing Infrastructure)** ✅ SELECTED
+   - Extend existing agent infrastructure with capability parameter
+   - Services own the prompts and result parsing
+   - Agent is execution engine, services provide type-safe APIs
+   - Pros: Follows existing patterns, minimal code changes (8-12h), shared infrastructure (streaming, retries, caching)
+   - Cons: Less type safety at agent layer (mitigated by service layer typing)
+
+**Decision**: **Option 2 - Configuration-Based Approach**
+
+**Rationale**:
+1. **Alignment with Existing Patterns**: Current `ClaudeCodeDecomposer` already works this way - all intelligence is in prompts built by `PromptBuilder`, not in class structure
+2. **Pragmatic Implementation**: All 4 capabilities use the same underlying Claude CLI - creating separate classes would be over-engineering
+3. **Service Layer Provides Type Safety**: Services like `SpecificationService`, `GapAnalysisService` provide the type-safe APIs. The agent is just an execution engine.
+4. **Shared Infrastructure**: Streaming, error handling, retries, and caching are shared across all capabilities
+5. **Faster Implementation**: 8-12 hours vs 20-30 hours for separate classes
+
+**Implementation Approach**:
+
+```typescript
+// Existing pattern - keep as-is
+export type DecomposerAgent = {
+  decompose(specContent: string, cwd: string, options?: { verbose?: boolean }): Promise<PlanV2>;
+  getCapabilities(): AgentCapabilities;
+  isAvailable(): Promise<boolean>;
+  getType(): AgentType;
+};
+
+// New pattern - general execution capability
+export type GeneralAgent = {
+  execute(prompt: string, context: ExecutionContext): Promise<AgentResult>;
+  getCapabilities(): AgentCapabilities;
+  isAvailable(): Promise<boolean>;
+  getType(): AgentType;
+};
+
+// Services handle specifics and provide type safety
+class SpecificationService {
+  constructor(private agent: GeneralAgent, private promptBuilder: PromptBuilder) {}
+
+  async generate(prompt: string, codebaseAnalysis: CodebaseAnalysis): Promise<string> {
+    const agentPrompt = this.promptBuilder.buildSpecificationPrompt(prompt, codebaseAnalysis);
+    const result = await this.agent.execute(agentPrompt, { cwd: process.cwd() });
+    return this._parseSpecification(result.content);
+  }
+}
+```
+
+**File Changes Required**:
+1. `src/core/agents/interfaces.ts` - Add `GeneralAgent` and `AgentResult` types
+2. `src/adapters/agents/claude-general.ts` (NEW) - Implement `ClaudeGeneralAgent` (reuses 80% of `ClaudeCodeDecomposer` logic)
+3. `src/services/planning/prompts/` - Add prompt builders for specification, analysis, quality validation, acceptance validation
+4. Services use `GeneralAgent` and own their prompts
+
+**Benefits**:
+- ✅ Minimal disruption to existing codebase
+- ✅ Follows established patterns (`ClaudeCodeDecomposer` + `PromptBuilder`)
+- ✅ Easy to add new capabilities (just new prompt builders)
+- ✅ Shared infrastructure (streaming, retries, caching, error handling)
+- ✅ Type safety at service layer where it matters most
+- ✅ 60% faster implementation (8-12h vs 20-30h)
+
+**Trade-offs Accepted**:
+- ❌ Less type safety at agent layer (acceptable - services provide type-safe APIs)
+- ❌ Prompt management is critical (acceptable - existing pattern, well-tested)
+- ❌ Can't optimize per capability as easily (acceptable - all capabilities use same Claude CLI)
+
+---
+
+#### Decision 2: Validation Parallelization Strategy (SCOPE-2)
+
+**Decision Date**: 2025-10-15
+**Status**: RESOLVED ✅
+
+**Question**: Should task validation in `ValidateModeHandler` be sequential or parallel? NFR1.4 mentions "Agent calls for each task (parallelizable)" but pseudo-code shows sequential loop.
+
+**Options Considered**:
+
+1. **Sequential Validation**
+   - Process tasks one at a time: `for (const task of plan.tasks) { await validateTask(task); }`
+   - Pros: Simpler, easier to debug, respects API rate limits naturally
+   - Cons: Slower for large plans (8 tasks × 5s = 40s), doesn't scale
+   - Performance: 40-60s for 8-task plan (barely meets NFR1.4 <60s target)
+
+2. **Full Parallel Validation**
+   - Validate all tasks simultaneously: `await Promise.all(plan.tasks.map(validateTask))`
+   - Pros: Very fast (5-10s for 8 tasks), excellent scalability
+   - Cons: Could hit API rate limits, high memory usage, harder to debug
+   - Performance: 5-10s for 8-task plan (easily meets target)
+
+3. **Controlled Parallelism (Batch Processing)** ✅ SELECTED
+   - Validate tasks in batches of N (default: 4 concurrent tasks)
+   - Balance speed with resource control
+   - Pros: 4x faster than sequential, controlled resource usage, rate-limit friendly, tunable
+   - Cons: Slightly more complex than sequential
+   - Performance: 10-20s for 8-task plan (well under 60s target)
+
+**Decision**: **Option 3 - Controlled Parallelism with Batch Size 4**
+
+**Rationale**:
+1. **Meets Performance Target**: 10-20s for 8 tasks (well under NFR1.4 <60s target)
+2. **API Rate Limit Friendly**: 4 concurrent calls is reasonable for Claude API without throttling
+3. **Resource Efficient**: Limits memory usage to 4 agent calls in flight
+4. **Scalable**: Works well for small plans (1-8 tasks) and large plans (20+ tasks)
+5. **Tunable**: Can adjust batch size via configuration based on real-world performance
+
+**Implementation Approach**:
+
+```typescript
+// Enhanced ValidateModeHandler with controlled parallelism
+private async _validateImplementation(
+  plan: PlanV2,
+  spec: string,
+  projectPrinciples?: ProjectPrinciples
+): Promise<ValidationResult> {
+  const taskResults: TaskValidationResult[] = [];
+
+  // Configurable batch size (default: 4)
+  const batchSize = this.config.validationBatchSize ?? 4;
+
+  // Process tasks in batches
+  for (let i = 0; i < plan.tasks.length; i += batchSize) {
+    const batch = plan.tasks.slice(i, i + batchSize);
+
+    // Validate batch in parallel
+    const batchResults = await Promise.all(
+      batch.map(async (task) => {
+        // 1. Get changed files for task
+        const changedFiles = await this.vcsEngine.getChangedFiles(task.id);
+
+        // 2. Read file contents
+        const fileContents = await Promise.all(
+          changedFiles.map(f => fs.readFile(f, 'utf-8'))
+        );
+
+        // 3. Validate acceptance criteria using agent
+        const criteriaResults = await this._validateCriteria(task, fileContents, spec);
+
+        // 4. Check project principles
+        const principleViolations = projectPrinciples
+          ? await this._checkPrinciples(task, fileContents, projectPrinciples)
+          : [];
+
+        return {
+          taskId: task.id,
+          taskName: task.name,
+          criteriaResults,
+          principleViolations
+        };
+      })
+    );
+
+    taskResults.push(...batchResults);
+  }
+
+  // 5. Assess success metrics (after all tasks validated)
+  const metricsAssessment = await this._assessMetrics(plan, spec, taskResults);
+
+  // 6. Generate report
+  return this._generateValidationReport(taskResults, metricsAssessment);
+}
+```
+
+**Configuration**:
+```typescript
+// Default configuration
+const DEFAULT_VALIDATION_BATCH_SIZE = 4;
+
+// Allow override via environment variable
+const batchSize = process.env.CHOPSTACK_VALIDATION_BATCH_SIZE
+  ? parseInt(process.env.CHOPSTACK_VALIDATION_BATCH_SIZE)
+  : DEFAULT_VALIDATION_BATCH_SIZE;
+
+// Example: Increase batch size for better performance
+// CHOPSTACK_VALIDATION_BATCH_SIZE=8 chopstack run --mode validate
+```
+
+**Performance Analysis**:
+
+| Plan Size | Sequential | Parallel (batch=4) | Improvement |
+|-----------|-----------|-------------------|-------------|
+| 4 tasks   | 20s       | 5s                | 4x faster   |
+| 8 tasks   | 40s       | 10s               | 4x faster   |
+| 16 tasks  | 80s       | 20s               | 4x faster   |
+| 24 tasks  | 120s      | 30s               | 4x faster   |
+
+**Benefits**:
+- ✅ 4x speedup over sequential validation
+- ✅ Meets NFR1.4 target (<60s for 8 tasks) with 50% margin
+- ✅ Scales linearly with plan size
+- ✅ Natural rate limiting (4 concurrent agent calls)
+- ✅ Configurable via environment variable
+- ✅ Low memory footprint (4 agents max)
+
+**Trade-offs Accepted**:
+- ❌ Slightly more complex than sequential (acceptable - well-known pattern)
+- ❌ Need to choose appropriate batch size (acceptable - 4 is good default, tunable)
+
+#### Decision 3: Error Type Hierarchy (GAP-H1)
+
+**Decision Date**: 2025-10-15
+**Status**: RESOLVED ✅
+
+**Problem**: Specification describes error handling throughout but doesn't define error types or hierarchy. This creates ambiguity about what errors to throw, how to structure them, and what context to include.
+
+**Decision**: Comprehensive error type hierarchy with `ChopstackError` as base class
+
+**Error Hierarchy**:
+
+```
+ChopstackError (base)
+├── ServiceError (base for all service errors)
+│   ├── SpecificationError
+│   │   ├── SpecificationGenerationError
+│   │   └── SpecificationValidationError
+│   ├── AnalysisError
+│   │   ├── CodebaseAnalysisError
+│   │   ├── GapAnalysisError
+│   │   └── CompletenessCalculationError
+│   ├── QualityValidationError
+│   └── ProjectPrinciplesError
+├── FileSystemError
+│   ├── FileReadError
+│   ├── FileWriteError
+│   ├── DirectoryNotFoundError
+│   └── DirectoryAccessError
+├── ValidationError (Zod schema violations)
+└── AgentError
+    ├── AgentNotFoundError (existing)
+    ├── AgentExecutionError (NEW)
+    └── AgentTimeoutError (NEW)
+```
+
+**Implementation Approach**:
+
+```typescript
+// src/types/errors-v2.ts
+
+/**
+ * Base error for all chopstack v2 errors
+ * Follows existing OrchestrationError pattern with context fields
+ */
+export abstract class ChopstackError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = this.constructor.name;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+
+  toJSON(): object {
+    return {
+      name: this.name,
+      message: this.message,
+      code: this.code,
+      details: this.details,
+    };
+  }
+}
+
+/**
+ * Base error for service-layer operations
+ */
+export abstract class ServiceError extends ChopstackError {
+  constructor(
+    message: string,
+    code: string,
+    public readonly serviceName: string,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, code, { ...details, serviceName });
+  }
+}
+
+/**
+ * Specification-related errors
+ */
+export class SpecificationError extends ServiceError {
+  constructor(message: string, code: string, details?: Record<string, unknown>) {
+    super(message, code, 'SpecificationService', details);
+  }
+}
+
+export class SpecificationGenerationError extends SpecificationError {
+  constructor(message: string, public readonly prompt: string, cause?: Error) {
+    super(
+      message,
+      'SPEC_GENERATION_FAILED',
+      { prompt: prompt.slice(0, 200), cause: cause?.message }
+    );
+  }
+}
+
+export class SpecificationValidationError extends SpecificationError {
+  constructor(message: string, public readonly validationErrors: string[]) {
+    super(
+      message,
+      'SPEC_VALIDATION_FAILED',
+      { errors: validationErrors }
+    );
+  }
+}
+
+/**
+ * Analysis-related errors
+ */
+export class AnalysisError extends ServiceError {
+  constructor(message: string, code: string, details?: Record<string, unknown>) {
+    super(message, code, 'AnalysisService', details);
+  }
+}
+
+export class CodebaseAnalysisError extends AnalysisError {
+  constructor(message: string, public readonly targetDir: string, cause?: Error) {
+    super(
+      message,
+      'CODEBASE_ANALYSIS_FAILED',
+      { targetDir, cause: cause?.message }
+    );
+  }
+}
+
+export class GapAnalysisError extends AnalysisError {
+  constructor(message: string, public readonly specPath: string, cause?: Error) {
+    super(
+      message,
+      'GAP_ANALYSIS_FAILED',
+      { specPath, cause: cause?.message }
+    );
+  }
+}
+
+export class CompletenessCalculationError extends AnalysisError {
+  constructor(message: string, public readonly reason: string) {
+    super(
+      message,
+      'COMPLETENESS_CALCULATION_FAILED',
+      { reason }
+    );
+  }
+}
+
+/**
+ * Quality validation errors
+ */
+export class QualityValidationError extends ServiceError {
+  constructor(
+    message: string,
+    public readonly taskId: string,
+    public readonly issues: string[],
+  ) {
+    super(
+      message,
+      'QUALITY_VALIDATION_FAILED',
+      'QualityValidationService',
+      { taskId, issues }
+    );
+  }
+}
+
+/**
+ * Project principles errors
+ */
+export class ProjectPrinciplesError extends ServiceError {
+  constructor(message: string, public readonly projectRoot: string, cause?: Error) {
+    super(
+      message,
+      'PRINCIPLES_EXTRACTION_FAILED',
+      'ProjectPrinciplesService',
+      { projectRoot, cause: cause?.message }
+    );
+  }
+}
+
+/**
+ * File system errors
+ */
+export class FileSystemError extends ChopstackError {
+  constructor(
+    message: string,
+    code: string,
+    public readonly path: string,
+    details?: Record<string, unknown>,
+  ) {
+    super(message, code, { ...details, path });
+  }
+}
+
+export class FileReadError extends FileSystemError {
+  constructor(path: string, cause?: Error) {
+    super(
+      `Failed to read file: ${path}`,
+      'FILE_READ_FAILED',
+      path,
+      { cause: cause?.message }
+    );
+  }
+}
+
+export class FileWriteError extends FileSystemError {
+  constructor(path: string, cause?: Error) {
+    super(
+      `Failed to write file: ${path}`,
+      'FILE_WRITE_FAILED',
+      path,
+      { cause: cause?.message }
+    );
+  }
+}
+
+export class DirectoryNotFoundError extends FileSystemError {
+  constructor(path: string) {
+    super(
+      `Directory not found: ${path}`,
+      'DIRECTORY_NOT_FOUND',
+      path
+    );
+  }
+}
+
+export class DirectoryAccessError extends FileSystemError {
+  constructor(path: string, cause?: Error) {
+    super(
+      `Cannot access directory: ${path}`,
+      'DIRECTORY_ACCESS_DENIED',
+      path,
+      { cause: cause?.message }
+    );
+  }
+}
+
+/**
+ * Validation errors (Zod schema violations)
+ */
+export class ValidationError extends ChopstackError {
+  constructor(
+    message: string,
+    public readonly schemaName: string,
+    public readonly zodErrors: Array<{ path: string; message: string }>,
+  ) {
+    super(
+      message,
+      'VALIDATION_FAILED',
+      { schemaName, errors: zodErrors }
+    );
+  }
+}
+
+/**
+ * Agent errors (extends existing AgentNotFoundError)
+ */
+export class AgentExecutionError extends ChopstackError {
+  constructor(
+    message: string,
+    public readonly agentType: string,
+    public readonly prompt: string,
+    cause?: Error,
+  ) {
+    super(
+      message,
+      'AGENT_EXECUTION_FAILED',
+      { agentType, prompt: prompt.slice(0, 200), cause: cause?.message }
+    );
+  }
+}
+
+export class AgentTimeoutError extends ChopstackError {
+  constructor(
+    public readonly agentType: string,
+    public readonly timeoutMs: number,
+  ) {
+    super(
+      `Agent '${agentType}' timed out after ${timeoutMs}ms`,
+      'AGENT_TIMEOUT',
+      { agentType, timeoutMs }
+    );
+  }
+}
+```
+
+**Usage Examples**:
+
+```typescript
+// In SpecificationService
+try {
+  const result = await this.agent.execute(prompt, context);
+  return result.content;
+} catch (error) {
+  throw new SpecificationGenerationError(
+    'Failed to generate specification',
+    prompt,
+    error as Error
+  );
+}
+
+// In AnalysisService
+try {
+  const analysis = await this._analyzeCodebase(targetDir);
+  return analysis;
+} catch (error) {
+  throw new CodebaseAnalysisError(
+    'Codebase analysis failed',
+    targetDir,
+    error as Error
+  );
+}
+
+// In file I/O
+try {
+  return await fs.readFile(specPath, 'utf-8');
+} catch (error) {
+  throw new FileReadError(specPath, error as Error);
+}
+
+// In Zod validation
+try {
+  return PlanV2Schema.parse(data);
+} catch (error) {
+  const zodError = error as z.ZodError;
+  throw new ValidationError(
+    'Plan validation failed',
+    'PlanV2Schema',
+    zodError.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
+  );
+}
+```
+
+**File Location**: `src/types/errors-v2.ts`
+
+**Benefits**:
+- ✅ Clear error categorization (service, file system, validation, agent)
+- ✅ Rich context fields for debugging (following OrchestrationError pattern)
+- ✅ Consistent error handling across all Phase 2 services
+- ✅ Type-safe error catching with instanceof checks
+- ✅ JSON serialization support for logging and API responses
+- ✅ Extends existing error infrastructure (AgentNotFoundError)
+
+**Implementation Files**:
+- Create: `src/types/errors-v2.ts` (all error classes)
+- Update: `src/services/specification/specification-service.ts` (use SpecificationError)
+- Update: `src/services/analysis/analysis-service.ts` (use AnalysisError)
+- Update: `src/services/validation/quality-validator.ts` (use QualityValidationError)
+- Update: All file I/O operations (use FileSystemError)
+
+**Trade-offs Accepted**:
+- ❌ More error classes to maintain (acceptable - clear ownership by service)
+- ❌ Slightly more verbose error handling (acceptable - better debugging experience)
+
+#### Decision 4: MetricsAssessor Implementation (GAP-H3)
+
+**Decision Date**: 2025-10-15
+**Status**: RESOLVED ✅
+
+**Problem**: Component 8 (ValidateModeHandler) references `_assessMetrics` method but doesn't define its implementation. The spec shows expected output format but lacks implementation details.
+
+**Decision**: **Option 3 - Agent-Only with Batch Processing**
+
+Use a single agent call to assess all success metrics together using full codebase context.
+
+**Implementation Approach**:
+
+```typescript
+// ValidateModeHandler - Component 8
+
+/**
+ * Assess success metrics using agent-based analysis
+ */
+private async _assessMetrics(
+  plan: PlanV2,
+  spec: string,
+  taskResults: TaskValidationResult[]
+): Promise<MetricsAssessment> {
+  // 1. Extract success metrics from plan
+  const metrics = plan.success_metrics ?? { quantitative: [], qualitative: [] };
+
+  if (metrics.quantitative.length === 0 && metrics.qualitative.length === 0) {
+    return { quantitative: [], qualitative: [] };
+  }
+
+  // 2. Build assessment prompt with all metrics
+  const prompt = this.promptBuilder.buildMetricsAssessmentPrompt({
+    spec,
+    metrics,
+    taskResults,
+    projectRoot: this.config.cwd,
+  });
+
+  // 3. Execute agent assessment (single call for all metrics)
+  const result = await this.agent.execute(prompt, {
+    cwd: this.config.cwd,
+    timeout: 60000, // 60s timeout for comprehensive assessment
+  });
+
+  // 4. Parse agent response into structured results
+  return this._parseMetricsAssessment(result.content, metrics);
+}
+
+/**
+ * Parse agent response into MetricsAssessment structure
+ */
+private _parseMetricsAssessment(
+  agentResponse: string,
+  originalMetrics: SuccessMetrics
+): MetricsAssessment {
+  // Agent response format:
+  // QUANTITATIVE:
+  // - Test coverage: PASS (actual: 95%, target: 100%, evidence: ...)
+  // - Performance: FAIL (actual: 78ms, target: <50ms, bottleneck: ...)
+  //
+  // QUALITATIVE:
+  // - Smooth transitions: PASS (assessment: ...)
+  // - Accessible controls: PASS (assessment: ...)
+
+  const quantitativeResults: QuantitativeMetricResult[] = [];
+  const qualitativeResults: QualitativeMetricResult[] = [];
+
+  // Parse QUANTITATIVE section
+  const quantSection = this._extractSection(agentResponse, 'QUANTITATIVE');
+  for (const metric of originalMetrics.quantitative) {
+    const result = this._parseQuantitativeMetric(metric, quantSection);
+    quantitativeResults.push(result);
+  }
+
+  // Parse QUALITATIVE section
+  const qualSection = this._extractSection(agentResponse, 'QUALITATIVE');
+  for (const metric of originalMetrics.qualitative) {
+    const result = this._parseQualitativeMetric(metric, qualSection);
+    qualitativeResults.push(result);
+  }
+
+  return {
+    quantitative: quantitativeResults,
+    qualitative: qualitativeResults,
+  };
+}
+
+/**
+ * Extract section from agent response
+ */
+private _extractSection(response: string, section: 'QUANTITATIVE' | 'QUALITATIVE'): string {
+  const regex = new RegExp(`${section}:\\s*([\\s\\S]*?)(?=QUALITATIVE:|$)`, 'i');
+  const match = response.match(regex);
+  return match?.[1]?.trim() ?? '';
+}
+
+/**
+ * Parse quantitative metric result from section
+ */
+private _parseQuantitativeMetric(
+  metric: string,
+  section: string
+): QuantitativeMetricResult {
+  // Extract metric name (e.g., "Test coverage" from "Test coverage: 100%")
+  const metricName = metric.split(':')[0].trim();
+
+  // Find line matching this metric
+  const lineRegex = new RegExp(`${metricName}:\\s*(PASS|FAIL|WARN)\\s*\\(([^)]+)\\)`, 'i');
+  const match = section.match(lineRegex);
+
+  if (!match) {
+    return {
+      metric,
+      status: 'unknown',
+      actual: 'N/A',
+      target: metric,
+      evidence: 'Agent could not assess this metric',
+    };
+  }
+
+  const [, status, details] = match;
+  const actualMatch = details.match(/actual:\s*([^,]+)/i);
+  const targetMatch = details.match(/target:\s*([^,]+)/i);
+  const evidenceMatch = details.match(/evidence:\s*(.+)/i);
+
+  return {
+    metric,
+    status: status.toLowerCase() as 'pass' | 'fail' | 'warn',
+    actual: actualMatch?.[1]?.trim() ?? 'N/A',
+    target: targetMatch?.[1]?.trim() ?? metric,
+    evidence: evidenceMatch?.[1]?.trim() ?? details,
+  };
+}
+
+/**
+ * Parse qualitative metric result from section
+ */
+private _parseQualitativeMetric(
+  metric: string,
+  section: string
+): QualitativeMetricResult {
+  // Extract metric name
+  const metricName = metric.trim();
+
+  // Find line matching this metric
+  const lineRegex = new RegExp(`${metricName}:\\s*(PASS|FAIL|WARN)\\s*\\(assessment:\\s*([^)]+)\\)`, 'i');
+  const match = section.match(lineRegex);
+
+  if (!match) {
+    return {
+      metric,
+      status: 'unknown',
+      assessment: 'Agent could not assess this metric',
+    };
+  }
+
+  const [, status, assessment] = match;
+
+  return {
+    metric,
+    status: status.toLowerCase() as 'pass' | 'fail' | 'warn',
+    assessment: assessment.trim(),
+  };
+}
+```
+
+**Type Definitions** (add to `src/types/validation.ts`):
+
+```typescript
+/**
+ * Result of assessing success metrics
+ */
+export type MetricsAssessment = {
+  quantitative: QuantitativeMetricResult[];
+  qualitative: QualitativeMetricResult[];
+};
+
+/**
+ * Result of assessing a quantitative metric
+ */
+export type QuantitativeMetricResult = {
+  metric: string;                    // Original metric string
+  status: 'pass' | 'fail' | 'warn' | 'unknown';
+  actual: string;                    // Actual measured value
+  target: string;                    // Target value from metric
+  evidence: string;                  // Evidence or explanation
+};
+
+/**
+ * Result of assessing a qualitative metric
+ */
+export type QualitativeMetricResult = {
+  metric: string;                    // Original metric string
+  status: 'pass' | 'fail' | 'warn' | 'unknown';
+  assessment: string;                // Agent's assessment
+};
+```
+
+**Prompt Template** (add to `src/services/planning/prompts/metrics-assessment.ts`):
+
+```typescript
+export function buildMetricsAssessmentPrompt(params: {
+  spec: string;
+  metrics: SuccessMetrics;
+  taskResults: TaskValidationResult[];
+  projectRoot: string;
+}): string {
+  return `# Success Metrics Assessment
+
+You are assessing whether the implementation meets the success metrics defined in the specification.
+
+## Specification Context
+
+${params.spec}
+
+## Success Metrics to Assess
+
+### Quantitative Metrics (Measurable)
+
+${params.metrics.quantitative.map((m, i) => `${i + 1}. ${m}`).join('\n')}
+
+### Qualitative Metrics (Subjective)
+
+${params.metrics.qualitative.map((m, i) => `${i + 1}. ${m}`).join('\n')}
+
+## Task Validation Results
+
+${params.taskResults.map(tr => `
+Task: ${tr.taskName}
+Acceptance Criteria: ${tr.criteriaResults.filter(c => c.passed).length}/${tr.criteriaResults.length} passed
+`).join('\n')}
+
+## Instructions
+
+For each metric, assess whether it has been met by analyzing the codebase in ${params.projectRoot}.
+
+### For Quantitative Metrics:
+
+Provide assessment in this format:
+- <MetricName>: <PASS|FAIL|WARN> (actual: <value>, target: <value>, evidence: <explanation>)
+
+Example:
+- Test coverage: FAIL (actual: 87%, target: 100%, evidence: Missing tests for ThemeProvider and ThemeToggle)
+- Performance: WARN (actual: 78ms, target: <50ms, bottleneck: CSS variable updates trigger full repaint)
+
+### For Qualitative Metrics:
+
+Provide assessment in this format:
+- <MetricName>: <PASS|FAIL|WARN> (assessment: <explanation>)
+
+Example:
+- Smooth visual transitions: PASS (assessment: 300ms ease-in-out transitions with no flicker observed)
+- Accessible theme controls: PASS (assessment: Theme toggle has aria-label, role="switch", keyboard support)
+
+## Output Format
+
+QUANTITATIVE:
+<quantitative assessments here>
+
+QUALITATIVE:
+<qualitative assessments here>
+
+Be specific and provide evidence for each assessment.`;
+}
+```
+
+**Benefits**:
+- ✅ Single agent call assesses all metrics (efficient)
+- ✅ Agent has full context (spec + task results + codebase)
+- ✅ Structured parsing with fallback to 'unknown' status
+- ✅ Aligns with Decision 1 (configuration-based agent approach)
+- ✅ Simple implementation (~200 LOC)
+
+**Performance**:
+- Single agent call: 10-20s for typical plan
+- Scales to O(1) regardless of metric count (vs O(n) for per-metric assessment)
+- Falls within validation mode performance target (<60s total)
+
+**Trade-offs Accepted**:
+- ❌ Less granular evidence than tool-based checks (acceptable - agent provides sufficient detail)
+- ❌ Depends on agent parsing accuracy (acceptable - structured format with fallbacks)
+- ❌ Cannot verify some metrics without external tools (acceptable - agent can indicate "unable to verify")
+
+**Files to Create/Update**:
+- Update: `src/services/execution/modes/validate-mode-handler.ts` (add `_assessMetrics` method)
+- Create: `src/services/planning/prompts/metrics-assessment.ts` (prompt builder)
+- Update: `src/types/validation.ts` (add MetricsAssessment types)
+
+---
+
 ### Architecture Overview
 
 ```
@@ -1692,36 +2552,45 @@ private async _validateImplementation(
 ): Promise<ValidationResult> {
   const taskResults: TaskValidationResult[] = [];
 
-  for (const task of plan.tasks) {
-    // 1. Get changed files for task
-    const changedFiles = await this.vcsEngine.getChangedFiles(task.id);
+  // Configurable batch size (default: 4) - see Decision 2: SCOPE-2
+  const batchSize = this.config.validationBatchSize ?? 4;
 
-    // 2. Read file contents
-    const fileContents = await Promise.all(
-      changedFiles.map(f => fs.readFile(f, 'utf-8'))
+  // Process tasks in batches for controlled parallelism
+  for (let i = 0; i < plan.tasks.length; i += batchSize) {
+    const batch = plan.tasks.slice(i, i + batchSize);
+
+    // Validate batch in parallel (4x speedup)
+    const batchResults = await Promise.all(
+      batch.map(async (task) => {
+        // 1. Get changed files for task
+        const changedFiles = await this.vcsEngine.getChangedFiles(task.id);
+
+        // 2. Read file contents
+        const fileContents = await Promise.all(
+          changedFiles.map(f => fs.readFile(f, 'utf-8'))
+        );
+
+        // 3. Validate acceptance criteria using agent
+        const criteriaResults = await this._validateCriteria(task, fileContents, spec);
+
+        // 4. Check project principles
+        const principleViolations = projectPrinciples
+          ? await this._checkPrinciples(task, fileContents, projectPrinciples)
+          : [];
+
+        return {
+          taskId: task.id,
+          taskName: task.name,
+          criteriaResults,
+          principleViolations
+        };
+      })
     );
 
-    // 3. Validate acceptance criteria using agent
-    const criteriaResults = await this._validateCriteria(
-      task,
-      fileContents,
-      spec
-    );
-
-    // 4. Check project principles
-    const principleViolations = projectPrinciples
-      ? await this._checkPrinciples(task, fileContents, projectPrinciples)
-      : [];
-
-    taskResults.push({
-      taskId: task.id,
-      taskName: task.name,
-      criteriaResults,
-      principleViolations
-    });
+    taskResults.push(...batchResults);
   }
 
-  // 5. Assess success metrics
+  // 5. Assess success metrics (after all tasks validated)
   const metricsAssessment = await this._assessMetrics(plan, spec, taskResults);
 
   // 6. Generate report
