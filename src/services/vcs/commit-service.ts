@@ -132,7 +132,14 @@ export class CommitServiceImpl implements CommitService {
     changes: { files?: string[]; output?: string },
     workdir: string,
   ): Promise<string> {
-    return this.commitMessageGenerator.generateCommitMessage(task, {
+    // Convert ExecutionTask (v2) to CommitTask format expected by commitment library
+    const commitTask = {
+      title: task.name, // v2 uses 'name', commitment library expects 'title'
+      description: task.description,
+      produces: task.files, // v2 uses 'files', commitment library expects 'produces'
+    };
+
+    return this.commitMessageGenerator.generateCommitMessage(commitTask, {
       files: changes.files ?? [],
       output: changes.output ?? undefined,
       workdir,
