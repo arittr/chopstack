@@ -25,6 +25,8 @@ describe('PlanModeHandlerImpl', () => {
       continueOnError: false,
       maxRetries: 0,
       permissiveValidation: false,
+      dryRun: false,
+      verbose: false,
     };
   });
 
@@ -43,6 +45,8 @@ describe('PlanModeHandlerImpl', () => {
       const mockResult: OrchestratorTaskResult = {
         status: 'completed',
         output: 'Task completed',
+        mode: 'plan',
+        taskId: 'task-1',
       };
 
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue(mockResult);
@@ -103,6 +107,8 @@ describe('PlanModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'completed',
         output: 'Done',
+        mode: 'plan',
+        taskId: 'task-1',
       });
 
       const result = await handler.handle(tasks, mockContext);
@@ -126,7 +132,8 @@ describe('PlanModeHandlerImpl', () => {
 
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'failed',
-        output: undefined,
+        mode: 'plan',
+        taskId: 'task-1',
       });
 
       const result = await handler.handle([task], mockContext);
@@ -218,7 +225,12 @@ describe('PlanModeHandlerImpl', () => {
 
       vi.mocked(mockOrchestrator.executeTask)
         .mockRejectedValueOnce(new Error('Task 1 failed'))
-        .mockResolvedValueOnce({ status: 'completed', output: 'Done' });
+        .mockResolvedValueOnce({
+          status: 'completed',
+          output: 'Done',
+          mode: 'plan',
+          taskId: 'task-2',
+        });
 
       const contextWithContinue = { ...mockContext, continueOnError: true };
       const result = await handler.handle(tasks, contextWithContinue);
@@ -243,6 +255,8 @@ describe('PlanModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'completed',
         output: 'Done',
+        mode: 'plan',
+        taskId: 'task-1',
       });
 
       await handler.handle([task], mockContext);
@@ -267,7 +281,16 @@ describe('PlanModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockImplementation(
         () =>
           new Promise((resolve) => {
-            setTimeout(() => resolve({ status: 'completed', output: 'Done' }), 10);
+            setTimeout(
+              () =>
+                resolve({
+                  status: 'completed',
+                  output: 'Done',
+                  mode: 'plan',
+                  taskId: 'task-1',
+                }),
+              10,
+            );
           }),
       );
 
@@ -296,6 +319,8 @@ describe('PlanModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'completed',
         output: 'Success',
+        mode: 'plan',
+        taskId: 'task-v2',
       });
 
       await handler.handle([task], mockContext);
@@ -334,6 +359,8 @@ describe('PlanModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockResolvedValue({
         status: 'completed',
         output: 'Done',
+        mode: 'plan',
+        taskId: 'test',
       });
 
       await handler.handle([task], mockContext);
