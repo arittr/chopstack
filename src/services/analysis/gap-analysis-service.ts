@@ -1,0 +1,576 @@
+import type {
+  AnalysisReport,
+  Gap,
+  ProjectPrinciples,
+  RemediationStep,
+  Severity,
+} from '@/types/schemas-v2';
+
+import { logger } from '@/utils/global-logger';
+import { hasContent, isNonEmptyArray, isNonNullish } from '@/validation/guards';
+
+/**
+ * Section requirement definition
+ */
+type SectionRequirement = {
+  minLength: number;
+  name: string;
+  patterns: string[];
+};
+
+/**
+ * Service for analyzing specification completeness and detecting gaps.
+ *
+ * This service validates specifications by:
+ * - Checking for required sections
+ * - Validating content depth (minimum character counts)
+ * - Detecting ambiguous language (should, maybe, TBD, TODO)
+ * - Finding placeholder text (???, [fill this in])
+ * - Parsing open questions/tasks
+ * - Validating cross-references
+ * - Calculating completeness scores
+ * - Generating prioritized remediation steps
+ *
+ * @example
+ * ```typescript
+ * const service = new GapAnalysisService();
+ * const report = service.analyze(specContent, principles);
+ *
+ * console.log(report.completeness); // 75
+ * console.log(report.gaps.length); // 3
+ * console.log(report.remediation[0].priority); // 'CRITICAL'
+ * ```
+ */
+export class GapAnalysisService {
+  /**
+   * Required sections with their detection patterns and minimum lengths
+   */
+  private readonly REQUIRED_SECTIONS: SectionRequirement[] = [
+    { name: 'Overview', patterns: ['# Overview', '## Overview'], minLength: 100 },
+    { name: 'Background', patterns: ['# Background', '## Background'], minLength: 150 },
+    {
+      name: 'Requirements',
+      patterns: ['# Requirements', '## Requirements', '## Functional Requirements'],
+      minLength: 200,
+    },
+    {
+      name: 'Architecture',
+      patterns: ['# Architecture', '## Architecture', '# Design', '## Design'],
+      minLength: 200,
+    },
+    {
+      name: 'Acceptance Criteria',
+      patterns: ['# Acceptance Criteria', '## Acceptance Criteria'],
+      minLength: 100,
+    },
+  ];
+
+  /**
+   * Ambiguous terms that indicate incomplete specifications
+   */
+  private readonly AMBIGUOUS_TERMS = [
+    'should',
+    'maybe',
+    'possibly',
+    'probably',
+    'TBD',
+    'TODO',
+    'might',
+    'could be',
+    'perhaps',
+  ];
+
+  /**
+   * Placeholder patterns that indicate incomplete content
+   */
+  private readonly PLACEHOLDER_PATTERNS = [
+    /\?{3}/g,
+    /\[fill this in]/gi,
+    /\[todo]/gi,
+    /\[tbd]/gi,
+    /\[placeholder]/gi,
+    /\[to be determined]/gi,
+  ];
+
+  /**
+   * Analyze specification completeness and generate report.
+   *
+   * @param specContent - Full markdown specification content
+   * @param principles - Optional project principles for validation
+   * @returns Comprehensive analysis report with gaps and remediation steps
+   */
+  analyze(specContent: string, principles?: ProjectPrinciples): AnalysisReport {
+    logger.debug('🔍 Starting specification gap analysis...');
+
+    const gaps: Gap[] = [];
+
+    // 1. Check required sections
+    const sectionGaps = this._checkRequiredSections(specContent);
+    gaps.push(...sectionGaps);
+
+    // 2. Validate content depth
+    const depthGaps = this._checkContentDepth(specContent);
+    gaps.push(...depthGaps);
+
+    // 3. Detect ambiguous language
+    const ambiguityGaps = this._detectAmbiguousLanguage(specContent);
+    gaps.push(...ambiguityGaps);
+
+    // 4. Find placeholder text
+    const placeholderGaps = this._detectPlaceholders(specContent);
+    gaps.push(...placeholderGaps);
+
+    // 5. Parse open questions
+    const openQuestionGaps = this._parseOpenQuestions(specContent);
+    gaps.push(...openQuestionGaps);
+
+    // 6. Validate cross-references (requirements → architecture → acceptance criteria)
+    const crossRefGaps = this._validateCrossReferences(specContent);
+    gaps.push(...crossRefGaps);
+
+    // 7. Check principle violations if provided
+    if (isNonNullish(principles) && isNonEmptyArray(principles.principles)) {
+      const principleGaps = this._checkPrincipleViolations(specContent, principles);
+      gaps.push(...principleGaps);
+    }
+
+    // Calculate completeness score
+    const completeness = this._calculateCompleteness(specContent, gaps);
+
+    // Generate remediation steps
+    const remediation = this._generateRemediationSteps(gaps);
+
+    // Generate summary
+    const summary = this._generateSummary(completeness, gaps);
+
+    logger.info(`✅ Analysis complete: ${completeness}% complete, ${gaps.length} gaps found`);
+
+    return {
+      completeness,
+      gaps,
+      remediation,
+      summary,
+    };
+  }
+
+  /**
+   * Check for required sections
+   */
+  private _checkRequiredSections(specContent: string): Gap[] {
+    const gaps: Gap[] = [];
+
+    for (const section of this.REQUIRED_SECTIONS) {
+      const hasSection = section.patterns.some((pattern) => specContent.includes(pattern));
+
+      if (!hasSection) {
+        gaps.push({
+          id: `gap-missing-${section.name.toLowerCase().replaceAll(/\s+/g, '-')}`,
+          severity: 'CRITICAL',
+          category: 'gap',
+          message: `Missing required section: ${section.name}`,
+          artifacts: ['specification'],
+          remediation: `Add ${section.name} section with detailed information (minimum ${section.minLength} characters)`,
+        });
+      }
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Validate content depth (minimum character counts per section)
+   */
+  private _checkContentDepth(specContent: string): Gap[] {
+    const gaps: Gap[] = [];
+
+    for (const section of this.REQUIRED_SECTIONS) {
+      const sectionContent = this._extractSectionContent(specContent, section.patterns);
+
+      if (isNonNullish(sectionContent) && sectionContent.length < section.minLength) {
+        gaps.push({
+          id: `gap-shallow-${section.name.toLowerCase().replaceAll(/\s+/g, '-')}`,
+          severity: 'HIGH',
+          category: 'gap',
+          message: `${section.name} section is too brief (${sectionContent.length} chars, minimum ${section.minLength})`,
+          artifacts: ['specification'],
+          remediation: `Expand ${section.name} section with more detail to meet minimum ${section.minLength} characters`,
+        });
+      }
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Extract section content from markdown
+   */
+  private _extractSectionContent(content: string, patterns: string[]): string | null {
+    for (const pattern of patterns) {
+      const sectionIndex = content.indexOf(pattern);
+      if (sectionIndex === -1) {
+        continue;
+      }
+
+      // Determine the header level of current section
+      const headerMatch = pattern.match(/^#+/);
+      const headerLevel = (headerMatch?.[0] ?? '#').length;
+
+      // Find next section header at same or higher level
+      const remainingContent = content.slice(sectionIndex + pattern.length);
+      const nextSectionRegex = new RegExp(`\\n#{1,${headerLevel}}\\s+`, 'm');
+      const nextSectionMatch = remainingContent.match(nextSectionRegex);
+
+      const sectionContent =
+        nextSectionMatch?.index !== undefined
+          ? remainingContent.slice(0, nextSectionMatch.index)
+          : remainingContent;
+
+      return sectionContent.trim();
+    }
+
+    return null;
+  }
+
+  /**
+   * Detect ambiguous language
+   */
+  private _detectAmbiguousLanguage(specContent: string): Gap[] {
+    const gaps: Gap[] = [];
+    const foundTerms = new Set<string>();
+
+    // Case-insensitive search for ambiguous terms
+    const lowerContent = specContent.toLowerCase();
+
+    for (const term of this.AMBIGUOUS_TERMS) {
+      // Match whole words only
+      const regex = new RegExp(`\\b${term}\\b`, 'gi');
+      const matches = lowerContent.match(regex);
+
+      if (isNonNullish(matches) && matches.length > 0) {
+        foundTerms.add(term);
+      }
+    }
+
+    if (foundTerms.size > 0) {
+      gaps.push({
+        id: 'gap-ambiguous-language',
+        severity: 'MEDIUM',
+        category: 'ambiguity',
+        message: `Ambiguous language detected: ${[...foundTerms].join(', ')}`,
+        artifacts: ['specification'],
+        remediation: 'Replace ambiguous terms with concrete, specific language (MUST/SHOULD/COULD)',
+      });
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Detect placeholder text
+   */
+  private _detectPlaceholders(specContent: string): Gap[] {
+    const gaps: Gap[] = [];
+    const foundPlaceholders: string[] = [];
+
+    for (const pattern of this.PLACEHOLDER_PATTERNS) {
+      const matches = specContent.match(pattern);
+      if (isNonNullish(matches) && matches.length > 0 && isNonNullish(matches[0])) {
+        foundPlaceholders.push(matches[0]);
+      }
+    }
+
+    if (foundPlaceholders.length > 0) {
+      gaps.push({
+        id: 'gap-placeholder-text',
+        severity: 'CRITICAL',
+        category: 'gap',
+        message: `Placeholder text found: ${foundPlaceholders.join(', ')}`,
+        artifacts: ['specification'],
+        remediation: 'Replace all placeholder text with actual content',
+      });
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Parse open questions/tasks from specification
+   */
+  private _parseOpenQuestions(specContent: string): Gap[] {
+    const gaps: Gap[] = [];
+
+    // Look for "Open Tasks/Questions" section
+    const openSectionPatterns = [
+      '## Open Tasks/Questions',
+      '## Open Questions',
+      '## Unresolved Questions',
+      '## Open Tasks',
+    ];
+
+    let openSectionContent: string | null = null;
+
+    for (const pattern of openSectionPatterns) {
+      const content = this._extractSectionContent(specContent, [pattern]);
+      if (isNonNullish(content) && hasContent(content)) {
+        openSectionContent = content;
+        break;
+      }
+    }
+
+    if (isNonNullish(openSectionContent)) {
+      // Count unchecked checkboxes (but not checked ones with [x])
+      const uncheckedBoxes = openSectionContent.match(/- \[ ]/g);
+      const questionMarks = openSectionContent.match(/\?/g);
+
+      const uncheckedCount = uncheckedBoxes?.length ?? 0;
+      const questionCount = questionMarks?.length ?? 0;
+
+      if (uncheckedCount > 0 || questionCount > 0) {
+        gaps.push({
+          id: 'gap-open-questions',
+          severity: 'CRITICAL',
+          category: 'gap',
+          message: `Unresolved open questions found (${uncheckedCount} unchecked items, ${questionCount} questions)`,
+          artifacts: ['specification'],
+          remediation:
+            'Resolve all open questions and remove them from the "Open Tasks/Questions" section',
+        });
+      }
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Validate cross-references between sections
+   */
+  private _validateCrossReferences(specContent: string): Gap[] {
+    const gaps: Gap[] = [];
+
+    // Extract requirement IDs (FR1, FR2, NFR1, etc.)
+    const requirementIds = this._extractRequirementIds(specContent);
+
+    if (requirementIds.length === 0) {
+      // No requirements found or they're not properly numbered
+      return gaps;
+    }
+
+    // Check for numbering gaps (FR1, FR2, FR4 - missing FR3)
+    const numberingGaps = this._findNumberingGaps(requirementIds);
+    if (numberingGaps.length > 0) {
+      gaps.push({
+        id: 'gap-requirement-numbering',
+        severity: 'MEDIUM',
+        category: 'inconsistency',
+        message: `Requirement numbering gaps: missing ${numberingGaps.join(', ')}`,
+        artifacts: ['specification'],
+        remediation: 'Fix requirement numbering to be sequential without gaps',
+      });
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Extract requirement IDs from specification
+   */
+  private _extractRequirementIds(specContent: string): string[] {
+    // Match patterns like **FR1.1**, FR1:, NFR1.2, etc.
+    const matches = specContent.match(/\*\*(FR|NFR)\d+(\.\d+)?\*\*|(FR|NFR)\d+(\.\d+)?:/g);
+
+    if (!isNonNullish(matches)) {
+      return [];
+    }
+
+    // Extract just the ID part
+    return matches.map((match) => {
+      const cleaned = match.replaceAll(/\*\*|:/g, '').trim();
+      return cleaned;
+    });
+  }
+
+  /**
+   * Find numbering gaps in requirement IDs
+   */
+  private _findNumberingGaps(requirementIds: string[]): string[] {
+    const gaps: string[] = [];
+
+    // Group by prefix (FR, NFR)
+    const groups = new Map<string, number[]>();
+
+    for (const id of requirementIds) {
+      const match = id.match(/^(FR|NFR)(\d+)/);
+      if (!isNonNullish(match) || match[1] === undefined || match[2] === undefined) {
+        continue;
+      }
+
+      const prefix = match[1];
+      const number = Number.parseInt(match[2], 10);
+
+      const numbers = groups.get(prefix) ?? [];
+      numbers.push(number);
+      groups.set(prefix, numbers);
+    }
+
+    // Check for gaps in each group
+    for (const [prefix, numbers] of groups) {
+      const sorted = [...new Set(numbers)].sort((a, b) => a - b);
+
+      for (let index = 0; index < sorted.length - 1; index++) {
+        const current = sorted[index];
+        const next = sorted[index + 1];
+
+        if (current === undefined || next === undefined) {
+          continue;
+        }
+
+        if (next - current > 1) {
+          // Found a gap
+          for (let missing = current + 1; missing < next; missing++) {
+            gaps.push(`${prefix}${missing}`);
+          }
+        }
+      }
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Check for principle violations (if principles provided)
+   */
+  private _checkPrincipleViolations(specContent: string, principles: ProjectPrinciples): Gap[] {
+    const gaps: Gap[] = [];
+
+    // This is a simple check - in reality, you might want to use an LLM for this
+    // For now, we just flag if spec contradicts common principles
+
+    // Check if spec mentions patterns that violate principles
+    for (const principle of principles.principles) {
+      // Simple keyword matching - could be enhanced with LLM analysis
+      const isDiPrinciple =
+        principle.category === 'Architecture' && principle.rule.toLowerCase().includes('di');
+      const hasSingleton = specContent.toLowerCase().includes('singleton');
+      const hasDi = specContent.toLowerCase().includes('dependency injection');
+
+      if (isDiPrinciple && hasSingleton && !hasDi) {
+        gaps.push({
+          id: 'gap-principle-di',
+          severity: 'MEDIUM',
+          category: 'inconsistency',
+          message: 'Specification may violate dependency injection principles',
+          artifacts: ['specification'],
+          remediation: 'Review architecture to ensure it follows project DI patterns',
+        });
+      }
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Calculate completeness score (0-100)
+   *
+   * Algorithm:
+   * - Section presence (40%): All required sections exist
+   * - Content depth (30%): Minimum content length requirements met (only for present sections)
+   * - Quality indicators (20%): No ambiguous language, no placeholders
+   * - Cross-validation (10%): Consistency across sections
+   */
+  private _calculateCompleteness(_specContent: string, gaps: Gap[]): number {
+    // Section score (40%)
+    const missingSections = gaps.filter(
+      (g) => g.severity === 'CRITICAL' && g.message.includes('Missing required section'),
+    ).length;
+    const totalSections = this.REQUIRED_SECTIONS.length;
+    const sectionScore = ((totalSections - missingSections) / totalSections) * 40;
+
+    // Depth score (30%) - only count present sections
+    const presentSections = totalSections - missingSections;
+    const shallowSections = gaps.filter(
+      (g) => g.severity === 'HIGH' && g.message.includes('too brief'),
+    ).length;
+
+    // If no sections present, depth score is 0
+    const depthScore =
+      presentSections > 0 ? ((presentSections - shallowSections) / presentSections) * 30 : 0;
+
+    // Quality score (20%)
+    const hasAmbiguity = gaps.some((g) => g.category === 'ambiguity');
+    const hasPlaceholders = gaps.some((g) => g.message.includes('Placeholder text'));
+    const hasOpenQuestions = gaps.some((g) => g.message.includes('open questions'));
+
+    let qualityScore = 20;
+    if (hasAmbiguity) {
+      qualityScore -= 5;
+    }
+    if (hasPlaceholders) {
+      qualityScore -= 10;
+    }
+    if (hasOpenQuestions) {
+      qualityScore -= 5;
+    }
+
+    // Consistency score (10%)
+    const inconsistencies = gaps.filter((g) => g.category === 'inconsistency').length;
+    const consistencyScore = Math.max(0, 10 - inconsistencies * 2);
+
+    const total = Math.round(sectionScore + depthScore + qualityScore + consistencyScore);
+
+    return Math.max(0, Math.min(100, total));
+  }
+
+  /**
+   * Generate prioritized remediation steps from gaps
+   */
+  private _generateRemediationSteps(gaps: Gap[]): RemediationStep[] {
+    // Sort gaps by severity (CRITICAL → HIGH → MEDIUM → LOW)
+    const severityOrder: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+    const sortedGaps = [...gaps].sort((a, b) => {
+      const orderA = severityOrder.indexOf(a.severity);
+      const orderB = severityOrder.indexOf(b.severity);
+      return orderA - orderB;
+    });
+
+    // Convert gaps to remediation steps
+    return sortedGaps
+      .filter((gap) => isNonNullish(gap.remediation) && hasContent(gap.remediation))
+      .map((gap, index) => ({
+        priority: gap.severity,
+        order: index + 1,
+        action: gap.remediation ?? 'Review and fix this issue',
+        reasoning: `${gap.severity} gap: ${gap.message}`,
+        artifacts: gap.artifacts,
+      }));
+  }
+
+  /**
+   * Generate human-readable summary
+   */
+  private _generateSummary(completeness: number, gaps: Gap[]): string {
+    const status = completeness === 100 ? 'COMPLETE' : 'INCOMPLETE';
+
+    const criticalCount = gaps.filter((g) => g.severity === 'CRITICAL').length;
+    const highCount = gaps.filter((g) => g.severity === 'HIGH').length;
+    const mediumCount = gaps.filter((g) => g.severity === 'MEDIUM').length;
+    const lowCount = gaps.filter((g) => g.severity === 'LOW').length;
+
+    const parts = [];
+    if (criticalCount > 0) {
+      parts.push(`${criticalCount} CRITICAL gap${criticalCount > 1 ? 's' : ''}`);
+    }
+    if (highCount > 0) {
+      parts.push(`${highCount} HIGH priority gap${highCount > 1 ? 's' : ''}`);
+    }
+    if (mediumCount > 0) {
+      parts.push(`${mediumCount} MEDIUM priority gap${mediumCount > 1 ? 's' : ''}`);
+    }
+    if (lowCount > 0) {
+      parts.push(`${lowCount} LOW priority gap${lowCount > 1 ? 's' : ''}`);
+    }
+
+    const gapSummary = parts.length > 0 ? parts.join(', ') : 'no gaps';
+
+    return `Completeness: ${completeness}% (${status}) - ${gapSummary}`;
+  }
+}
