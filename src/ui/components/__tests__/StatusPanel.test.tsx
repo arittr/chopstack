@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+/* eslint-disable unicorn/no-unused-properties */
+import { describe, expect, it } from 'vitest';
 
 import type { ExecutionOptions } from '@/core/execution/types';
 import type { ExecutionMetrics, TaskUIState } from '@/ui/hooks/useExecutionState';

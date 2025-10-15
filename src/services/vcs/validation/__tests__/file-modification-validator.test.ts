@@ -7,11 +7,7 @@ import { FileModificationValidator } from '../file-modification-validator';
 describe('FileModificationValidator', () => {
   let validator: FileModificationValidator;
 
-  const createTask = (
-    id: string,
-    files: string[],
-    dependencies: string[] = [],
-  ): TaskV2 => ({
+  const createTask = (id: string, files: string[], dependencies: string[] = []): TaskV2 => ({
     id,
     name: `Task ${id}`,
     description: `Description for ${id}`,
@@ -332,11 +328,7 @@ describe('FileModificationValidator', () => {
       // Simplified version of the failing dark-mode spec
       // integrate-theme-provider touches layout.tsx
       // add-theme-script requires integrate-theme-provider and also touches layout.tsx
-      const integrateProvider = createTask(
-        'integrate-theme-provider',
-        ['src/app/layout.tsx'],
-        [],
-      );
+      const integrateProvider = createTask('integrate-theme-provider', ['src/app/layout.tsx'], []);
       const addThemeScript = createTask(
         'add-theme-script',
         ['src/app/layout.tsx'],

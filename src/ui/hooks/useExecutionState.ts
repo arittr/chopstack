@@ -49,9 +49,10 @@ export type UseExecutionStateOptions = {
 };
 
 /**
- * Helper to check if plan is PlanV2
+ * Helper to check if plan is PlanV2 (unused, kept for future use)
  */
-function isPlanV2(plan: Plan | PlanV2): plan is PlanV2 {
+// eslint-disable-next-line @typescript-eslint/naming-convention
+function _isPlanV2(plan: Plan | PlanV2): plan is PlanV2 {
   // PlanV2 has 'name' field, v1 Plan does not
   return 'name' in plan;
 }

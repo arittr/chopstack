@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecutionOptions } from '@/core/execution/types';
 import type { PlanV2, TaskV2 } from '@/types/schemas-v2';
