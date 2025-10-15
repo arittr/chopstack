@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { TaskResult } from '@/core/execution/interfaces';
 import type { ExecutionOrchestrator } from '@/services/execution/execution-orchestrator';
-import type { PlanV2, TaskV2 } from '@/types/schemas-v2';
+import type { PlanV2 } from '@/types/schemas-v2';
 
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
 

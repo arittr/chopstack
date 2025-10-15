@@ -67,9 +67,7 @@ export function validateTaskDependencies(tasks: unknown[]): SafeValidationResult
       }
       taskIds.add(validTask.id);
     } else {
-      errors.push(
-        `Task ${index}: ${taskValidation.errors?.join(', ') ?? 'Invalid task'}`,
-      );
+      errors.push(`Task ${index}: ${taskValidation.errors?.join(', ') ?? 'Invalid task'}`);
     }
   }
 

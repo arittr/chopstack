@@ -5,11 +5,11 @@ import { z } from 'zod';
 
 import { ExecutionOptionsSchema } from '@/core/execution/types';
 
-import { AgentTypeSchema, type DecomposeOptions, DecomposeOptionsSchema } from './decomposer';
-
 // Re-export types for convenience
-export type { DecomposeOptions } from './decomposer';
 export type { ExecutionMode, ExecutionOptions, VcsMode } from '@/core/execution/types';
+
+// Agent type schema (moved from decomposer.ts)
+const AgentTypeSchema = z.enum(['claude', 'codex', 'mock']);
 
 // Decompose command options schema
 export const DecomposeCommandOptionsSchema = z
@@ -18,7 +18,7 @@ export const DecomposeCommandOptionsSchema = z
     output: z.string().optional(),
     spec: z.string().min(1, 'Spec file path cannot be empty'),
     targetDir: z.string().optional(),
-    verbose: z.boolean(),
+    verbose: z.boolean().default(false),
   })
   .refine(
     (data) => {
@@ -150,8 +150,8 @@ export const StackCommandOptionsSchema = z
 export type StackArgs = z.infer<typeof StackCommandOptionsSchema>;
 
 // Helper functions for validation
-export function validateDecomposeArgs(raw: unknown): DecomposeOptions {
-  return DecomposeOptionsSchema.parse(raw);
+export function validateDecomposeArgs(raw: unknown): DecomposeCommandOptions {
+  return DecomposeCommandOptionsSchema.parse(raw);
 }
 
 export function validateRunArgs(raw: unknown): RunCommandOptions {

@@ -1,21 +1,12 @@
-/* eslint-disable unicorn/no-unused-properties */
 import { readFile } from 'node:fs/promises';
 
 import { vi } from 'vitest';
 
+import type { DecomposeCommandOptions } from '@/types/cli';
 import type { PlanV2 } from '@/types/schemas-v2';
 
 import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, DecomposeCommand } from '@/commands';
-
-// Define DecomposeOptions type (matches schema in decompose-command.ts)
-type DecomposeOptions = {
-  agent: 'claude' | 'codex' | 'mock';
-  output?: string;
-  spec: string;
-  targetDir?: string;
-  verbose?: boolean;
-};
 
 // Mock only external dependencies, not our own classes
 vi.mock('node:fs/promises', () => ({
@@ -78,7 +69,7 @@ describe('decomposeCommand integration tests', () => {
   });
 
   it('should successfully decompose a valid spec using real classes', async () => {
-    const options: DecomposeOptions = {
+    const options: DecomposeCommandOptions = {
       spec: 'test-spec.md',
       agent: 'claude',
       output: 'plan.yaml',
@@ -129,7 +120,7 @@ describe('decomposeCommand integration tests', () => {
 
     mockAgent.decompose.mockResolvedValue(invalidPlan);
 
-    const options: DecomposeOptions = {
+    const options: DecomposeCommandOptions = {
       spec: 'test-spec.md',
       agent: 'claude',
       output: 'plan.yaml',
@@ -146,7 +137,7 @@ describe('decomposeCommand integration tests', () => {
   });
 
   it('should use real PlanOutputter for metrics and output', async () => {
-    const options: DecomposeOptions = {
+    const options: DecomposeCommandOptions = {
       spec: 'test-spec.md',
       agent: 'claude',
       verbose: true, // This will trigger metrics logging
@@ -193,7 +184,7 @@ describe('decomposeCommand integration tests', () => {
 
     mockAgent.decompose.mockResolvedValueOnce(conflictingPlan).mockResolvedValueOnce(mockPlan); // Valid plan on retry
 
-    const options: DecomposeOptions = {
+    const options: DecomposeCommandOptions = {
       spec: 'test-spec.md',
       agent: 'claude',
       output: 'plan.yaml',
@@ -214,7 +205,7 @@ describe('decomposeCommand integration tests', () => {
   });
 
   it('should calculate real metrics using DagValidator', async () => {
-    const options: DecomposeOptions = {
+    const options: DecomposeCommandOptions = {
       spec: 'test-spec.md',
       agent: 'claude',
       verbose: true,

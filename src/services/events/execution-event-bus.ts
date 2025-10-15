@@ -1,6 +1,5 @@
 import { EventEmitter } from 'node:events';
 
-import type { TaskV2 } from '@/types/schemas-v2.js';
 import type {
   ClaudeStreamEvent,
   EventHandler,
@@ -10,6 +9,7 @@ import type {
   TaskProgress,
   TaskResult,
 } from '@/types/events.js';
+import type { TaskV2 } from '@/types/schemas-v2.js';
 
 /**
  * Central event bus for execution events.

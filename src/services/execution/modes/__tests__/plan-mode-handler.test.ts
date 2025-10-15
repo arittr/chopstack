@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ExecutionContext, PlanModeResult } from '@/core/execution/interfaces';
+import type { ExecutionContext } from '@/core/execution/interfaces';
 import type { OrchestratorTaskResult, TaskOrchestrator } from '@/services/orchestration';
 import type { TaskV2 } from '@/types/schemas-v2';
 
@@ -279,7 +279,7 @@ describe('PlanModeHandlerImpl', () => {
       vi.mocked(mockOrchestrator.executeTask).mockImplementation(
         async () =>
           new Promise((resolve) => {
-            setTimeout(() => {
+            globalThis.setTimeout(() => {
               resolve({
                 status: 'completed',
                 output: 'Done',
