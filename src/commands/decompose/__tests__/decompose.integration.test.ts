@@ -1,18 +1,21 @@
 /* eslint-disable unicorn/no-unused-properties */
-import type { z } from 'zod';
-
 import { readFile } from 'node:fs/promises';
 
 import { vi } from 'vitest';
 
-import type { DecomposeOptionsSchema } from '@/types/decomposer';
 import type { PlanV2 } from '@/types/schemas-v2';
 
 import { createDecomposerAgent } from '@/adapters/agents';
 import { createDefaultDependencies, DecomposeCommand } from '@/commands';
 
-// Infer DecomposeOptions type from schema
-type DecomposeOptions = z.infer<typeof DecomposeOptionsSchema>;
+// Define DecomposeOptions type (matches schema in decompose-command.ts)
+type DecomposeOptions = {
+  agent: 'claude' | 'codex' | 'mock';
+  output?: string;
+  spec: string;
+  targetDir?: string;
+  verbose?: boolean;
+};
 
 // Mock only external dependencies, not our own classes
 vi.mock('node:fs/promises', () => ({
