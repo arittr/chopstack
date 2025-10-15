@@ -4,21 +4,22 @@ description: Execute a phase from chopstack v2 plan.yaml using autonomous agents
 
 ROLE: You are a phase execution orchestrator for chopstack v2.
 
-YOUR JOB: Execute the specified phase from @specs/chopstack-v2/plan.yaml by spawning autonomous task agents.
+YOUR JOB: Execute the specified phase from a plan.yaml by spawning autonomous task agents.
 
 ## Input Format
 
-User will specify: `/execute-phase {phase-id}`
+User will specify: `/execute-phase {project} {phase-id}`
 
 Examples:
-- `/execute-phase 2.1` → Execute Phase 2.1: Type System Foundation
-- `/execute-phase 2.2` → Execute Phase 2.2: Core Services Migration
+- `/execute-phase chopstack-v2_phase2 phase-1-foundation` → Execute Phase 1: Foundation Services
+- `/execute-phase chopstack-v2 2.1` → Execute Phase 2.1: Type System Foundation
+- `/execute-phase dark-mode phase-setup` → Execute setup phase from dark-mode project
 
 ## Execution Protocol
 
 ### Step 1: Parse Phase from Plan
 
-1. Read @specs/chopstack-v2/plan.yaml
+1. Read @specs/{project}/plan.yaml
 2. Find the phase with id: `{phase-id}`
 3. Extract:
    - Phase name
@@ -29,7 +30,7 @@ Examples:
 ### Step 2: Verify Prerequisites
 
 Before executing, verify:
-- ✅ No unresolved questions in @specs/chopstack-v2/spec.md "Open Tasks/Questions" section
+- ✅ No unresolved questions in @specs/{project}/spec.md "Open Tasks/Questions" section
 - ✅ All prerequisite phases are complete (check git log for commits)
 - ✅ Working directory is clean (`git status`)
 
@@ -50,14 +51,14 @@ ROLE: You are a task execution agent for chopstack v2.
 YOUR TASK: {task-id}
 
 TASK EXTRACTION:
-1. Read @specs/chopstack-v2/plan.yaml
+1. Read @specs/{project}/plan.yaml
 2. Find task with id: "{task-id}"
 3. Extract your task definition (description, files, acceptance_criteria, complexity)
 
 CONTEXT FILES (Read in Order):
-- @specs/chopstack-v2/plan.yaml (your task definition - START HERE)
-- @specs/chopstack-v2/spec.md (requirements and architectural decisions)
-- @specs/chopstack-v2/codebase.md (implementation patterns and context)
+- @specs/{project}/plan.yaml (your task definition - START HERE)
+- @specs/{project}/spec.md (requirements and architectural decisions)
+- @specs/{project}/codebase.md (implementation patterns and context)
 
 CONSTRAINTS:
 - Implement ONLY the files listed in your task.files
@@ -67,29 +68,74 @@ CONSTRAINTS:
 - Do NOT modify files outside your task.files list
 - Verify acceptance_criteria when complete
 
-COMMIT INSTRUCTIONS (CRITICAL - MUST FOLLOW EXACTLY):
-After completing your task, you MUST create a git-spice stacked branch:
+IMPLEMENTATION PROTOCOL (CRITICAL - MUST FOLLOW IN ORDER):
+
+Step 1: Implement Files
+- Write all files listed in task.files
+- Follow patterns from codebase.md
+- Implement all acceptance_criteria
+
+Step 2: Write and Run Tests
+- Write comprehensive unit tests
+- Write integration tests if required
+- Run tests: `pnpm test <test-file-path>`
+- Fix any test failures
+- Repeat until ALL tests pass
+
+Step 3: Fix Code Quality Issues (QUALITY GATE)
+This step is MANDATORY before committing:
+
+1. Run linting check:
+   ```bash
+   pnpm lint
+   ```
+
+2. If linting fails:
+   - Read the ESLint error output carefully
+   - Identify all errors (naming conventions, unused vars, etc.)
+   - Fix ALL errors in the reported files
+   - Run `pnpm lint` again
+   - Repeat until `pnpm lint` passes with ZERO errors
+
+Common ESLint fixes needed:
+- Private methods: Must have underscore prefix (e.g., `_methodName`)
+- Unused variables: Prefix with underscore or remove them
+- UTF encoding: Use 'utf8' not 'utf-8'
+- Unnecessary conditionals: Remove redundant null checks
+
+3. Do NOT proceed to commit until `pnpm lint` shows zero errors
+
+Step 4: Commit with Git-Spice (AFTER quality gate passes)
 
 1. Stage all changes: `git add --all`
-2. Create stacked branch with commit: `pnpm commit` or `gs branch create`
+2. Create stacked branch with commit: `pnpm commit`
    - This will invoke `gs branch create` interactively
    - When prompted for commit message, use: "[{task-id}] {brief description}"
 
 CRITICAL RULES:
+- ✅ ALWAYS fix ALL linting errors before committing
 - ✅ ALWAYS use `pnpm commit` (invokes gs branch create)
 - ✅ ALWAYS create a new stacked branch for each task
 - ❌ NEVER use `git commit -m` directly
-- ❌ NEVER use `git commit --no-verify`
-- ❌ NEVER bypass git-spice branch creation
+- ❌ NEVER use `git commit --no-verify` or `--no-hooks`
+- ❌ NEVER bypass quality gates or pre-commit hooks
+- ❌ NEVER skip the linting step
 
-If commit fails, diagnose and fix the issue. Do NOT bypass with direct git commands.
+If commit fails due to pre-commit hooks:
+1. Read the error output from the hook
+2. Fix the reported issues (usually linting errors)
+3. Run `pnpm lint` to verify fixes
+4. Try committing again
+5. Do NOT bypass with --no-verify or direct git commands
 
 SUCCESS CRITERIA:
 ✓ All files in task.files are implemented
+✓ All tests pass (unit + integration)
+✓ pnpm lint passes with ZERO errors
 ✓ All acceptance_criteria are met
 ✓ No files outside task.files are modified
 ✓ Code follows patterns from codebase.md
-✓ Changes are committed with task-id reference
+✓ Changes are committed on stacked branch with task-id reference
 
 Execute {task-id} now.
 ```
@@ -129,7 +175,7 @@ After all tasks complete:
    - [{task-3-id}] Brief description
 
    Next Steps:
-   - Execute next phase: /execute-phase {next-phase-id}
+   - Execute next phase: /execute-phase {project} {next-phase-id}
    - Or validate: chopstack run --validate
    ```
 
@@ -144,7 +190,7 @@ If any agent asks a question instead of executing:
    - Add question to spec.md "Open Tasks/Questions"
    - Resolve the question
    - Update spec.md
-   - Re-run: `/execute-phase {phase-id}`
+   - Re-run: `/execute-phase {project} {phase-id}`
 
 ### Agent Expands Scope
 If any agent modifies files outside task.files:
@@ -155,7 +201,7 @@ If any agent modifies files outside task.files:
    - Review task in plan.yaml
    - Split task into smaller tasks
    - Update plan.yaml
-   - Re-run: `/execute-phase {phase-id}`
+   - Re-run: `/execute-phase {project} {phase-id}`
 
 ### File Conflicts (Parallel Only)
 If parallel agents conflict:
@@ -166,7 +212,7 @@ If parallel agents conflict:
    - Review task boundaries in plan.yaml
    - Adjust so files don't overlap
    - Update plan.yaml
-   - Re-run: `/execute-phase {phase-id}`
+   - Re-run: `/execute-phase {project} {phase-id}`
 
 ## Important Notes
 
@@ -204,4 +250,4 @@ Running tests... ✅ All tests pass
 ✅ Phase 2.1 Complete (3/3 tasks)
 ```
 
-Now execute the requested phase: `{phase-id}`
+Now execute the requested phase from project `{project}`: `{phase-id}`
