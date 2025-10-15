@@ -104,6 +104,101 @@ export const RunCommandOptionsSchema = ExecutionOptionsSchema.extend({
   });
 export type RunCommandOptions = z.infer<typeof RunCommandOptionsSchema>;
 
+// Specify command options schema
+export const SpecifyCommandOptionsSchema = z
+  .object({
+    prompt: z.string().optional(),
+    input: z.string().optional(),
+    output: z.string().min(1, 'Output file path cannot be empty'),
+    cwd: z.string().optional(),
+    verbose: z.boolean().default(false),
+  })
+  .refine((data) => data.prompt !== undefined || data.input !== undefined, {
+    message: 'Either --prompt or --input must be provided',
+    path: ['prompt', 'input'],
+  })
+  .refine((data) => !(data.prompt !== undefined && data.input !== undefined), {
+    message: 'Cannot specify both --prompt and --input (mutually exclusive)',
+    path: ['prompt', 'input'],
+  })
+  .refine(
+    (data) => {
+      // Validate cwd exists and is accessible
+      if (data.cwd === undefined) {
+        return true; // Will use process.cwd() as default
+      }
+
+      const resolvedPath = resolve(data.cwd);
+      if (!existsSync(resolvedPath)) {
+        return false;
+      }
+
+      try {
+        const stats = statSync(resolvedPath);
+        return stats.isDirectory();
+      } catch {
+        return false;
+      }
+    },
+    {
+      message:
+        'Working directory does not exist or is not accessible. Please provide a valid directory path.',
+      path: ['cwd'],
+    },
+  )
+  .transform((data) => {
+    // Resolve cwd to absolute path
+    if (data.cwd !== undefined) {
+      return { ...data, cwd: resolve(data.cwd) };
+    }
+    return data;
+  });
+export type SpecifyCommandOptions = z.infer<typeof SpecifyCommandOptionsSchema>;
+
+// Analyze command options schema
+export const AnalyzeCommandOptionsSchema = z
+  .object({
+    spec: z.string().min(1, 'Spec file path cannot be empty'),
+    codebase: z.string().optional(),
+    output: z.string().optional(),
+    format: z.enum(['text', 'json']).default('text'),
+    targetDir: z.string().optional(),
+    verbose: z.boolean().default(false),
+  })
+  .refine(
+    (data) => {
+      // Validate target directory exists and is accessible
+      if (data.targetDir === undefined) {
+        return true; // Will use process.cwd() as default
+      }
+
+      const resolvedPath = resolve(data.targetDir);
+      if (!existsSync(resolvedPath)) {
+        return false;
+      }
+
+      try {
+        const stats = statSync(resolvedPath);
+        return stats.isDirectory();
+      } catch {
+        return false;
+      }
+    },
+    {
+      message:
+        'Target directory does not exist or is not accessible. Please provide a valid directory path.',
+      path: ['targetDir'],
+    },
+  )
+  .transform((data) => {
+    // Resolve target directory to absolute path
+    if (data.targetDir !== undefined) {
+      return { ...data, targetDir: resolve(data.targetDir) };
+    }
+    return data;
+  });
+export type AnalyzeCommandOptions = z.infer<typeof AnalyzeCommandOptionsSchema>;
+
 // Stack command options schema
 export const StackCommandOptionsSchema = z
   .object({
@@ -156,6 +251,14 @@ export function validateDecomposeArgs(raw: unknown): DecomposeCommandOptions {
 
 export function validateRunArgs(raw: unknown): RunCommandOptions {
   return RunCommandOptionsSchema.parse(raw);
+}
+
+export function validateSpecifyArgs(raw: unknown): SpecifyCommandOptions {
+  return SpecifyCommandOptionsSchema.parse(raw);
+}
+
+export function validateAnalyzeArgs(raw: unknown): AnalyzeCommandOptions {
+  return AnalyzeCommandOptionsSchema.parse(raw);
 }
 
 export function validateStackArgs(raw: unknown): StackArgs {
