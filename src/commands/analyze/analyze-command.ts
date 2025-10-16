@@ -10,6 +10,7 @@ import chalk from 'chalk';
 import type { AnalyzeCommandOptions } from '@/types/cli';
 import type { Gap, Severity } from '@/types/schemas-v2';
 
+import { createDecomposerAgent } from '@/adapters/agents';
 import { RegisterCommand } from '@/commands/command-factory';
 import { BaseCommand, type CommandDependencies } from '@/commands/types';
 import { GapAnalysisService } from '@/services/analysis/gap-analysis-service';
@@ -21,7 +22,6 @@ import { isNonEmptyArray } from '@/validation/guards';
  */
 @RegisterCommand('analyze')
 export class AnalyzeCommand extends BaseCommand {
-  private readonly gapAnalysisService: GapAnalysisService;
   private readonly principlesService: ProjectPrinciplesService;
 
   constructor(dependencies: CommandDependencies) {
@@ -30,7 +30,6 @@ export class AnalyzeCommand extends BaseCommand {
       'Analyze specification completeness and generate remediation guidance',
       dependencies,
     );
-    this.gapAnalysisService = new GapAnalysisService();
     this.principlesService = new ProjectPrinciplesService();
   }
 
@@ -54,9 +53,15 @@ export class AnalyzeCommand extends BaseCommand {
       this.logger.info(chalk.cyan('🔍 Extracting project principles...'));
       const principles = this.principlesService.extract(cwd);
 
-      // Analyze specification
+      // Create agent for LLM-powered gap analysis
+      this.logger.info(chalk.cyan(`🔍 Checking if ${options.agent} agent is available...`));
+      const agent = await createDecomposerAgent(options.agent);
+      this.logger.info(chalk.green(`✅ ${options.agent} agent is available`));
+
+      // Analyze specification with LLM-powered gap analysis
       this.logger.info(chalk.cyan('📊 Analyzing specification completeness...'));
-      const report = this.gapAnalysisService.analyze(specContent, principles);
+      const gapAnalysisService = new GapAnalysisService(agent);
+      const report = await gapAnalysisService.analyze(specContent, principles);
 
       // Output report
       if (options.output !== undefined) {
@@ -92,7 +97,7 @@ export class AnalyzeCommand extends BaseCommand {
   /**
    * Display formatted terminal report
    */
-  private _displayTerminalReport(report: ReturnType<typeof this.gapAnalysisService.analyze>): void {
+  private _displayTerminalReport(report: Awaited<ReturnType<GapAnalysisService['analyze']>>): void {
     // eslint-disable-next-line no-console
     console.log(`\n${chalk.bold('📊 Specification Analysis Report')}\n`);
 
@@ -115,10 +120,10 @@ export class AnalyzeCommand extends BaseCommand {
     }
 
     // Group gaps by severity
-    const critical = report.gaps.filter((g) => g.severity === 'CRITICAL');
-    const high = report.gaps.filter((g) => g.severity === 'HIGH');
-    const medium = report.gaps.filter((g) => g.severity === 'MEDIUM');
-    const low = report.gaps.filter((g) => g.severity === 'LOW');
+    const critical = report.gaps.filter((g: Gap) => g.severity === 'CRITICAL');
+    const high = report.gaps.filter((g: Gap) => g.severity === 'HIGH');
+    const medium = report.gaps.filter((g: Gap) => g.severity === 'MEDIUM');
+    const low = report.gaps.filter((g: Gap) => g.severity === 'LOW');
 
     /* eslint-disable no-console */
     // Display gaps by severity

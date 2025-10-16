@@ -111,11 +111,38 @@ export class CodexDecomposer implements DecomposerAgent {
   async decompose(
     specContent: string,
     cwd: string,
-    options?: { verbose?: boolean },
+    options?: { planOutputPath?: string; verbose?: boolean },
   ): Promise<PlanV2> {
     try {
-      const prompt = PromptBuilder.buildDecompositionPrompt(specContent);
-      const stdout = await this._executeCodexCommand(prompt, cwd, options?.verbose ?? false);
+      const verbose = options?.verbose ?? false;
+      const planOutputPath = options?.planOutputPath;
+
+      // Build prompt with optional plan output path
+      const prompt = PromptBuilder.buildDecompositionPrompt(specContent, planOutputPath);
+
+      // If planOutputPath is provided, Codex will write the file directly using Write tool
+      if (isNonEmptyString(planOutputPath)) {
+        logger.info(`📝 Codex will write plan to: ${planOutputPath}`);
+
+        // Execute Codex command (which will use Write tool to create the plan file)
+        await this._executeCodexCommand(prompt, cwd, verbose);
+
+        // Read the plan file that Codex wrote
+        logger.debug(`📖 Reading plan from: ${planOutputPath}`);
+        const { readFile } = await import('node:fs/promises');
+        const planContent = await readFile(planOutputPath, 'utf8');
+
+        // Parse and validate the plan
+        logger.debug('🔍 Parsing plan YAML...');
+        const plan = YamlPlanParser.parse(planContent);
+        logger.info('✅ Plan file successfully created and validated');
+
+        return plan;
+      }
+
+      // Fallback: parse from stdout (for backwards compatibility)
+      logger.debug('📤 Using legacy mode: parsing plan from Codex stdout');
+      const stdout = await this._executeCodexCommand(prompt, cwd, verbose);
       const parsedContent = this._parseCodexResponse(stdout);
       const plan = this._validateAndReturnPlan(parsedContent);
 
