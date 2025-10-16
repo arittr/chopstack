@@ -96,15 +96,34 @@ If prerequisites fail, STOP and report what's missing.
 
 #### For Sequential Phases (strategy: sequential)
 
-Execute tasks ONE AT A TIME in order:
+Execute tasks ONE AT A TIME in order with worktree isolation:
 
-For each task in phase.tasks:
-1. Use Task tool to spawn agent with this prompt:
+**Initialization**:
+- Set `current_branch` to main (or current branch name from git)
+
+**For each task in phase.tasks**:
+
+1. **Create Worktree** (before spawning agent):
+   - Call MCP tool: `create_task_worktree(taskId: {task-id}, baseRef: {current_branch})`
+   - Store response: `{ path: {worktree_path}, branch: {branch_name}, baseRef: {base_ref} }`
+
+2. **Spawn Agent** with modified prompt (includes worktree setup):
 
 ```
 ROLE: You are a task execution agent for chopstack v2.
 
 YOUR TASK: {task-id}
+
+WORKTREE SETUP:
+You are working in an isolated worktree for this task.
+
+1. Change to worktree directory:
+   cd {worktree_path}
+
+2. You are on branch: {branch_name}
+3. Base reference: {base_ref}
+
+IMPORTANT: ALL file operations must happen in {worktree_path}, NOT the main repository.
 
 TASK EXTRACTION:
 1. Read @.chopstack/specs/{project}/plan.yaml
@@ -161,21 +180,23 @@ Common ESLint fixes needed:
 
 3. Do NOT proceed to commit until `pnpm lint` shows zero errors
 
-Step 4: Commit with Git-Spice (AFTER quality gate passes)
+Step 4: Commit with VCS (AFTER quality gate passes)
 
-1. Stage all changes: `git add --all`
-2. Create stacked branch with commit: `pnpm commit`
-   - This will invoke `gs branch create` interactively
-   - When prompted for commit message, use: "[{task-id}] {brief description}"
+VCS Mode: {vcs_mode}
+
+Commit Command for {vcs_mode}:
+{vcs_commit_command}
 
 CRITICAL RULES:
 - ✅ ALWAYS fix ALL linting errors before committing
-- ✅ ALWAYS use `pnpm commit` (invokes gs branch create)
+- ✅ ALWAYS work in worktree directory: {worktree_path}
+- ✅ ALWAYS use the VCS-specific commit command shown above
 - ✅ ALWAYS create a new stacked branch for each task
-- ❌ NEVER use `git commit -m` directly
+- ❌ NEVER use `git commit -m` directly (use VCS-specific command)
 - ❌ NEVER use `git commit --no-verify` or `--no-hooks`
 - ❌ NEVER bypass quality gates or pre-commit hooks
 - ❌ NEVER skip the linting step
+- ❌ NEVER work outside the worktree directory
 
 If commit fails due to pre-commit hooks:
 1. Read the error output from the hook
@@ -196,9 +217,35 @@ SUCCESS CRITERIA:
 Execute {task-id} now.
 ```
 
-2. Wait for agent to complete and commit
-3. Verify commit exists: `git log --oneline --grep="{task-id}"`
-4. Move to next task
+**VCS-Specific Commit Commands** (inject into prompt):
+- **git-spice**: `pnpm commit` (invokes gs branch create interactively)
+- **merge-commit**: `git add --all && git commit -m "[{task-id}] {brief description}"`
+- **graphite**: `gt add --all && gt commit -m "[{task-id}] {brief description}"`
+
+3. **Wait for Agent Completion**:
+   - Agent implements task in worktree
+   - Agent commits changes using VCS-specific command
+   - Verify commit exists in worktree branch
+
+4. **Integrate Stack** (after successful commit):
+   - Call MCP tool: `integrate_task_stack(tasks: [{task-id}], targetBranch: {current_branch})`
+   - This merges/restacks the single task into the parent branch
+   - Store response: `{ success: boolean, conflicts: [], mergedBranches: [] }`
+
+5. **Cleanup Worktree**:
+   - Call MCP tool: `cleanup_task_worktree(taskId: {task-id}, keepBranch: {keep_branch_flag})`
+   - For git-spice: `keepBranch: true` (preserve for stack)
+   - For merge-commit: `keepBranch: false` (delete after merge)
+
+6. **Update Base Reference** (for next task):
+   - For git-spice: `current_branch = {branch_name}` (stack on this task's branch)
+   - For merge-commit: `current_branch = main` (all tasks branch from main)
+
+7. **Move to Next Task**
+
+**Result**: Linear stack
+- git-spice: `main → task-1 → task-2 → task-3`
+- merge-commit: `main ← task-1, task-2, task-3` (merged independently)
 
 #### For Parallel Phases (strategy: parallel)
 
