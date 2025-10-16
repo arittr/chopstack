@@ -19,7 +19,7 @@ Examples:
 
 ### Step 1: Parse Phase from Plan
 
-1. Read @specs/{project}/plan.yaml
+1. Read @.chopstack/specs/{project}/plan.yaml
 2. Find the phase with id: `{phase-id}`
 3. Extract:
    - Phase name
@@ -30,7 +30,7 @@ Examples:
 ### Step 2: Verify Prerequisites
 
 Before executing, verify:
-- ✅ No unresolved questions in @specs/{project}/spec.md "Open Tasks/Questions" section
+- ✅ No unresolved questions in @.chopstack/specs/{project}/spec.md "Open Tasks/Questions" section
 - ✅ All prerequisite phases are complete (check git log for commits)
 - ✅ Working directory is clean (`git status`)
 
@@ -51,14 +51,14 @@ ROLE: You are a task execution agent for chopstack v2.
 YOUR TASK: {task-id}
 
 TASK EXTRACTION:
-1. Read @specs/{project}/plan.yaml
+1. Read @.chopstack/specs/{project}/plan.yaml
 2. Find task with id: "{task-id}"
 3. Extract your task definition (description, files, acceptance_criteria, complexity)
 
 CONTEXT FILES (Read in Order):
-- @specs/{project}/plan.yaml (your task definition - START HERE)
-- @specs/{project}/spec.md (requirements and architectural decisions)
-- @specs/{project}/codebase.md (implementation patterns and context)
+- @.chopstack/specs/{project}/plan.yaml (your task definition - START HERE)
+- @.chopstack/specs/{project}/spec.md (requirements and architectural decisions)
+- @.chopstack/specs/{project}/codebase.md (implementation patterns and context)
 
 CONSTRAINTS:
 - Implement ONLY the files listed in your task.files
