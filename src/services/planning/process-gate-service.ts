@@ -1,5 +1,7 @@
-import type { PlanV2, ValidationFinding } from '@/types/schemas-v2';
+import type { DecomposerAgent } from '@/core/agents/interfaces';
+import type { PlanV2, ProjectPrinciples, ValidationFinding } from '@/types/schemas-v2';
 
+import { GapAnalysisService } from '@/services/analysis/gap-analysis-service';
 import { QualityValidationService } from '@/services/validation/quality-validation-service';
 import { logger } from '@/utils/global-logger';
 import { isNonEmptyArray } from '@/validation/guards';
@@ -17,6 +19,7 @@ export type ProcessGateResult = {
  * Process gate options
  */
 export type ProcessGateOptions = {
+  principles?: ProjectPrinciples;
   skipGates?: boolean;
 };
 
@@ -24,7 +27,7 @@ export type ProcessGateOptions = {
  * Service for coordinating pre-generation and post-generation process gates.
  *
  * This service implements two quality gates in the decompose workflow:
- * 1. Pre-generation gate: Checks for open questions in specification
+ * 1. Pre-generation gate: Comprehensive gap analysis of specification
  * 2. Post-generation gate: Validates task quality using QualityValidationService
  *
  * @example
@@ -47,65 +50,80 @@ export type ProcessGateOptions = {
  * ```
  */
 export class ProcessGateService {
+  private readonly gapAnalysisService: GapAnalysisService;
   private readonly qualityValidationService: QualityValidationService;
 
-  /**
-   * Section headers to look for when parsing open questions
-   */
-  private readonly OPEN_QUESTIONS_HEADERS = [
-    '## Open Tasks/Questions',
-    '## Open Questions',
-    '## Unresolved Questions',
-  ];
-
-  /**
-   * Patterns to detect unresolved items
-   */
-  private readonly UNRESOLVED_PATTERNS = {
-    uncheckedCheckbox: /- \[ ]|\[ ]/,
-    questionMarkers: /\?|TODO:|TBD:/,
-  };
-
-  constructor() {
+  constructor(agent?: DecomposerAgent) {
+    this.gapAnalysisService = new GapAnalysisService(agent);
     this.qualityValidationService = new QualityValidationService();
   }
 
   /**
-   * Check pre-generation gate (open questions in specification).
+   * Check pre-generation gate (comprehensive gap analysis).
+   *
+   * Uses GapAnalysisService with hybrid approach:
+   * - STATIC CHECKS: Required sections, placeholders, open questions (fast)
+   * - LLM ANALYSIS: Context-aware gap detection (if agent provided)
+   * - FALLBACK HEURISTICS: Simple pattern matching (if no agent)
    *
    * @param specContent - Specification content to check
-   * @param options - Gate options (skipGates flag)
+   * @param options - Gate options (skipGates flag, optional principles)
    * @returns Gate check result with blocking flag
    */
-  checkPreGeneration(specContent: string, options: ProcessGateOptions = {}): ProcessGateResult {
-    logger.debug('🚪 Checking pre-generation gate (open questions)...');
+  async checkPreGeneration(
+    specContent: string,
+    options: ProcessGateOptions = {},
+  ): Promise<ProcessGateResult> {
+    logger.debug('🚪 Checking pre-generation gate (gap analysis)...');
 
     // Allow bypass for testing
     if (options.skipGates === true) {
       logger.info('⏭️ Skipping pre-generation gate (skipGates=true)');
       return {
         blocking: false,
-        message: 'Pre-generation gate skipped',
         issues: [],
+        message: 'Pre-generation gate skipped',
       };
     }
 
-    const openQuestions = this._parseOpenQuestions(specContent);
+    // Run comprehensive gap analysis (now async with LLM support)
+    const analysisReport = await this.gapAnalysisService.analyze(specContent, options.principles);
 
-    if (isNonEmptyArray(openQuestions)) {
-      const message = this._formatPreGenerationError(openQuestions);
-      logger.warn(`❌ Pre-generation gate failed: ${openQuestions.length} unresolved questions`);
+    // Check if analysis found CRITICAL issues
+    // GATE 1 blocks ONLY on CRITICAL gaps, not on completeness score
+    // Completeness score is informational - helps users improve their specs
+    const criticalGaps = analysisReport.gaps.filter((g) => g.severity === 'CRITICAL');
+
+    if (isNonEmptyArray(criticalGaps)) {
+      const message = this._formatPreGenerationError(analysisReport);
+      logger.warn(
+        `❌ Pre-generation gate failed: ${criticalGaps.length} CRITICAL gaps (${analysisReport.completeness}% complete)`,
+      );
       return {
         blocking: true,
         message,
-        issues: openQuestions,
+        issues: criticalGaps.map((g) => g.message),
       };
     }
 
-    logger.info('✅ Pre-generation gate passed (no open questions)');
+    // Log warnings for non-critical gaps but allow decomposition to proceed
+    const highGaps = analysisReport.gaps.filter((g) => g.severity === 'HIGH');
+    const mediumGaps = analysisReport.gaps.filter((g) => g.severity === 'MEDIUM');
+
+    if (isNonEmptyArray(highGaps) || isNonEmptyArray(mediumGaps)) {
+      logger.warn(
+        `⚠️ Specification has ${highGaps.length} HIGH, ${mediumGaps.length} MEDIUM gaps (non-blocking)`,
+      );
+      logger.warn('   These gaps may affect plan quality but will not prevent decomposition.');
+      logger.warn('   Run `chopstack analyze --spec <file>` for detailed remediation guidance.');
+    }
+
+    logger.info(
+      `✅ Pre-generation gate passed (${analysisReport.completeness}% complete, 0 CRITICAL gaps)`,
+    );
     return {
       blocking: false,
-      message: 'Pre-generation gate passed',
+      message: `Pre-generation gate passed: ${analysisReport.completeness}% complete`,
       issues: [],
     };
   }
@@ -156,81 +174,78 @@ export class ProcessGateService {
   }
 
   /**
-   * Parse "Open Tasks/Questions" section from specification.
+   * Format pre-generation gate error message using AnalysisReport.
    *
-   * @param specContent - Specification content
-   * @returns Array of unresolved question strings
-   */
-  private _parseOpenQuestions(specContent: string): string[] {
-    const openQuestions: string[] = [];
-
-    // Find "Open Tasks/Questions" section
-    let sectionContent: string | undefined;
-    for (const header of this.OPEN_QUESTIONS_HEADERS) {
-      const headerIndex = specContent.indexOf(header);
-      if (headerIndex !== -1) {
-        // Extract section content (from header to next ## or end of file)
-        const nextHeaderIndex = specContent.indexOf('\n## ', headerIndex + header.length);
-        sectionContent =
-          nextHeaderIndex === -1
-            ? specContent.slice(headerIndex + header.length)
-            : specContent.slice(headerIndex + header.length, nextHeaderIndex);
-        break;
-      }
-    }
-
-    // If no section found, return empty array
-    if (sectionContent === undefined) {
-      return openQuestions;
-    }
-
-    // Parse lines looking for unresolved items
-    const lines = sectionContent.split('\n');
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-
-      // Skip empty lines and headers
-      if (trimmedLine.length === 0 || trimmedLine.startsWith('#')) {
-        continue;
-      }
-
-      // Check for unchecked checkboxes
-      if (this.UNRESOLVED_PATTERNS.uncheckedCheckbox.test(trimmedLine)) {
-        openQuestions.push(trimmedLine);
-        continue;
-      }
-
-      // Check for question markers
-      if (this.UNRESOLVED_PATTERNS.questionMarkers.test(trimmedLine)) {
-        openQuestions.push(trimmedLine);
-      }
-    }
-
-    return openQuestions;
-  }
-
-  /**
-   * Format pre-generation gate error message.
-   *
-   * @param openQuestions - List of unresolved questions
+   * @param analysisReport - Gap analysis report
    * @returns Formatted error message
    */
-  private _formatPreGenerationError(openQuestions: string[]): string {
+  private _formatPreGenerationError(
+    analysisReport: Awaited<ReturnType<typeof this.gapAnalysisService.analyze>>,
+  ): string {
+    const criticalGaps = analysisReport.gaps.filter((g) => g.severity === 'CRITICAL');
+    const highGaps = analysisReport.gaps.filter((g) => g.severity === 'HIGH');
+
+    const criticalGapLines: string[] = [];
+    if (isNonEmptyArray(criticalGaps)) {
+      criticalGapLines.push('## CRITICAL Gaps (MUST FIX)', '');
+      for (const gap of criticalGaps) {
+        criticalGapLines.push(`  🔴 ${gap.message}`);
+        if (gap.remediation !== undefined) {
+          criticalGapLines.push(`     💡 ${gap.remediation}`);
+        }
+      }
+      criticalGapLines.push('');
+    }
+
+    const highGapLines: string[] = [];
+    if (isNonEmptyArray(highGaps)) {
+      highGapLines.push('## HIGH Priority Gaps (RECOMMENDED)', '');
+      for (const gap of highGaps) {
+        highGapLines.push(`  🟠 ${gap.message}`);
+        if (gap.remediation !== undefined) {
+          highGapLines.push(`     💡 ${gap.remediation}`);
+        }
+      }
+      highGapLines.push('');
+    }
+
+    const remediationLines: string[] = [];
+    if (isNonEmptyArray(analysisReport.remediation)) {
+      remediationLines.push('## Remediation Steps (Prioritized)', '');
+      for (const step of analysisReport.remediation.slice(0, 5)) {
+        // Top 5 steps
+        remediationLines.push(`  ${step.order}. [${step.priority}] ${step.action}`);
+      }
+      remediationLines.push('');
+    }
+
     const lines = [
-      `❌ Cannot decompose: Specification has ${openQuestions.length} unresolved open questions`,
+      `❌ GATE 1 FAILURE: Specification is incomplete (${analysisReport.completeness}% complete)`,
       '',
-      'Open Questions:',
-      ...openQuestions.map((q) => `  ${q}`),
+      `## Specification Analysis Report`,
       '',
-      'Action Required:',
-      '  1. Complete all audits and answer open questions',
-      '  2. Update specification to remove items from "Open Tasks/Questions" section',
-      '  3. Re-run: chopstack analyze --spec <spec-file> to verify 100% completeness',
-      '  4. Then retry: chopstack decompose --spec <spec-file>',
+      `Completeness Score: ${analysisReport.completeness}%`,
       '',
-      'Why this matters:',
-      '  Open questions lead to incomplete task breakdowns and mid-execution plan expansion.',
-      '  Resolving questions before decomposition produces better quality plans.',
+      ...criticalGapLines,
+      ...highGapLines,
+      ...remediationLines,
+      '## Required Actions',
+      '',
+      '1. Review gaps and remediation steps above',
+      '2. Update specification to address all CRITICAL gaps',
+      '3. Optionally address HIGH priority gaps',
+      '4. Re-run: chopstack analyze --spec <spec-file> to verify progress',
+      '5. When completeness reaches 100%, retry: chopstack decompose --spec <spec-file>',
+      '',
+      '## Why This Matters',
+      '',
+      'Incomplete specifications lead to:',
+      '  • Incomplete task breakdowns',
+      '  • Mid-execution plan expansion',
+      '  • Unclear requirements',
+      '  • Poor task quality',
+      '',
+      'Resolving gaps before decomposition produces better quality plans.',
     ];
 
     return lines.join('\n');
