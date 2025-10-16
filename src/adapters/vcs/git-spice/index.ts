@@ -9,7 +9,7 @@ export { GitSpiceBackend } from './backend';
 export { GitSpiceError } from './errors';
 
 // Helper functions (for backwards compatibility and testing)
-export { initGitSpiceRepo, generateBranchNameFromMessage, extractPrUrls } from './helpers';
+export { generateBranchNameFromMessage, extractPrUrls } from './helpers';
 
 // Worktree sync utilities (exported for testing)
 export { fetchWorktreeCommits, findWorktreeForTask } from './worktree-sync';
