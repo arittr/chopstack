@@ -9,7 +9,7 @@ import type { PlanV2 } from '@/types/schemas-v2';
 
 import { type ParsedContent, YamlPlanParser } from '@/io/yaml-parser';
 import { PromptBuilder } from '@/services/planning/prompts';
-import { AgentNotFoundError, PlanParsingError } from '@/utils/errors';
+import { AgentExecutionError, AgentNotFoundError, PlanParsingError } from '@/utils/errors';
 import { logger } from '@/utils/global-logger';
 import { isNonEmptyString, isNonNullish } from '@/validation/guards';
 
@@ -24,6 +24,9 @@ type StreamingMessage = {
 };
 
 type ClaudeResponse = {
+  message?: {
+    content?: Array<{ text?: string; type?: string }>;
+  };
   result?: string;
   type?: string;
 };
@@ -32,29 +35,84 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
   async decompose(
     specContent: string,
     cwd: string,
-    options?: { verbose?: boolean },
+    options?: { planOutputPath?: string; verbose?: boolean },
   ): Promise<PlanV2> {
     try {
-      const prompt = PromptBuilder.buildDecompositionPrompt(specContent);
-      const stdout = await this._executeClaudeCommand(prompt, cwd, options?.verbose ?? false);
+      const verbose = options?.verbose ?? false;
+      const planOutputPath = options?.planOutputPath;
+
+      // Build prompt with optional plan output path
+      const prompt = PromptBuilder.buildDecompositionPrompt(specContent, planOutputPath);
+
+      // If planOutputPath is provided, Claude will write the file directly using Write tool
+      if (isNonEmptyString(planOutputPath)) {
+        logger.info(`📝 Claude will write plan to: ${planOutputPath}`);
+
+        // Execute Claude command with Write permission (which will use Write tool to create the plan file)
+        await this._executeClaudeCommand(prompt, cwd, verbose, planOutputPath);
+
+        // Read the plan file that Claude wrote
+        logger.debug(`📖 Reading plan from: ${planOutputPath}`);
+        const { readFile } = await import('node:fs/promises');
+        const planContent = await readFile(planOutputPath, 'utf8');
+
+        // Parse and validate the plan
+        logger.debug('🔍 Parsing plan YAML...');
+        const plan = YamlPlanParser.parse(planContent);
+        logger.info('✅ Plan file successfully created and validated');
+
+        return plan;
+      }
+
+      // Fallback: parse from stdout (for backwards compatibility)
+      logger.debug('📤 Using legacy mode: parsing plan from Claude stdout');
+      const stdout = await this._executeClaudeCommand(prompt, cwd, verbose, undefined);
       const parsedContent = this._parseClaudeResponse(stdout);
       const plan = this._validateAndReturnPlan(parsedContent);
 
       return plan;
     } catch (error) {
+      // Re-throw parsing errors as-is
       if (error instanceof PlanParsingError) {
         throw error;
       }
+
+      // Handle execution errors with better messages
+      // Note: TypeScript catch blocks use 'unknown' type, which triggers ESLint warnings
+      // for Error subclass construction. Our Error classes properly extend Error, so this is safe.
+
       if (error instanceof Error) {
-        throw new AgentNotFoundError('claude', error);
+        // Check if it's a spawn error (agent not found)
+        if (error.message.includes('Failed to spawn Claude')) {
+          throw new AgentNotFoundError('claude', error);
+        }
+
+        // Check if it's a CLI execution error
+        if (
+          error.message.includes('Claude CLI failed') ||
+          error.message.includes('exited with code')
+        ) {
+          // Extract exit code if present
+          const exitCodeMatch = error.message.match(/exit code (\d+)/);
+          const exitCode =
+            exitCodeMatch?.[1] !== undefined ? Number.parseInt(exitCodeMatch[1], 10) : undefined;
+
+          throw new AgentExecutionError('claude', error.message, exitCode, error);
+        }
+
+        // Generic agent error - wrap the original error for better debugging
+        throw new AgentExecutionError('claude', error.message, undefined, error);
       }
-      throw new AgentNotFoundError('claude');
+
+      // Unknown error type - create error with string representation
+      throw new AgentExecutionError('claude', String(error));
     }
   }
 
   async query(prompt: string, cwd: string, options?: { verbose?: boolean }): Promise<string> {
     try {
-      const stdout = await this._executeClaudeCommand(prompt, cwd, options?.verbose ?? false);
+      // For queries, we use a simpler non-plan mode execution
+      const stdout = await this._executeClaudeQuery(prompt, cwd, options?.verbose ?? false);
       return this._extractTextResponse(stdout);
     } catch (error) {
       if (error instanceof Error) {
@@ -108,19 +166,66 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
     prompt: string,
     cwd: string,
     verbose: boolean,
+    planOutputPath?: string,
   ): Promise<string> {
-    logger.info('🔍 Running Claude with stdin input...');
+    logger.info('🔍 Running Claude Code in plan mode to generate task breakdown...');
     logger.info(`📁 Working directory: ${cwd}`);
+    if (!verbose) {
+      logger.info('💭 This may take 2-4 minutes. Progress indicators will appear below:');
+    }
 
     return new Promise<string>((resolve, reject) => {
-      const child = spawn(
-        'claude',
-        ['--permission-mode', 'plan', '--verbose', '--output-format', 'stream-json'],
-        {
-          cwd,
-          env: process.env,
-        },
-      );
+      // Build args with appropriate permission mode
+      // When planOutputPath is provided, we need to allow file writes
+      // Use 'bypassPermissions' to allow Write tool without prompts
+      // Otherwise use 'plan' mode which blocks file operations
+      const permissionMode = isNonEmptyString(planOutputPath) ? 'bypassPermissions' : 'plan';
+      const args = [
+        '--permission-mode',
+        permissionMode,
+        '--verbose',
+        '--output-format',
+        'stream-json',
+      ];
+
+      if (isNonEmptyString(planOutputPath)) {
+        logger.debug(
+          `🔓 Using permission mode '${permissionMode}' to allow Write tool for: ${planOutputPath}`,
+        );
+      }
+
+      const child = spawn('claude', args, {
+        cwd,
+        env: process.env,
+      });
+
+      const handler = new ClaudeStreamHandler(resolve, reject, verbose);
+      handler.attachToProcess(child);
+      handler.sendPrompt(child, prompt);
+    });
+  }
+
+  /**
+   * Execute Claude for query (non-plan mode) - simple text analysis
+   */
+  private async _executeClaudeQuery(
+    prompt: string,
+    cwd: string,
+    verbose: boolean,
+  ): Promise<string> {
+    logger.info('🔍 Running Claude Code to analyze specification gaps...');
+    logger.info(`📁 Working directory: ${cwd}`);
+    if (!verbose) {
+      logger.info('💭 Analyzing specification quality (30-60 seconds)...');
+    }
+
+    return new Promise<string>((resolve, reject) => {
+      // For queries, we don't use plan mode - just regular chat
+      // Note: --output-format stream-json requires --verbose flag
+      const child = spawn('claude', ['--verbose', '--output-format', 'stream-json'], {
+        cwd,
+        env: process.env,
+      });
 
       const handler = new ClaudeStreamHandler(resolve, reject, verbose);
       handler.attachToProcess(child);
@@ -158,7 +263,20 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
 
         try {
           const json = JSON.parse(line) as ClaudeResponse;
-          // Look for the final result object
+
+          // Check for assistant message with content array (Claude CLI streaming format)
+          if (
+            json.type === 'assistant' &&
+            isNonNullish(json.message?.content) &&
+            json.message.content.length > 0 &&
+            isNonEmptyString(json.message.content[0]?.text)
+          ) {
+            const { text } = json.message.content[0];
+            logger.debug('✅ Found assistant message with content, extracting YAML/JSON...');
+            return this._extractContentFromResult(text);
+          }
+
+          // Also check for final result object (fallback)
           if (json.type === 'result' && isNonEmptyString(json.result)) {
             logger.debug('✅ Found JSON result object, extracting content...');
             return this._extractContentFromResult(json.result);
@@ -309,6 +427,20 @@ class ClaudeStreamHandler {
     if (this._verbose) {
       // In verbose mode, stream raw output directly
       process.stdout.write(chunk);
+    } else {
+      // In non-verbose mode, still show progress indicators
+      const lines = chunk.split('\n').filter((line: string) => line.trim() !== '');
+      for (const line of lines) {
+        try {
+          const json = JSON.parse(line) as StreamingMessage;
+          if (json.type === 'message_delta' || json.type === 'content_block_delta') {
+            // Show a simple progress indicator
+            process.stdout.write('.');
+          }
+        } catch {
+          // Not JSON, ignore
+        }
+      }
     }
 
     const lines = chunk.split('\n').filter((line: string) => line.trim() !== '');
@@ -371,12 +503,24 @@ class ClaudeStreamHandler {
   private _handleClose(code: number | null): void {
     this._clearTimeout();
 
+    // Add newline after progress dots
+    if (!this._verbose && this._contentOutput.length > 0) {
+      process.stdout.write('\n');
+    }
+
     if (code !== 0) {
       logger.error(chalk.red(`❌ Claude exited with code ${code}`));
       if (this._errorOutput !== '') {
         logger.error(chalk.dim(`Stderr: ${this._errorOutput}`));
       }
-      this._reject(new Error(`Claude exited with code ${code}`));
+
+      // Create error with stderr output for better debugging
+      const errorMessage =
+        this._errorOutput !== ''
+          ? `Claude CLI failed (exit code ${code}): ${this._errorOutput}`
+          : `Claude CLI exited with code ${code}`;
+
+      this._reject(new Error(errorMessage));
     } else {
       // For stream-json format, the final result is in fullOutput as JSON
       // For regular streaming, content would be accumulated in contentOutput
