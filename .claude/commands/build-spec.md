@@ -11,16 +11,16 @@ YOUR JOB: Transform a brief initial requirements document into a comprehensive, 
 User will specify: `/build-spec {initial-requirements-path}`
 
 Examples:
-- `/build-spec @specs/feature-x/initial.md` → Generate full spec in specs/feature-x/
+- `/build-spec @.chopstack/specs/feature-x/initial.md` → Generate full spec in .chopstack/specs/feature-x/
 - `/build-spec dark-mode-initial.md` → Generate spec in same directory
 
 ## Output Structure
 
-For input: `specs/feature-x/initial.md`
+For input: `.chopstack/specs/feature-x/initial.md`
 
 Generate:
 ```
-specs/feature-x/
+.chopstack/specs/feature-x/
 ├── spec.md              # Comprehensive specification
 ├── codebase.md          # Architecture and implementation context
 └── notes/               # Supporting research and audits
@@ -683,91 +683,50 @@ Generate spec.md now.
 
 ### Step 5: Validate Specification Quality
 
-Use Task tool to spawn validation agent:
+Use Task tool to spawn **@agent-spec-completeness-analyzer** with this prompt:
 
 ```
-ROLE: You are a specification quality validator for chopstack v2.
+Validate the specification at {spec.md} for completeness and readiness for decomposition.
 
-YOUR JOB: Validate the generated specification is complete and ready for decomposition.
+Read the generated specification and perform a final quality check:
 
-SPECIFICATION: Read {spec.md}
+**Structure Completeness**:
+- All required sections present (Overview, Requirements, Design, Implementation Plan, etc.)
+- No placeholder text (TODO, TBD, etc.)
+- Proper markdown formatting
+- Valid ASCII diagrams if applicable
 
-VALIDATION CHECKLIST:
+**Content Quality**:
+- Requirements are specific and measurable
+- Design includes detailed structure or pseudo-code
+- File paths are explicit (no wildcards)
+- Acceptance criteria are verifiable
+- Success metrics are quantifiable
 
-1. **Structure Completeness**:
-   - [ ] All required sections present
-   - [ ] No placeholder text (TODO, TBD, etc.)
-   - [ ] Proper markdown formatting
-   - [ ] Valid ASCII diagrams
+**Codebase Integration**:
+- References actual files in the codebase
+- Follows existing patterns from codebase.md
+- Integration points are documented
+- Naming conventions match existing code
 
-2. **Content Quality**:
-   - [ ] Requirements are specific and measurable
-   - [ ] Design includes pseudo-code or detailed structure
-   - [ ] File paths are explicit (no wildcards)
-   - [ ] Acceptance criteria are verifiable
-   - [ ] Success metrics are quantifiable
+**Decomposition Readiness**:
+- Clear task breakdown provided
+- Dependencies are logical
+- Complexity estimates are realistic
+- No open questions remaining
 
-3. **Codebase Integration**:
-   - [ ] References actual files in the codebase
-   - [ ] Follows existing patterns from codebase.md
-   - [ ] Integration points are documented
-   - [ ] Naming conventions match existing code
+**Audit Integration**:
+- Audit findings are incorporated
+- Task estimates reflect audit complexity
+- No unresolved audit questions
 
-4. **Decomposition Readiness**:
-   - [ ] Clear task breakdown provided
-   - [ ] Dependencies are logical
-   - [ ] Complexity estimates are realistic
-   - [ ] No open questions remaining
+Produce your standard Specification Completeness Analysis report with:
+- Completeness score (0-100%)
+- Any remaining gaps or open questions
+- Gate 1 status (READY or NEEDS REVISION)
+- If NEEDS REVISION: specific fixes required
 
-5. **Audit Integration**:
-   - [ ] Audit findings are incorporated
-   - [ ] Task estimates reflect audit complexity
-   - [ ] No unresolved audit questions
-
-OUTPUT FORMAT:
-
-```markdown
-# Specification Quality Report
-
-## Completeness: {score}%
-
-## Validation Results
-
-### ✅ Passed
-- {Check 1}: {details}
-- {Check 2}: {details}
-
-### ⚠️  Warnings
-- {Warning 1}: {suggestion}
-- {Warning 2}: {suggestion}
-
-### ❌ Failed
-- {Issue 1}: {required fix}
-- {Issue 2}: {required fix}
-
-## Readiness for Decomposition
-
-- **Open Questions**: {count}
-- **Placeholder Sections**: {count}
-- **Vague Requirements**: {count}
-
-**Status**: {READY | NEEDS REVISION}
-
-{If NEEDS REVISION:}
-
-## Required Fixes
-
-1. {Fix 1}: {detailed instructions}
-2. {Fix 2}: {detailed instructions}
-
-{If READY:}
-
-✅ Specification is complete and ready for decomposition.
-
-Next step: `/build-plan @{spec-path}`
-```
-
-Execute validation now.
+This is the final validation before the spec can be used for /build-plan.
 ```
 
 ## Success Pattern
@@ -775,7 +734,7 @@ Execute validation now.
 A successful spec generation looks like:
 
 ```
-📋 Generating specification from specs/feature-x/initial.md
+📋 Generating specification from .chopstack/specs/feature-x/initial.md
 
 Step 1: Analyzing initial requirements...
 ├─ Core intent: Add dark mode to web application
@@ -810,14 +769,14 @@ Step 5: Validating quality...
 ✅ Specification Generation Complete
 
 Files created:
-- specs/feature-x/spec.md
-- specs/feature-x/codebase.md
-- specs/feature-x/notes/audit-component-structure.md
-- specs/feature-x/notes/audit-theme-usage.md
+- .chopstack/specs/feature-x/spec.md
+- .chopstack/specs/feature-x/codebase.md
+- .chopstack/specs/feature-x/notes/audit-component-structure.md
+- .chopstack/specs/feature-x/notes/audit-theme-usage.md
 
 Next steps:
 1. Review spec.md and codebase.md
-2. Run: /build-plan @specs/feature-x/spec.md
+2. Run: /build-plan @.chopstack/specs/feature-x/spec.md
 ```
 
 ## Error Handling

@@ -130,18 +130,39 @@ CRITICAL RULES:
 - ❌ NEVER output just a tasks array - output the COMPLETE plan structure
 
 IMPORTANT YAML FORMATTING RULES:
-- Quote file paths containing special characters: brackets [], spaces, colons :, etc.
-  - Example: "packages/app/src/app/api/users/[id]/route.ts" (quoted because of [])
-  - Example: packages/app/src/services/user.service.ts (no quotes needed)
-- Quote strings containing quotes by using single quotes around double quotes or vice versa:
-  - Example: '[data-theme="dark"]' (single quotes wrapping double quotes)
-  - Example: "[data-theme='dark']" (double quotes wrapping single quotes)
-- For multi-line strings with special characters, use the literal block scalar (|):
-  - Example:
-    description: |
-      This is a multi-line description
-      that can contain "quotes" and [brackets]
-- Always validate YAML syntax - unescaped quotes will cause parsing errors
+
+1. **Array Items**: Each array item must be on its own line starting with \`-\`
+   ✅ CORRECT:
+   acceptance_criteria:
+     - Light theme variables defined in :root selector
+     - Dark theme overrides defined in data-theme="dark" selector
+     - Minimum variables: background, foreground, text, border, accent, muted
+
+   ❌ WRONG (line wrapping in arrays causes parser errors):
+   acceptance_criteria:
+     - Light theme variables defined in :root selector
+     - Dark theme overrides defined in '[data-theme="dark"]' selector
+     - Minimum variables defined: background, foreground, text (primary/secondary),
+       border, accent, muted  # Parser error: treats continuation as map key
+
+2. **Quote Handling**:
+   - Quote file paths with special characters: brackets [], spaces, colons
+     - ✅ "packages/app/api/users/[id]/route.ts"
+     - ✅ packages/app/services/user.service.ts (no special chars)
+   - For strings with quotes, use opposite quote style or remove quotes:
+     - ✅ data-theme="dark" (no outer quotes needed in most contexts)
+     - ✅ '[data-theme="dark"]' (single wrapping double)
+     - ❌ "[data-theme='dark']" (avoid if possible, confusing)
+
+3. **Multi-line Content**: Use literal block scalar \`|\` for long text:
+   description: |
+     This is a multi-line description.
+     It can contain "quotes" and [brackets] freely.
+     Each line is preserved with newlines.
+
+4. **Keep Array Items Concise**: If an item is too long, rephrase it to fit one line rather than wrapping
+
+RULE: Always validate YAML syntax - array items must be complete on one line
 
 ACTION REQUIRED:
 ${outputInstruction}`;
