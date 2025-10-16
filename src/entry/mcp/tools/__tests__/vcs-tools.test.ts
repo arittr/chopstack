@@ -1,13 +1,16 @@
 /**
  * Unit tests for VCS MCP tools
  *
- * Tests the configure_vcs tool with mocked VcsConfigService.
- * Validates parameter handling, success/failure paths, and response format.
+ * Tests all VCS tools with mocked VCS services for isolation.
+ * Verifies parameter validation, success cases, error handling, and response formats.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { WorktreeContext } from '@/core/vcs/domain-services';
+
 import { VcsConfigServiceImpl } from '@/services/vcs/vcs-config';
+import { VcsEngineServiceImpl } from '@/services/vcs/vcs-engine-service';
 import { logger } from '@/utils/global-logger';
 
 import { registerVcsTools } from '../vcs-tools';
@@ -15,6 +18,11 @@ import { registerVcsTools } from '../vcs-tools';
 // Mock VcsConfigService
 vi.mock('@/services/vcs/vcs-config', () => ({
   VcsConfigServiceImpl: vi.fn(),
+}));
+
+// Mock VcsEngineService
+vi.mock('@/services/vcs/vcs-engine-service', () => ({
+  VcsEngineServiceImpl: vi.fn(),
 }));
 
 // Mock logger
@@ -441,6 +449,439 @@ describe('VCS MCP Tools - configure_vcs', () => {
       const parsed = JSON.parse(result);
 
       expect(parsed).toHaveProperty('status', 'failed');
+      expect(parsed).toHaveProperty('error');
+    });
+  });
+});
+
+describe('VCS MCP Tools - create_task_worktree', () => {
+  let mockVcsEngine: {
+    createWorktreesForTasks: ReturnType<typeof vi.fn>;
+    initialize: ReturnType<typeof vi.fn>;
+  };
+
+  let mockMcp: {
+    addTool: ReturnType<typeof vi.fn>;
+  };
+
+  /**
+   * Helper to get the execute function for create_task_worktree
+   */
+  function getExecuteFunction(): (params: never) => Promise<string> {
+    const createWorktreeCall = mockMcp.addTool.mock.calls.find(
+      (call) => call[0].name === 'create_task_worktree',
+    );
+    if (createWorktreeCall === undefined) {
+      throw new Error('create_task_worktree tool not registered');
+    }
+    return createWorktreeCall[0].execute as (params: never) => Promise<string>;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Mock VcsEngineService
+    mockVcsEngine = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      createWorktreesForTasks: vi.fn(),
+    };
+
+    vi.mocked(VcsEngineServiceImpl).mockImplementation(
+      () => mockVcsEngine as unknown as VcsEngineServiceImpl,
+    );
+
+    // Create mock FastMCP instance
+    mockMcp = {
+      addTool: vi.fn(),
+    };
+  });
+
+  describe('Tool Registration', () => {
+    it('should register create_task_worktree tool', () => {
+      registerVcsTools(mockMcp as never);
+
+      expect(mockMcp.addTool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'create_task_worktree',
+          description: expect.stringContaining('isolated worktree'),
+          parameters: expect.any(Object),
+          execute: expect.any(Function),
+        }),
+      );
+    });
+  });
+
+  describe('Success Paths', () => {
+    it('should create worktree successfully with minimal params', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      const mockWorktree: WorktreeContext = {
+        taskId: 'task-1',
+        branchName: 'task/task-1',
+        worktreePath: '.chopstack/shadows/task-1',
+        absolutePath: '/test/project/.chopstack/shadows/task-1',
+        baseRef: 'main',
+        created: new Date(),
+      };
+
+      mockVcsEngine.createWorktreesForTasks.mockResolvedValue([mockWorktree]);
+
+      const result = await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response).toEqual({
+        status: 'success',
+        taskId: 'task-1',
+        path: '.chopstack/shadows/task-1',
+        absolutePath: '/test/project/.chopstack/shadows/task-1',
+        branch: 'task/task-1',
+        baseRef: 'main',
+      });
+
+      // Verify VcsEngine was called correctly
+      expect(mockVcsEngine.initialize).toHaveBeenCalledWith('/test/project');
+      expect(mockVcsEngine.createWorktreesForTasks).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({
+            id: 'task-1',
+            name: 'task-1',
+            files: [],
+            complexity: 'M',
+            description: 'task-1',
+            acceptanceCriteria: [],
+            dependencies: [],
+            maxRetries: 0,
+            retryCount: 0,
+            state: 'pending',
+            stateHistory: [],
+          }),
+        ],
+        'main',
+        '/test/project',
+      );
+    });
+
+    it('should create worktree with task metadata', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      const mockWorktree: WorktreeContext = {
+        taskId: 'task-auth',
+        branchName: 'task/task-auth',
+        worktreePath: '.chopstack/shadows/task-auth',
+        absolutePath: '/test/project/.chopstack/shadows/task-auth',
+        baseRef: 'main',
+        created: new Date(),
+      };
+
+      mockVcsEngine.createWorktreesForTasks.mockResolvedValue([mockWorktree]);
+
+      const result = await execute({
+        taskId: 'task-auth',
+        baseRef: 'main',
+        workdir: '/test/project',
+        task: {
+          name: 'Implement authentication',
+          files: ['src/auth/login.ts', 'src/auth/session.ts'],
+        },
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.status).toBe('success');
+      expect(response.taskId).toBe('task-auth');
+
+      // Verify task metadata was passed
+      expect(mockVcsEngine.createWorktreesForTasks).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({
+            id: 'task-auth',
+            name: 'Implement authentication',
+            files: ['src/auth/login.ts', 'src/auth/session.ts'],
+            complexity: 'M',
+            description: 'Implement authentication',
+          }),
+        ],
+        'main',
+        '/test/project',
+      );
+    });
+
+    it('should use current directory when workdir not provided', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      const currentDir = process.cwd();
+      const mockWorktree: WorktreeContext = {
+        taskId: 'task-1',
+        branchName: 'task/task-1',
+        worktreePath: '.chopstack/shadows/task-1',
+        absolutePath: `${currentDir}/.chopstack/shadows/task-1`,
+        baseRef: 'main',
+        created: new Date(),
+      };
+
+      mockVcsEngine.createWorktreesForTasks.mockResolvedValue([mockWorktree]);
+
+      await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+      } as never);
+
+      expect(mockVcsEngine.initialize).toHaveBeenCalledWith(currentDir);
+      expect(mockVcsEngine.createWorktreesForTasks).toHaveBeenCalledWith(
+        expect.any(Array),
+        'main',
+        currentDir,
+      );
+    });
+  });
+
+  describe('Failure Paths', () => {
+    it('should handle branch name collision errors', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.createWorktreesForTasks.mockRejectedValue(
+        new Error('Branch already exists: task/task-1'),
+      );
+
+      const result = await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.status).toBe('failed');
+      expect(response.taskId).toBe('task-1');
+      expect(response.error).toContain('Branch name collision');
+      expect(response.error).toContain('git worktree remove');
+      expect(response.error).toContain('git branch -d');
+    });
+
+    it('should handle worktree creation failure with no contexts', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      // Return empty array (no worktrees created)
+      mockVcsEngine.createWorktreesForTasks.mockResolvedValue([]);
+
+      const result = await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.status).toBe('failed');
+      expect(response.taskId).toBe('task-1');
+      expect(response.error).toContain('Failed to create worktree');
+    });
+
+    it('should handle generic errors', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.createWorktreesForTasks.mockRejectedValue(
+        new Error('Git operation failed: unable to write to repository'),
+      );
+
+      const result = await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.status).toBe('failed');
+      expect(response.taskId).toBe('task-1');
+      expect(response.error).toBe('Git operation failed: unable to write to repository');
+    });
+
+    it('should handle collision error pattern variations', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.createWorktreesForTasks.mockRejectedValue(
+        new Error('worktree collision detected for task-1'),
+      );
+
+      const result = await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.error).toContain('Branch name collision');
+    });
+  });
+
+  describe('Logging', () => {
+    beforeEach(() => {
+      const mockWorktree: WorktreeContext = {
+        taskId: 'task-1',
+        branchName: 'task/task-1',
+        worktreePath: '.chopstack/shadows/task-1',
+        absolutePath: '/test/project/.chopstack/shadows/task-1',
+        baseRef: 'main',
+        created: new Date(),
+      };
+      mockVcsEngine.createWorktreesForTasks.mockResolvedValue([mockWorktree]);
+    });
+
+    it('should log debug info on tool call', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      const params = {
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      };
+
+      await execute(params as never);
+
+      expect(logger.debug).toHaveBeenCalledWith('create_task_worktree called', { params });
+    });
+
+    it('should log worktree creation start', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      expect(logger.info).toHaveBeenCalledWith('Creating worktree for task task-1 from main');
+    });
+
+    it('should log worktree creation success', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      expect(logger.info).toHaveBeenCalledWith(
+        'Worktree created successfully',
+        expect.objectContaining({
+          taskId: 'task-1',
+          branch: 'task/task-1',
+        }),
+      );
+    });
+
+    it('should log errors with task context', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.createWorktreesForTasks.mockRejectedValue(new Error('Test error'));
+
+      await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'create_task_worktree failed',
+        expect.objectContaining({
+          error: 'Test error',
+          taskId: 'task-1',
+        }),
+      );
+    });
+  });
+
+  describe('Response Format', () => {
+    it('should return JSON.stringify() response', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      const mockWorktree: WorktreeContext = {
+        taskId: 'task-1',
+        branchName: 'task/task-1',
+        worktreePath: '.chopstack/shadows/task-1',
+        absolutePath: '/test/project/.chopstack/shadows/task-1',
+        baseRef: 'main',
+        created: new Date(),
+      };
+
+      mockVcsEngine.createWorktreesForTasks.mockResolvedValue([mockWorktree]);
+
+      const result = await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      // Verify result is a valid JSON string
+      expect(typeof result).toBe('string');
+      expect(() => {
+        JSON.parse(result) as unknown;
+      }).not.toThrow();
+
+      const parsed = JSON.parse(result) as Record<string, unknown>;
+      expect(parsed).toHaveProperty('status');
+      expect(parsed).toHaveProperty('taskId');
+    });
+
+    it('should include all required success fields', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      const mockWorktree: WorktreeContext = {
+        taskId: 'task-1',
+        branchName: 'task/task-1',
+        worktreePath: '.chopstack/shadows/task-1',
+        absolutePath: '/test/project/.chopstack/shadows/task-1',
+        baseRef: 'main',
+        created: new Date(),
+      };
+
+      mockVcsEngine.createWorktreesForTasks.mockResolvedValue([mockWorktree]);
+
+      const result = await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const parsed = JSON.parse(result);
+      expect(parsed).toHaveProperty('status', 'success');
+      expect(parsed).toHaveProperty('taskId');
+      expect(parsed).toHaveProperty('path');
+      expect(parsed).toHaveProperty('absolutePath');
+      expect(parsed).toHaveProperty('branch');
+      expect(parsed).toHaveProperty('baseRef');
+    });
+
+    it('should include all required failure fields', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.createWorktreesForTasks.mockRejectedValue(new Error('Test error'));
+
+      const result = await execute({
+        taskId: 'task-1',
+        baseRef: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const parsed = JSON.parse(result);
+      expect(parsed).toHaveProperty('status', 'failed');
+      expect(parsed).toHaveProperty('taskId');
       expect(parsed).toHaveProperty('error');
     });
   });
