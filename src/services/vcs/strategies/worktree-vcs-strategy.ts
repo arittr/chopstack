@@ -152,4 +152,25 @@ export class WorktreeVcsStrategy implements VcsStrategy {
       }
     }
   }
+
+  /**
+   * Worktree strategy requires worktrees for isolation
+   */
+  requiresWorktrees(): boolean {
+    return true;
+  }
+
+  /**
+   * Worktree strategy supports parallel execution
+   */
+  supportsParallelExecution(): boolean {
+    return true;
+  }
+
+  /**
+   * Worktree strategy does not support stacking
+   */
+  supportsStacking(): boolean {
+    return false;
+  }
 }
