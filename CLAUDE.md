@@ -592,6 +592,734 @@ pnpm run test:execution
 # - Comparative analysis across tasks
 ```
 
+## VCS Backend Abstraction
+
+chopstack uses a VCS-agnostic architecture that supports multiple version control workflows through a strategy pattern and backend abstraction layer.
+
+### Supported VCS Modes
+
+| Mode | Status | Description | Prerequisites |
+|------|--------|-------------|---------------|
+| `git-spice` | ✅ Implemented | Stacked PR workflow with native git-spice operations | `gs` binary |
+| `merge-commit` | ✅ Implemented | Simple merge workflow without parent tracking | `git` only |
+| `graphite` | 🚧 Stub | Alternative stacked PR workflow (placeholder) | `gt` binary |
+| `sapling` | 🚧 Stub | Sapling workflow (placeholder) | `sl` binary |
+
+### VCS Backend Interface
+
+The `VcsBackend` interface abstracts VCS tool operations (CLI wrappers):
+
+```typescript
+// src/core/vcs/interfaces.ts
+export type VcsBackend = {
+  // Detection & Setup
+  isAvailable(): Promise<boolean>;
+  initialize(workdir: string, trunk?: string): Promise<void>;
+
+  // Branch Operations (generalized for all backends)
+  createBranch(branchName: string, options: {
+    parent?: string;      // For stacking backends (git-spice, graphite)
+    base?: string;        // For merge-commit
+    track?: boolean;      // For stack tracking
+  }): Promise<void>;
+
+  deleteBranch(branchName: string): Promise<void>;
+
+  // Commit Operations
+  commit(message: string, options: {
+    files?: string[];
+    allowEmpty?: boolean;
+  }): Promise<string>; // Returns commit hash
+
+  // Stack Operations (optional - only for stacking backends)
+  trackBranch?(branchName: string, parent: string): Promise<void>;
+  restack?(): Promise<void>;
+  getStackInfo?(): Promise<StackInfo>;
+
+  // Submission (generalized for PR/MR creation)
+  submit(options: {
+    branches: string[];
+    draft?: boolean;
+    autoMerge?: boolean;
+  }): Promise<string[]>; // Returns PR URLs
+
+  // Conflict Resolution
+  hasConflicts(): Promise<boolean>;
+  getConflictedFiles(): Promise<string[]>;
+  abortMerge(): Promise<void>;
+};
+```
+
+**Key Design Decisions**:
+- Branch operations are generalized (not stack-specific)
+- Optional methods (`trackBranch?`, `restack?`, `getStackInfo?`) for stacking backends only
+- Conflict resolution primitives for all backends
+- Submit method supports multiple backends (git-spice, graphite, GitHub API)
+
+### VCS Strategy Pattern
+
+The `VcsStrategy` interface defines VCS mode implementations:
+
+```typescript
+// src/core/vcs/vcs-strategy.ts
+export type VcsMode = 'git-spice' | 'merge-commit' | 'graphite' | 'sapling';
+
+export type VcsStrategy = {
+  readonly name: VcsMode;
+
+  // Lifecycle hooks
+  initialize(tasks: TaskV2[], context: VcsStrategyContext): Promise<void>;
+  prepareExecution(tasks: ExecutionTask[], context: VcsStrategyContext): Promise<Map<string, WorktreeContext>>;
+  handleTaskCompletion(task: TaskV2, executionTask: ExecutionTask, context: WorktreeContext): Promise<TaskCommitResult>;
+  finalize(results: TaskCommitResult[], context: VcsStrategyContext): Promise<{ branches: string[]; commits: string[] }>;
+  cleanup(): Promise<void>;
+
+  // Capability queries
+  supportsParallelExecution(): boolean;
+  requiresWorktrees(): boolean;
+  supportsStacking(): boolean;
+};
+
+export type VcsStrategyContext = {
+  cwd: string;
+  baseRef?: string;
+  backend: VcsBackend;  // Explicit backend selection
+};
+
+export type WorktreeContext = {
+  taskId: string;
+  branchName: string;
+  worktreePath: string;
+  absolutePath: string;
+  baseRef: string;
+  created: string; // ISO timestamp
+};
+
+export type TaskCommitResult = {
+  taskId: string;
+  commitHash?: string;
+  branchName?: string;
+  error?: string;
+};
+```
+
+**Strategy Selection**:
+```typescript
+// src/services/vcs/vcs-strategy-factory.ts
+import { match } from 'ts-pattern';
+
+const strategy = match(mode)
+  .with('git-spice', () => new GitSpiceStrategy(vcsEngine))
+  .with('merge-commit', () => new MergeCommitStrategy(vcsEngine))
+  .with('graphite', () => new GraphiteStrategy(vcsEngine))
+  .with('sapling', () => new SaplingStrategy(vcsEngine))
+  .exhaustive();
+```
+
+### VCS Mode Configuration
+
+**Configuration Priority**: CLI args > config file > defaults
+
+**1. Explicit Mode** (user configured):
+```yaml
+# ~/.chopstack/config.yaml
+vcs:
+  mode: git-spice  # Tool MUST be available (no fallback)
+  trunk: main
+  worktree_path: .chopstack/shadows
+  auto_restack: true
+  submit_on_complete: false
+```
+
+**2. Default Mode** (no configuration):
+- Uses `merge-commit` (requires only git)
+- Always succeeds if git is available
+- User can configure explicit mode for stacking workflows
+
+**Configuration Service**:
+```typescript
+// src/services/vcs/vcs-config.ts
+export class VcsConfigServiceImpl implements VcsConfigService {
+  async loadConfig(workdir: string, cliMode?: VcsMode): Promise<VcsConfig> {
+    // Priority: CLI args > file > defaults
+    const fileConfig = await this._loadConfigFile();
+
+    return {
+      mode: cliMode ?? fileConfig?.vcs?.mode,
+      workdir,
+      trunk: fileConfig?.vcs?.trunk ?? 'main',
+      worktreePath: fileConfig?.vcs?.worktree_path ?? '.chopstack/shadows',
+      branchPrefix: fileConfig?.vcs?.branch_prefix ?? 'task',
+      autoRestack: fileConfig?.vcs?.auto_restack ?? true,
+      submitOnComplete: fileConfig?.vcs?.submit_on_complete ?? false,
+    };
+  }
+
+  async validateMode(mode: VcsMode, explicitMode: boolean): Promise<VcsMode> {
+    const backend = await this.createBackend(mode, this.config?.workdir ?? process.cwd());
+    const available = await backend.isAvailable();
+
+    if (!available && explicitMode) {
+      // Explicit mode MUST be available - fail with installation instructions
+      throw new Error(`VCS mode '${mode}' is not available. Install required tools...`);
+    }
+
+    if (!available) {
+      // Auto-detected mode - fallback to merge-commit
+      logger.warn(`VCS mode '${mode}' not available, falling back to merge-commit`);
+      return 'merge-commit';
+    }
+
+    return mode;
+  }
+
+  async createBackend(mode: VcsMode, workdir: string): Promise<VcsBackend> {
+    return match(mode)
+      .with('git-spice', () => new GitSpiceBackend(workdir))
+      .with('merge-commit', () => new MergeCommitBackend(workdir))
+      .with('graphite', () => new GraphiteBackend(workdir))
+      .with('sapling', () => new SaplingBackend(workdir))
+      .exhaustive();
+  }
+}
+```
+
+### Backend Implementations
+
+#### GitSpiceBackend (Existing)
+
+**Location**: `src/adapters/vcs/git-spice/backend.ts`
+
+**Features**:
+- Native git-spice operations via `gs` CLI
+- Stack branch creation with parent tracking
+- Automatic restacking (`gs upstack restack`)
+- Stack submission (`gs stack submit`)
+
+**Example Usage**:
+```typescript
+const backend = new GitSpiceBackend('/path/to/repo');
+await backend.initialize('/path/to/repo', 'main');
+
+// Create stacked branch
+await backend.createBranch('task/feature-1', {
+  parent: 'main',
+  track: true,
+});
+
+// Commit in stack
+const hash = await backend.commit('[task-1] Implement feature', {
+  files: ['src/feature.ts'],
+});
+
+// Restack after changes
+await backend.restack?.();
+
+// Submit stack for review
+const prUrls = await backend.submit({
+  branches: ['task/feature-1'],
+  draft: false,
+});
+```
+
+#### MergeCommitBackend (New)
+
+**Location**: `src/adapters/vcs/merge-commit/backend.ts`
+
+**Features**:
+- Simple merge workflow without parent tracking
+- Branch creation from merge-base
+- Merge completed branches with `--no-ff` flag
+- No stack-specific operations
+
+**Example Usage**:
+```typescript
+const backend = new MergeCommitBackend('/path/to/repo');
+await backend.initialize('/path/to/repo', 'main');
+
+// Create branch from base
+await backend.createBranch('task/feature-1', {
+  base: 'main',
+});
+
+// Commit changes
+const hash = await backend.commit('[task-1] Implement feature', {
+  files: ['src/feature.ts'],
+});
+
+// No restack needed (not a stacking backend)
+// Manual merge or PR submission required
+```
+
+#### GraphiteBackend (Stub)
+
+**Location**: `src/adapters/vcs/graphite/backend.ts`
+
+**Status**: Placeholder for future implementation
+
+**Example**:
+```typescript
+export class GraphiteBackend implements VcsBackend {
+  async isAvailable(): Promise<boolean> {
+    logger.warn('GraphiteBackend not yet implemented');
+    return false;
+  }
+
+  async initialize(): Promise<void> {
+    throw new Error('GraphiteBackend not yet implemented. Use git-spice or merge-commit mode.');
+  }
+  // ...other methods throw similar errors
+}
+```
+
+**Future Implementation Notes**:
+- Use `gt` CLI via execa (similar to GitSpiceBackend pattern)
+- Commands: `gt branch create`, `gt commit create`, `gt restack`, `gt stack submit`
+- Estimated complexity: M (600-800 lines, 4-6 days)
+- Reusability: 70% from git-spice patterns
+
+#### SaplingBackend (Stub)
+
+**Location**: `src/adapters/vcs/sapling/backend.ts`
+
+**Status**: Placeholder documenting worktree incompatibility
+
+**Note**: Sapling uses a different model incompatible with git worktrees. Future implementation would require significant architecture changes.
+
+## MCP VCS Tools
+
+chopstack exposes VCS operations through 5 MCP tools that enable worktree-based parallel execution.
+
+### Tool 1: configure_vcs
+
+**Purpose**: Configure VCS mode and verify tool availability
+
+**Parameters**:
+```typescript
+{
+  mode?: 'git-spice' | 'merge-commit' | 'graphite' | 'sapling',
+  workdir: string,
+  trunk?: string
+}
+```
+
+**Response**:
+```typescript
+{
+  status: 'success' | 'failed',
+  mode?: VcsMode,
+  available?: boolean,
+  capabilities?: {
+    supportsStacking: boolean,
+    supportsParallel: boolean
+  },
+  error?: string
+}
+```
+
+**Example**:
+```typescript
+// Explicit mode (must be available)
+const result = await mcp.callTool('configure_vcs', {
+  mode: 'git-spice',
+  workdir: '/path/to/repo',
+  trunk: 'main'
+});
+// Result: { status: 'success', mode: 'git-spice', available: true, capabilities: {...} }
+
+// Default mode (merge-commit)
+const result = await mcp.callTool('configure_vcs', {
+  workdir: '/path/to/repo'
+});
+// Result: { status: 'success', mode: 'merge-commit', available: true, capabilities: {...} }
+```
+
+**Error Behavior**:
+- Explicit mode: Fails if tool unavailable (no fallback)
+- Default mode: Uses merge-commit (requires only git)
+
+### Tool 2: create_task_worktree
+
+**Purpose**: Create isolated worktree for task execution
+
+**Parameters**:
+```typescript
+{
+  taskId: string,           // Regex: ^[a-z0-9-]+$
+  baseRef: string,          // Git reference to branch from
+  workdir?: string,
+  task?: {
+    name: string,
+    files?: string[]
+  }
+}
+```
+
+**Response**:
+```typescript
+{
+  status: 'success' | 'failed',
+  taskId: string,
+  path?: string,           // Relative path
+  absolutePath?: string,   // Absolute path
+  branch?: string,         // Created branch name
+  baseRef?: string,        // Base git reference
+  error?: string
+}
+```
+
+**Example**:
+```typescript
+const result = await mcp.callTool('create_task_worktree', {
+  taskId: 'task-1-implement-auth',
+  baseRef: 'main',
+  workdir: '/path/to/repo',
+  task: {
+    name: 'Implement authentication',
+    files: ['src/auth/login.ts']
+  }
+});
+// Result: {
+//   status: 'success',
+//   taskId: 'task-1-implement-auth',
+//   path: '.chopstack/shadows/task-1-implement-auth',
+//   absolutePath: '/path/to/repo/.chopstack/shadows/task-1-implement-auth',
+//   branch: 'task/task-1-implement-auth',
+//   baseRef: 'main'
+// }
+```
+
+**Error Handling**:
+- Branch name collisions: Retry with unique suffixes
+- Path conflicts: Cleanup and retry
+
+### Tool 3: integrate_task_stack
+
+**Purpose**: Integrate completed task branches based on VCS mode
+
+**Parameters**:
+```typescript
+{
+  tasks: Array<{
+    id: string,
+    name: string,
+    branchName?: string
+  }>,
+  targetBranch: string,
+  submit?: boolean,
+  workdir?: string
+}
+```
+
+**Response**:
+```typescript
+{
+  status: 'success' | 'failed',
+  branches: string[],
+  conflicts?: Array<{
+    taskId: string,
+    files: string[],
+    resolution: string
+  }>,
+  prUrls?: string[],
+  error?: string
+}
+```
+
+**Example (Sequential Stack)**:
+```typescript
+const result = await mcp.callTool('integrate_task_stack', {
+  tasks: [{ id: 'task-1', name: 'Setup types', branchName: 'task/task-1' }],
+  targetBranch: 'main',
+  submit: false,
+  workdir: '/path/to/repo'
+});
+// Result: {
+//   status: 'success',
+//   branches: ['task/task-1'],
+//   conflicts: []
+// }
+```
+
+**Example (Parallel Stack with PRs)**:
+```typescript
+const result = await mcp.callTool('integrate_task_stack', {
+  tasks: [
+    { id: 'task-2a', name: 'Component A', branchName: 'task/task-2a' },
+    { id: 'task-2b', name: 'Component B', branchName: 'task/task-2b' }
+  ],
+  targetBranch: 'main',
+  submit: true,
+  workdir: '/path/to/repo'
+});
+// Result: {
+//   status: 'success',
+//   branches: ['task/task-2a', 'task/task-2b'],
+//   conflicts: [],
+//   prUrls: ['https://github.com/org/repo/pull/123', 'https://github.com/org/repo/pull/124']
+// }
+```
+
+**Mode-Specific Behavior**:
+- **git-spice**: Creates stacked branches with parent tracking, optionally submits via `gs stack submit`
+- **merge-commit**: Merges branches to target with `--no-ff`, manual PR creation
+- **graphite**: Restacks and optionally submits via `gt stack submit`
+
+### Tool 4: cleanup_task_worktree
+
+**Purpose**: Remove worktree from filesystem and optionally delete branch
+
+**Parameters**:
+```typescript
+{
+  taskId: string,
+  keepBranch?: boolean,  // Default: false
+  workdir?: string
+}
+```
+
+**Response**:
+```typescript
+{
+  status: 'success' | 'failed',
+  taskId: string,
+  cleaned: boolean,
+  branchDeleted?: boolean,
+  error?: string
+}
+```
+
+**Example**:
+```typescript
+// Delete worktree and branch
+const result = await mcp.callTool('cleanup_task_worktree', {
+  taskId: 'task-1-implement-auth',
+  keepBranch: false,
+  workdir: '/path/to/repo'
+});
+// Result: { status: 'success', taskId: 'task-1-implement-auth', cleaned: true, branchDeleted: true }
+
+// Delete worktree, keep branch (useful for git-spice stacks)
+const result = await mcp.callTool('cleanup_task_worktree', {
+  taskId: 'task-1-implement-auth',
+  keepBranch: true,
+  workdir: '/path/to/repo'
+});
+// Result: { status: 'success', taskId: 'task-1-implement-auth', cleaned: true, branchDeleted: false }
+```
+
+### Tool 5: list_task_worktrees
+
+**Purpose**: List all active worktrees for repository
+
+**Parameters**:
+```typescript
+{
+  workdir?: string,
+  includeOrphaned?: boolean  // Default: false
+}
+```
+
+**Response**:
+```typescript
+{
+  status: 'success' | 'failed',
+  worktrees?: Array<{
+    taskId: string,
+    path: string,
+    absolutePath: string,
+    branch: string,
+    baseRef: string,
+    created: string,        // ISO 8601 timestamp
+    status?: 'active' | 'orphaned'
+  }>,
+  error?: string
+}
+```
+
+**Example**:
+```typescript
+const result = await mcp.callTool('list_task_worktrees', {
+  workdir: '/path/to/repo',
+  includeOrphaned: true
+});
+// Result: {
+//   status: 'success',
+//   worktrees: [
+//     {
+//       taskId: 'task-1-implement-auth',
+//       path: '.chopstack/shadows/task-1-implement-auth',
+//       absolutePath: '/path/to/repo/.chopstack/shadows/task-1-implement-auth',
+//       branch: 'task/task-1-implement-auth',
+//       baseRef: 'main',
+//       created: '2025-10-16T10:30:00Z',
+//       status: 'active'
+//     }
+//   ]
+// }
+```
+
+### MCP Tool Implementation Pattern
+
+All VCS MCP tools follow a thin adapter pattern:
+
+```typescript
+// src/entry/mcp/tools/vcs-tools.ts
+export function registerVcsTools(
+  mcp: FastMCP,
+  vcsEngine: VcsEngineService
+): void {
+  mcp.addTool({
+    name: 'configure_vcs',
+    description: 'Configure VCS mode and verify tool availability',
+    parameters: ConfigureVcsSchema,
+    execute: async (params) => {
+      try {
+        const mode = params.mode ?? 'merge-commit';
+        const explicitMode = params.mode !== undefined;
+
+        const backend = await createBackend(mode, params.workdir);
+        const available = await backend.isAvailable();
+
+        if (!available && explicitMode) {
+          return JSON.stringify({
+            status: 'failed',
+            mode,
+            available: false,
+            error: `VCS tool for mode '${mode}' not found. Install required tools...`,
+          });
+        }
+
+        await backend.initialize(params.workdir, params.trunk);
+
+        return JSON.stringify({
+          status: 'success',
+          mode,
+          available: true,
+          capabilities: {
+            supportsStacking: ['git-spice', 'graphite', 'sapling'].includes(mode),
+            supportsParallel: true,
+          },
+        });
+      } catch (error) {
+        return JSON.stringify({
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    },
+  });
+
+  // Additional tools registered similarly...
+}
+```
+
+**Key Principles**:
+- Tools are thin wrappers with no business logic
+- All operations delegated to VcsEngineService or VcsStrategy
+- Return `JSON.stringify()` responses per FastMCP convention
+- Emit events via ExecutionEventBus for TUI integration
+- Use Zod schemas for comprehensive parameter validation
+
+### Slash Command Integration
+
+Slash commands use MCP VCS tools for worktree-based execution:
+
+**Sequential Execution Flow**:
+```markdown
+1. Call: configure_vcs(mode)
+2. For each task:
+   a. Call: create_task_worktree(task-id, current_branch)
+   b. Spawn agent with worktree-specific prompt
+   c. Wait for completion
+   d. Call: integrate_task_stack([task-id], current_branch)
+   e. Call: cleanup_task_worktree(task-id)
+   f. Update current_branch (mode-specific)
+3. Result: Linear stack (main → task-1 → task-2)
+```
+
+**Parallel Execution Flow**:
+```markdown
+1. Call: configure_vcs(mode)
+2. Bulk create worktrees:
+   For each task: create_task_worktree(task-id, main)
+3. Spawn ALL agents concurrently (isolated worktrees)
+4. Wait for all completions
+5. Call: integrate_task_stack([all-task-ids], main)
+6. Handle conflicts if reported
+7. Cleanup all worktrees
+8. Result: Parallel stack (main → [task-a, task-b, task-c])
+```
+
+### Extension Guide
+
+**Adding a New VCS Backend**:
+
+1. Create backend implementation:
+```typescript
+// src/adapters/vcs/my-vcs/backend.ts
+export class MyVcsBackend implements VcsBackend {
+  async isAvailable(): Promise<boolean> {
+    // Check for binary (e.g., 'my-vcs')
+  }
+
+  async initialize(workdir: string, trunk?: string): Promise<void> {
+    // Initialize VCS backend
+  }
+
+  async createBranch(branchName: string, options: {...}): Promise<void> {
+    // Use execa to call VCS CLI
+  }
+
+  // Implement remaining methods...
+}
+```
+
+2. Add to VcsConfigService:
+```typescript
+// src/services/vcs/vcs-config.ts
+async createBackend(mode: VcsMode, workdir: string): Promise<VcsBackend> {
+  return match(mode)
+    .with('git-spice', () => new GitSpiceBackend(workdir))
+    .with('merge-commit', () => new MergeCommitBackend(workdir))
+    .with('graphite', () => new GraphiteBackend(workdir))
+    .with('my-vcs', () => new MyVcsBackend(workdir))  // Add here
+    .exhaustive();
+}
+```
+
+3. Update VcsMode type:
+```typescript
+// src/core/vcs/vcs-strategy.ts
+export type VcsMode = 'git-spice' | 'merge-commit' | 'graphite' | 'sapling' | 'my-vcs';
+```
+
+4. Add comprehensive tests:
+```typescript
+// src/adapters/vcs/my-vcs/__tests__/backend.test.ts (unit tests)
+// src/adapters/vcs/my-vcs/__tests__/backend.integration.test.ts (integration)
+```
+
+**Testing Pattern**:
+```typescript
+import { setupGitTest } from '@test/helpers';
+
+describe('MyVcsBackend', () => {
+  const { getGit, getTmpDir } = setupGitTest('my-vcs-backend');
+
+  beforeEach(() => {
+    git = getGit();
+    testDir = getTmpDir();
+  });
+
+  it('should create branch with VCS-specific command', async () => {
+    const backend = new MyVcsBackend(testDir);
+    await backend.createBranch('feature-1', { parent: 'main' });
+    // Assertions...
+  });
+});
+```
+
 ## Development Notes
 
 - Package manager is strictly pnpm (not npm or yarn)
