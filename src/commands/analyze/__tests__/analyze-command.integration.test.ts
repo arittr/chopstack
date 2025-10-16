@@ -156,6 +156,7 @@ TBD
         spec: specPath,
         verbose: false,
         format: 'text',
+        agent: 'mock',
       });
 
       // Exit code might be 1 if not 100%, but should have analyzed successfully
@@ -178,6 +179,7 @@ TBD
         output: reportPath,
         verbose: false,
         format: 'text',
+        agent: 'mock',
       });
 
       // Exit code might be 1 if not 100%, but should have written report
@@ -194,6 +196,7 @@ TBD
         spec: specPath,
         verbose: false,
         format: 'text',
+        agent: 'mock',
       });
 
       expect(exitCode).toBe(1);
@@ -212,6 +215,7 @@ TBD
         spec: specPath,
         verbose: false,
         format: 'text',
+        agent: 'mock',
       });
 
       // Should return exit code 1 for incomplete spec
@@ -230,6 +234,7 @@ TBD
         spec: specPath,
         verbose: false,
         format: 'text',
+        agent: 'mock',
       });
 
       expect(exitCode).toBe(1);
@@ -245,6 +250,7 @@ TBD
         spec: specPath,
         verbose: false,
         format: 'text',
+        agent: 'mock',
       });
 
       expect(exitCode).toBe(1);
@@ -278,6 +284,7 @@ TBD
         spec: specPath,
         verbose: false,
         format: 'text',
+        agent: 'mock',
       });
 
       // Exit code might be 0 or 1 depending on completeness
@@ -295,6 +302,7 @@ TBD
         spec: specPath,
         verbose: false,
         format: 'text',
+        agent: 'mock',
       });
 
       // Should complete analysis even without principle files
@@ -314,6 +322,7 @@ TBD
         spec: specPath,
         verbose: false,
         format: 'text',
+        agent: 'mock',
       });
 
       expect(consoleLogSpy).toHaveBeenCalled();
@@ -330,6 +339,7 @@ TBD
         spec: specPath,
         verbose: false,
         format: 'json',
+        agent: 'mock',
       });
 
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"completeness"'));
@@ -344,6 +354,7 @@ TBD
         spec: join(testDir, 'nonexistent.md'),
         verbose: false,
         format: 'text',
+        agent: 'mock',
       });
 
       expect(exitCode).toBe(1);
@@ -355,6 +366,7 @@ TBD
         spec: '/invalid/path/to/spec.md',
         verbose: false,
         format: 'text',
+        agent: 'mock',
       });
 
       expect(exitCode).toBe(1);
