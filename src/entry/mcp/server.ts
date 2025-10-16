@@ -192,5 +192,10 @@ mcp.addTool({
   },
 });
 
+// Start the MCP server with stdio transport
+void mcp.start({
+  transportType: 'stdio',
+});
+
 // Export the server as named export
 export { mcp };
