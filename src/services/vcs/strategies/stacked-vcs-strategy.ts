@@ -500,6 +500,27 @@ export class StackedVcsStrategy implements VcsStrategy {
     }
   }
 
+  /**
+   * Stacked strategy requires worktrees for isolation
+   */
+  requiresWorktrees(): boolean {
+    return true;
+  }
+
+  /**
+   * Stacked strategy supports parallel execution (with dependency ordering)
+   */
+  supportsParallelExecution(): boolean {
+    return true;
+  }
+
+  /**
+   * Stacked strategy supports stacking (git-spice parent/child relationships)
+   */
+  supportsStacking(): boolean {
+    return true;
+  }
+
   private _determineTaskOrder(tasks: TaskV2[]): string[] {
     const ordered: string[] = [];
     const remaining = new Set(tasks);
