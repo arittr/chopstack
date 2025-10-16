@@ -178,7 +178,8 @@ export class CodebaseAnalysisService {
         return response;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        logger.warn(`⚠️ Analysis attempt ${attempt} failed: ${lastError.message}`);
+        const errorMessage = lastError.message;
+        logger.warn(`⚠️ Analysis attempt ${attempt} failed: ${errorMessage}`);
 
         if (attempt < 3) {
           logger.info(`🔄 Retrying... (${3 - attempt} attempts remaining)`);
@@ -287,26 +288,41 @@ Begin analysis now.`;
    * Call agent to perform analysis
    */
   private async _callAgentForAnalysis(prompt: string, cwd: string): Promise<CodebaseAnalysis> {
-    // For now, we use a simplified approach: create a temporary spec
-    // that asks the agent to analyze the codebase and return JSON
-    // The agent will have access to the codebase via cwd
-    const analysisSpec = `# Codebase Analysis Task
+    // Check if agent supports query method
+    if (typeof this._agent.query !== 'function') {
+      // Fallback to manual parsing if agent doesn't support query
+      logger.debug('⚠️ Agent does not support query method, using fallback parsing');
+      return this._extractAnalysisFromPlan(null, cwd);
+    }
 
-${prompt}
+    // Call the agent's query method with the analysis prompt
+    const response = await this._agent.query(prompt, cwd, { verbose: false });
 
-**Working Directory**: ${cwd}
+    // Try to parse the response as JSON
+    try {
+      const json = this._extractJsonFromResponse(response);
+      return json as CodebaseAnalysis;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn(`⚠️ Failed to parse agent response as JSON: ${errorMessage}`);
+      // Fallback to manual parsing
+      return this._extractAnalysisFromPlan(null, cwd);
+    }
+  }
 
-Analyze the codebase in the current directory and return the CodebaseAnalysis JSON as specified above.`;
+  /**
+   * Extract JSON from markdown-wrapped response
+   */
+  private _extractJsonFromResponse(response: string): unknown {
+    // Try to find JSON code block
+    const jsonMatch = response.match(/```json\n([\S\s]+?)\n```/);
+    const jsonContent = jsonMatch?.[1];
+    if (jsonContent !== undefined) {
+      return JSON.parse(jsonContent);
+    }
 
-    // Call the agent's decompose method with our analysis spec
-    // We'll parse the response to extract the analysis JSON
-    // Note: This is a workaround until we have a dedicated agent.analyzeCodebase method
-    const plan = await this._agent.decompose(analysisSpec, cwd, { verbose: false });
-
-    // Extract analysis from plan description or a special task
-    // For now, we'll construct it from what we can infer
-    // This is a placeholder - the actual implementation will need proper agent support
-    return this._extractAnalysisFromPlan(plan, cwd);
+    // Try to parse the whole response as JSON
+    return JSON.parse(response);
   }
 
   /**
