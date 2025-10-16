@@ -17,6 +17,62 @@ Examples:
 
 ## Execution Protocol
 
+### Step 0: Initialize MCP VCS
+
+Before executing any phase, verify chopstack MCP server availability and configure VCS mode:
+
+1. **Verify MCP server is available**:
+   - Check if `configure_vcs` tool exists
+   - Check if `create_task_worktree` tool exists
+   - If NOT available: STOP and fail with error message
+
+2. **Configure VCS mode**:
+   - Load VCS mode from configuration file (~/.chopstack/config.yaml)
+   - If mode explicitly specified in config: Call `configure_vcs(mode)`, fail if unavailable
+   - If mode NOT specified: Default to merge-commit (requires only git)
+   - Store VCS mode for agent prompt injection in later steps
+
+**Error Behavior**:
+- **Explicit mode (user configured)**: Fail with installation instructions if tool unavailable
+- **Default mode (merge-commit)**: Fail only if git itself is missing
+
+**MCP Unavailability Error Message**:
+```
+❌ MCP Server Not Available
+
+The chopstack MCP server is required for worktree-based task execution.
+
+Installation:
+1. Ensure chopstack MCP server is running
+2. Check MCP server configuration in Claude Code
+3. Verify MCP tools are available:
+   - configure_vcs
+   - create_task_worktree
+
+For MCP setup instructions, see:
+https://github.com/your-org/chopstack-mcp#installation
+
+Alternative: Run tasks without worktree isolation (not recommended for parallel phases)
+```
+
+**VCS Tool Unavailability Error Message (Explicit Mode)**:
+```
+❌ VCS Mode Not Available
+
+Requested mode: {mode} (from ~/.chopstack/config.yaml)
+Error: '{tool-binary}' not found in PATH
+
+Installation:
+{mode-specific installation instructions}
+
+Alternative: Change mode in config
+  ~/.chopstack/config.yaml:
+    vcs:
+      mode: merge-commit  # or remove to use merge-commit default
+
+Then retry: /execute-phase {project} {phase-id}
+```
+
 ### Step 1: Parse Phase from Plan
 
 1. Read @.chopstack/specs/{project}/plan.yaml
