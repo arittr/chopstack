@@ -9,7 +9,6 @@ export default defineConfig([
       },
     },
     entry: {
-      'bin/chopstack': 'src/entry/cli/chopstack.ts',
       index: 'src/index.ts',
     },
     esbuildPlugins: [],
@@ -23,7 +22,5 @@ export default defineConfig([
     splitting: false,
     target: 'node18',
     treeshake: true,
-    // Preserve CLI shebang from src/bin/chopstack.ts
-    // esbuild keeps the shebang on entry files automatically
   },
 ]);
