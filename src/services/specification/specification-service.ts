@@ -240,17 +240,18 @@ all required sections.`;
    * Call agent to generate specification
    */
   private async _callAgentForGeneration(prompt: string, cwd: string): Promise<string> {
-    // Use the agent's decompose method as a workaround to get specification content
-    // The agent will analyze the codebase and generate a comprehensive spec
-    // We'll extract the specification from the plan description
-    const plan = await this._agent.decompose(prompt, cwd, { verbose: false });
+    // Check if agent supports query method
+    if (typeof this._agent.query !== 'function') {
+      // Fallback to minimal spec if agent doesn't support query
+      logger.debug('⚠️ Agent does not support query method, using minimal specification');
+      return this._generateMinimalSpecification();
+    }
 
-    // Extract specification from plan
-    // For now, we'll use the plan description as the specification
-    // This is a temporary workaround until we have a dedicated agent.generateSpec method
-    const specification = this._extractSpecificationFromPlan(plan);
+    // Call the agent's query method with the specification prompt
+    const response = await this._agent.query(prompt, cwd, { verbose: false });
 
-    return specification;
+    // Return the response as-is (it should be markdown)
+    return response;
   }
 
   /**
