@@ -2,31 +2,6 @@
  * Git-spice helper utilities
  */
 
-import { execaSync } from 'execa';
-
-/**
- * Helper function to initialize git-spice repo (for backwards compatibility)
- */
-export function initGitSpiceRepo(
-  cwd?: string,
-  trunk?: string,
-): { error?: string; success: boolean } {
-  try {
-    const args = ['repo', 'init'];
-    if (trunk !== undefined && trunk.length > 0) {
-      args.push('--trunk', trunk);
-    }
-    const options = cwd !== undefined && cwd.length > 0 ? { cwd } : {};
-    execaSync('gs', args, options);
-    return { success: true };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
 /**
  * Generate a branch name from commit message
  */
