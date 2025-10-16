@@ -7,6 +7,7 @@ import { isValidArray } from '@/validation/guards';
 
 export type PlanGenerationOptions = {
   maxRetries?: number;
+  planOutputPath?: string;
   verbose?: boolean;
 };
 
@@ -26,7 +27,7 @@ export async function generatePlanWithRetry(
   cwd: string,
   options: PlanGenerationOptions = {},
 ): Promise<PlanGenerationResult> {
-  const { maxRetries = 3, verbose = false } = options;
+  const { maxRetries = 3, verbose = false, planOutputPath } = options;
   let attempt = 1;
   const conflictHistory: string[] = [];
 
@@ -43,7 +44,10 @@ export async function generatePlanWithRetry(
     const enhancedContent = buildEnhancedPrompt(specContent, conflictHistory, attempt);
 
     // Decompose the specification into a plan
-    const plan = await agent.decompose(enhancedContent, cwd, { verbose });
+    const plan = await agent.decompose(enhancedContent, cwd, {
+      verbose,
+      ...(planOutputPath !== undefined && { planOutputPath }),
+    });
     logger.info(`📋 Generated plan with ${plan.tasks.length} tasks`);
 
     // Validate the plan
@@ -119,6 +123,8 @@ function buildEnhancedPrompt(
   conflictHistory: string[],
   attempt: number,
 ): string {
+  // Note: planOutputPath is used in PromptBuilder.buildDecompositionPrompt()
+  // and doesn't need to be used in retry guidance
   if (attempt === 1 || conflictHistory.length === 0) {
     return originalContent;
   }
