@@ -202,12 +202,103 @@ Execute {task-id} now.
 
 #### For Parallel Phases (strategy: parallel)
 
-Execute ALL tasks CONCURRENTLY:
+Execute ALL tasks CONCURRENTLY with isolated worktrees:
 
-1. Send a SINGLE message with MULTIPLE Task tool invocations
-2. Each Task tool gets the same prompt template as above, but with different {task-id}
-3. All agents run simultaneously
-4. Wait for ALL agents to complete before reporting success
+**Phase Setup:**
+1. **Create all worktrees upfront**:
+   - For each task in phase.tasks:
+     - Call `create_task_worktree(task-id, current_branch)`
+     - Receive: { path, branch, baseRef }
+   - Store in `worktree_map[task-id] = { path, branch, baseRef }`
+
+2. **Spawn ALL agents concurrently**:
+   - Send a SINGLE message with MULTIPLE Task tool invocations
+   - Each Task tool gets a modified prompt with worktree-specific setup
+   - All agents run simultaneously
+
+**Modified Agent Prompt for Parallel Execution:**
+
+For each task, inject WORKTREE SETUP section at the beginning:
+
+```
+ROLE: You are a task execution agent for chopstack v2.
+
+YOUR TASK: {task-id}
+
+WORKTREE SETUP:
+You are working in an isolated worktree for this task:
+1. Change to worktree: cd {worktree_path}
+2. You are on branch: {branch_name}
+3. Base reference: {base_ref}
+
+CRITICAL: ALWAYS work in the worktree directory above. Do NOT work in the main repository.
+
+TASK EXTRACTION:
+[... rest of standard prompt ...]
+
+Step 4: Commit with VCS (AFTER quality gate passes)
+
+1. Stage all changes: `git add --all`
+2. Create commit with VCS-specific command:
+   {vcs_commit_command}
+
+CRITICAL RULES:
+- ✅ ALWAYS work in worktree: {worktree_path}
+- ✅ ALWAYS use VCS-specific commit command: {vcs_commit_command}
+- ✅ ALWAYS fix ALL linting errors before committing
+[... rest of critical rules ...]
+```
+
+Where `{vcs_commit_command}` is:
+- **git-spice**: `pnpm commit` (will invoke gs branch create)
+- **merge-commit**: `git commit -m "[{task-id}] Brief description"`
+- **graphite**: `gt commit -m "[{task-id}] Brief description"`
+
+**Phase Completion:**
+3. **Wait for all agents to complete**:
+   - Monitor all task statuses
+   - Collect any errors or failures
+
+4. **Integrate task stack**:
+   - Call `integrate_task_stack(taskIds, targetBranch, workdir, { submit: false })`
+   - taskIds: All task IDs from this phase
+   - targetBranch: Current branch (usually "main" or current feature branch)
+   - Receive: { success, conflicts, mergedBranches, prUrls? }
+
+5. **Handle conflicts if reported**:
+   - If conflicts detected:
+     ```
+     ❌ Integration Conflicts Detected
+
+     Conflicts in tasks:
+     - {task-id-1}: {conflicted-files}
+     - {task-id-2}: {conflicted-files}
+
+     Resolution:
+     1. Worktrees kept intact at:
+        - {worktree-path-1}
+        - {worktree-path-2}
+     2. Fix conflicts manually in each worktree
+     3. Commit fixes
+     4. Retry integration: /execute-phase {project} {phase-id}
+
+     Alternative: Adjust task boundaries in plan.yaml to avoid file overlaps
+     ```
+   - Keep worktrees intact for manual resolution
+   - STOP execution
+
+6. **Cleanup all worktrees**:
+   - For each task in phase.tasks:
+     - Call `cleanup_task_worktree(task-id, keepBranch)`
+   - keepBranch behavior:
+     - **git-spice**: true (preserve branches for stack)
+     - **merge-commit**: false (delete merged branches)
+     - **graphite**: true (preserve for stack submission)
+
+**Result**: Parallel stack where all tasks branch from same base and integrate together
+- **git-spice**: main → [task-a, task-b, task-c] (all tracked as siblings)
+- **merge-commit**: main ← [task-a, task-b, task-c] (all merged with --no-ff)
+- **graphite**: main → [task-a, task-b, task-c] (stacked for submission)
 
 ### Step 4: Verify Phase Completion
 
