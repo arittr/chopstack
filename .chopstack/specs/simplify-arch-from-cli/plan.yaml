@@ -1,0 +1,715 @@
+version: "2.0"
+metadata:
+  projectName: "VCS-Agnostic Worktree Management via MCP"
+  description: "Implement VCS-agnostic worktree management through MCP server, enabling parallel task execution with complete isolation and support for multiple version control workflows"
+  createdAt: "2025-10-16"
+  estimatedTotalHours: 98.5
+  totalTasks: 29
+
+phases:
+  - id: "phase-1"
+    name: "VCS Backend Abstraction"
+    description: "Create abstraction layer for VCS backends with support for git-spice, merge-commit, graphite, and sapling"
+    tasks:
+      - id: "1-1"
+        name: "Enhance VcsBackend Interface"
+        description: "Modify src/core/vcs/interfaces.ts to generalize VcsBackend interface. Add optional methods for stack operations, separate branch creation from parent tracking, add conflict resolution primitives."
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - "src/core/vcs/interfaces.ts"
+          - "src/core/vcs/__tests__/interfaces.test.ts"
+        dependencies: []
+        acceptanceCriteria:
+          - "VcsBackend interface supports non-stacking workflows"
+          - "createBranch method accepts options for parent, base, track"
+          - "commit method generalized with files and allowEmpty options"
+          - "Optional methods added: trackBranch?, restack?, getStackInfo?"
+          - "Conflict resolution methods added: hasConflicts, getConflictedFiles, abortMerge"
+          - "All existing code compiles with new interface"
+          - "Type definitions exported and documented"
+
+      - id: "1-2"
+        name: "Enhance VcsStrategy Interface"
+        description: "Modify src/core/vcs/vcs-strategy.ts to update VcsMode type and add capability queries to VcsStrategy interface"
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - "src/core/vcs/vcs-strategy.ts"
+          - "src/core/vcs/__tests__/vcs-strategy.test.ts"
+        dependencies: []
+        acceptanceCriteria:
+          - "VcsMode type updated to: 'git-spice' | 'merge-commit' | 'graphite' | 'sapling'"
+          - "VcsStrategyContext includes backend: VcsBackend"
+          - "Capability queries added: supportsParallelExecution(), requiresWorktrees(), supportsStacking()"
+          - "WorktreeContext type fully defined with all fields"
+          - "TaskCommitResult type includes error field"
+          - "All type exports documented with TSDoc"
+          - "pnpm type-check passes"
+
+      - id: "1-3"
+        name: "Update GitSpiceBackend for New Interface"
+        description: "Update src/adapters/vcs/git-spice/backend.ts to implement enhanced VcsBackend interface. Refactor method signatures to match new interface."
+        complexity: "M"
+        estimatedHours: 4
+        files:
+          - "src/adapters/vcs/git-spice/backend.ts"
+          - "src/adapters/vcs/git-spice/__tests__/backend.test.ts"
+        dependencies:
+          - "1-1"
+        acceptanceCriteria:
+          - "GitSpiceBackend implements enhanced VcsBackend interface"
+          - "createBranch method uses options parameter"
+          - "commit method signature updated"
+          - "Conflict resolution methods implemented"
+          - "All existing tests updated and passing"
+          - "Unit test coverage >90%"
+          - "pnpm lint passes"
+
+      - id: "1-4"
+        name: "Implement MergeCommitBackend Core"
+        description: "Create src/adapters/vcs/merge-commit/backend.ts implementing VcsBackend interface for simple merge workflows without parent tracking"
+        complexity: "M"
+        estimatedHours: 4
+        files:
+          - "src/adapters/vcs/merge-commit/backend.ts"
+          - "src/adapters/vcs/merge-commit/index.ts"
+        dependencies:
+          - "1-1"
+        acceptanceCriteria:
+          - "MergeCommitBackend class implements VcsBackend"
+          - "isAvailable checks for git binary only"
+          - "initialize method sets up workdir"
+          - "createBranch uses base or parent with standard git"
+          - "commit method stages and commits with standard git"
+          - "deleteBranch method implemented"
+          - "Conflict resolution methods implemented"
+          - "No stack-specific operations (no trackBranch, restack)"
+          - "GitWrapper used for git operations"
+          - "Error handling with clear messages"
+
+      - id: "1-5"
+        name: "Add MergeCommitBackend Tests"
+        description: "Create comprehensive unit and integration tests for MergeCommitBackend"
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - "src/adapters/vcs/merge-commit/__tests__/backend.test.ts"
+          - "src/adapters/vcs/merge-commit/__tests__/backend.integration.test.ts"
+        dependencies:
+          - "1-4"
+        acceptanceCriteria:
+          - "Unit tests with mocked git operations"
+          - "Integration tests with real git using GitTestEnvironment"
+          - "Tests cover isAvailable, createBranch, commit, deleteBranch"
+          - "Tests cover conflict detection and resolution"
+          - "Error cases tested (missing git, invalid refs)"
+          - "Test coverage >90%"
+          - "pnpm test passes"
+
+      - id: "1-6"
+        name: "Create GraphiteBackend Stub"
+        description: "Create src/adapters/vcs/graphite/backend.ts as placeholder implementation with clear error messages and future implementation notes"
+        complexity: "S"
+        estimatedHours: 1
+        files:
+          - "src/adapters/vcs/graphite/backend.ts"
+          - "src/adapters/vcs/graphite/index.ts"
+        dependencies:
+          - "1-1"
+        implementationSteps:
+          - "Create src/adapters/vcs/graphite/backend.ts file"
+          - "Import VcsBackend interface from @/core/vcs/interfaces"
+          - "Implement GraphiteBackend class with all required methods throwing NotImplementedError"
+          - "Add TSDoc comments documenting gt CLI commands for future implementation"
+          - "Add TODO comments with complexity estimates (M complexity, 4-6 days)"
+          - "Create index.ts with exports"
+        acceptanceCriteria:
+          - "GraphiteBackend class implements VcsBackend"
+          - "isAvailable returns false with warning log"
+          - "All methods throw 'not yet implemented' errors"
+          - "Error messages suggest using git-spice or merge-commit"
+          - "TSDoc comments document future implementation approach"
+          - "TODO comments reference gt CLI commands"
+          - "Estimated complexity documented (M, 4-6 days)"
+
+      - id: "1-7"
+        name: "Create SaplingBackend Stub"
+        description: "Create src/adapters/vcs/sapling/backend.ts as placeholder with documentation of incompatibility with worktree strategy"
+        complexity: "S"
+        estimatedHours: 1
+        files:
+          - "src/adapters/vcs/sapling/backend.ts"
+          - "src/adapters/vcs/sapling/index.ts"
+        dependencies:
+          - "1-1"
+        implementationSteps:
+          - "Create src/adapters/vcs/sapling/backend.ts file"
+          - "Import VcsBackend interface from @/core/vcs/interfaces"
+          - "Implement SaplingBackend class with all required methods throwing NotImplementedError"
+          - "Add TSDoc comments documenting worktree incompatibility and migration path"
+          - "Add TODO comments with implementation complexity notes"
+          - "Create index.ts with exports"
+        acceptanceCriteria:
+          - "SaplingBackend class implements VcsBackend"
+          - "isAvailable returns false with warning"
+          - "All methods throw 'not yet implemented' errors"
+          - "TSDoc documents worktree incompatibility"
+          - "Migration path notes included"
+          - "Estimated implementation complexity documented"
+
+      - id: "1-8a"
+        name: "Implement VcsConfigService Core"
+        description: "Create VcsConfigService with config loading and validation logic"
+        complexity: "M"
+        estimatedHours: 2.5
+        files:
+          - "src/services/vcs/vcs-config.ts"
+          - "src/services/vcs/types.ts"
+        dependencies:
+          - "1-2"
+        implementationSteps:
+          - "Create src/services/vcs/types.ts with VcsConfig and VcsConfigService types"
+          - "Define VcsConfigService interface with loadConfig, validateMode, createBackend methods"
+          - "Implement VcsConfigServiceImpl class"
+          - "Implement loadConfig to read from ~/.chopstack/config.yaml"
+          - "Implement config priority: CLI args > file > defaults"
+          - "Implement validateMode to check backend availability"
+          - "Add error types for configuration failures"
+        acceptanceCriteria:
+          - "VcsConfigService interface fully defined"
+          - "VcsConfigServiceImpl class implements interface"
+          - "loadConfig reads from ~/.chopstack/config.yaml"
+          - "Config priority: CLI args > file > defaults"
+          - "validateMode checks backend availability"
+          - "Explicit mode fails if tool unavailable"
+          - "Default mode uses merge-commit"
+
+      - id: "1-8b"
+        name: "Add Backend Creation and Error Handling"
+        description: "Complete VcsConfigService with backend factory and comprehensive error messages"
+        complexity: "M"
+        estimatedHours: 2
+        files:
+          - "src/services/vcs/vcs-config.ts"
+          - "src/services/vcs/index.ts"
+        dependencies:
+          - "1-8a"
+          - "1-4"
+        implementationSteps:
+          - "Implement createBackend method using ts-pattern for backend selection"
+          - "Add backend instantiation for MergeCommitBackend"
+          - "Add backend instantiation for GitSpiceBackend"
+          - "Add placeholder handling for GraphiteBackend and SaplingBackend"
+          - "Implement error messages with installation instructions per mode"
+          - "Add comprehensive error handling with clear resolution steps"
+          - "Export VcsConfigService from index.ts"
+        acceptanceCriteria:
+          - "createBackend uses ts-pattern for backend selection"
+          - "Installation instructions per mode"
+          - "Error handling with clear messages"
+
+      - id: "1-9"
+        name: "Add VcsConfigService Tests"
+        description: "Create comprehensive tests for VcsConfigService including config loading, validation, and backend creation"
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - "src/services/vcs/__tests__/vcs-config.test.ts"
+          - "src/services/vcs/__tests__/vcs-config.integration.test.ts"
+        dependencies:
+          - "1-8b"
+        acceptanceCriteria:
+          - "Unit tests with mocked file system and backends"
+          - "Integration tests with real config files"
+          - "Tests cover all config loading scenarios"
+          - "Tests cover explicit vs default mode validation"
+          - "Tests cover backend creation for all modes"
+          - "Error cases tested (missing file, invalid config)"
+          - "Test coverage >90%"
+
+  - id: "phase-2"
+    name: "MCP Integration"
+    description: "Create MCP tools for VCS operations with Zod schemas and integrate into MCP server"
+    tasks:
+      - id: "2-1"
+        name: "Create VCS Zod Schemas"
+        description: "Create src/entry/mcp/schemas/vcs-schemas.ts with comprehensive Zod schemas for all 5 VCS MCP tools"
+        complexity: "M"
+        estimatedHours: 4
+        files:
+          - "src/entry/mcp/schemas/vcs-schemas.ts"
+          - "src/entry/mcp/schemas/index.ts"
+        dependencies:
+          - "1-2"
+        acceptanceCriteria:
+          - "VcsModeEnum schema: 'git-spice' | 'merge-commit' | 'graphite' | 'sapling'"
+          - "ConfigureVcsSchema with mode, workdir, trunk"
+          - "ConfigureVcsResponseSchema with status, mode, available, capabilities, error"
+          - "CreateWorktreeSchema with taskId regex validation"
+          - "CreateWorktreeResponseSchema with all paths and refs"
+          - "IntegrateStackSchema with tasks array and options"
+          - "IntegrateStackResponseSchema with conflicts array"
+          - "CleanupWorktreeSchema with keepBranch option"
+          - "ListWorktreesSchema with includeOrphaned option"
+          - "All schemas have TSDoc with examples"
+          - "Type inference helpers exported"
+          - "pnpm type-check passes"
+
+      - id: "2-2"
+        name: "Implement configure_vcs MCP Tool"
+        description: "Create src/entry/mcp/tools/vcs-tools.ts and implement configure_vcs tool for VCS mode configuration"
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - "src/entry/mcp/tools/vcs-tools.ts"
+          - "src/entry/mcp/tools/index.ts"
+        dependencies:
+          - "2-1"
+          - "1-8b"
+        acceptanceCriteria:
+          - "configure_vcs tool registered with FastMCP"
+          - "Uses ConfigureVcsSchema for parameters"
+          - "Creates VcsConfigService instance"
+          - "Validates mode (explicit or default)"
+          - "Returns success with mode and capabilities"
+          - "Returns failure with clear error message"
+          - "Explicit mode failure includes installation instructions"
+          - "Default mode (merge-commit) always succeeds if git present"
+          - "Returns JSON.stringify() response"
+
+      - id: "2-3"
+        name: "Implement create_task_worktree MCP Tool"
+        description: "Implement create_task_worktree tool for isolated worktree creation"
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - "src/entry/mcp/tools/vcs-tools.ts"
+        dependencies:
+          - "2-1"
+          - "1-8b"
+        acceptanceCriteria:
+          - "create_task_worktree tool registered"
+          - "Uses CreateWorktreeSchema for validation"
+          - "Delegates to VcsEngineService.createWorktreesForTasks"
+          - "Returns success with path, branch, baseRef"
+          - "Handles branch name collisions with retry"
+          - "Returns failure with actionable error message"
+          - "Returns JSON.stringify() response"
+
+      - id: "2-4"
+        name: "Implement integrate_task_stack MCP Tool"
+        description: "Implement integrate_task_stack tool for mode-specific stack integration"
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - "src/entry/mcp/tools/vcs-tools.ts"
+        dependencies:
+          - "2-1"
+          - "1-8b"
+        acceptanceCriteria:
+          - "integrate_task_stack tool registered"
+          - "Uses IntegrateStackSchema for validation"
+          - "Delegates to VcsEngineService.buildStackFromTasks"
+          - "Returns success with branches and optional prUrls"
+          - "Detects and reports merge conflicts"
+          - "Returns conflict details with resolution steps"
+          - "Returns JSON.stringify() response"
+
+      - id: "2-5"
+        name: "Implement cleanup_task_worktree and list_task_worktrees Tools"
+        description: "Implement cleanup and list tools for worktree management"
+        complexity: "M"
+        estimatedHours: 2
+        files:
+          - "src/entry/mcp/tools/vcs-tools.ts"
+        dependencies:
+          - "2-1"
+          - "1-8b"
+        acceptanceCriteria:
+          - "cleanup_task_worktree tool registered"
+          - "Delegates to VcsEngineService.cleanupWorktrees"
+          - "Supports keepBranch option for git-spice"
+          - "list_task_worktrees tool registered"
+          - "Returns all active worktrees with metadata"
+          - "Supports includeOrphaned option"
+          - "Both return JSON.stringify() responses"
+
+      - id: "2-6"
+        name: "Register VCS Tools in MCP Server"
+        description: "Update src/entry/mcp/server.ts to register VCS tools and remove GitWorkflowManager"
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - "src/entry/mcp/server.ts"
+          - "src/entry/mcp/index.ts"
+        dependencies:
+          - "2-2"
+          - "2-3"
+          - "2-4"
+          - "2-5"
+        acceptanceCriteria:
+          - "GitWorkflowManager class removed"
+          - "VcsEngineService instantiated"
+          - "registerVcsTools function called with mcp and vcsEngine"
+          - "All 5 VCS tools available in MCP server"
+          - "Existing MCP tools still functional"
+          - "MCP server starts successfully"
+          - "pnpm run start:mcp works"
+
+      - id: "2-7"
+        name: "Create VCS MCP Tools Unit Tests"
+        description: "Create unit tests for all VCS MCP tools with mocked VcsEngineService"
+        complexity: "M"
+        estimatedHours: 4
+        files:
+          - "src/entry/mcp/tools/__tests__/vcs-tools.test.ts"
+        dependencies:
+          - "2-6"
+        acceptanceCriteria:
+          - "Unit tests for all 5 VCS tools"
+          - "VcsEngineService mocked for isolation"
+          - "Success cases tested for each tool"
+          - "Error cases tested (backend unavailable, conflicts)"
+          - "Parameter validation tested"
+          - "Response format validated"
+          - "Test coverage >90%"
+          - "pnpm test passes"
+
+      - id: "2-8"
+        name: "Create VCS MCP Tools Integration Tests"
+        description: "Create integration tests for VCS tools with real VcsEngineService and git operations"
+        complexity: "M"
+        estimatedHours: 4
+        files:
+          - "src/entry/mcp/tools/__tests__/vcs-tools.integration.test.ts"
+        dependencies:
+          - "2-6"
+        acceptanceCriteria:
+          - "Integration tests use real VcsEngineService"
+          - "GitTestEnvironment used for git isolation"
+          - "Tests cover git-spice and merge-commit modes"
+          - "Tests cover complete workflows (create → integrate → cleanup)"
+          - "Tests cover error scenarios (conflicts, missing tool)"
+          - "Event emission verified"
+          - "Test coverage includes all code paths"
+          - "pnpm test passes"
+
+  - id: "phase-3"
+    name: "Slash Command Integration"
+    description: "Integrate VCS MCP tools into slash commands for automated worktree-based execution"
+    tasks:
+      - id: "3-1"
+        name: "Add MCP Verification to Execute-Phase"
+        description: "Update .claude/commands/execute-phase.md to add MCP server verification and VCS mode configuration"
+        complexity: "S"
+        estimatedHours: 2
+        files:
+          - ".claude/commands/execute-phase.md"
+        dependencies: []
+        acceptanceCriteria:
+          - "Step 0 added: Initialize MCP VCS"
+          - "Verifies configure_vcs tool exists"
+          - "Verifies create_task_worktree tool exists"
+          - "Fails with installation instructions if MCP unavailable"
+          - "Loads VCS mode from config or defaults to merge-commit"
+          - "Calls configure_vcs to validate tool availability"
+          - "Stores VCS mode for agent prompt injection"
+          - "Error behavior documented (explicit vs default mode)"
+
+      - id: "3-2"
+        name: "Implement Sequential Execution with Worktrees"
+        description: "Enhance execute-phase sequential execution to use worktrees for isolation"
+        complexity: "M"
+        estimatedHours: 4
+        files:
+          - ".claude/commands/execute-phase.md"
+        dependencies:
+          - "3-1"
+        acceptanceCriteria:
+          - "Sequential execution creates worktree before each task"
+          - "Calls create_task_worktree with taskId and current_branch"
+          - "Agent prompt modified with WORKTREE SETUP section"
+          - "Prompt includes worktree path, branch name, base ref"
+          - "Prompt includes VCS-specific commit command"
+          - "After completion, calls integrate_task_stack for single task"
+          - "After integration, calls cleanup_task_worktree"
+          - "Updates current_branch for next task (mode-specific)"
+          - "Result: Linear stack (main → task-1 → task-2)"
+
+      - id: "3-3"
+        name: "Implement Parallel Execution with Worktrees"
+        description: "Enhance execute-phase parallel execution to use isolated worktrees for true parallelization"
+        complexity: "M"
+        estimatedHours: 4
+        files:
+          - ".claude/commands/execute-phase.md"
+        dependencies:
+          - "3-1"
+        acceptanceCriteria:
+          - "Parallel execution creates all worktrees upfront"
+          - "Bulk create_task_worktree calls for all tasks"
+          - "worktree_map stores path/branch per task"
+          - "All agents spawned concurrently with task-specific prompts"
+          - "Each prompt has unique worktree path and branch"
+          - "Waits for all agents to complete"
+          - "Calls integrate_task_stack with all task IDs"
+          - "Handles conflicts if reported"
+          - "Cleanup all worktrees after integration"
+          - "Result: Parallel stack (main → [task-a, task-b, task-c])"
+
+      - id: "3-4"
+        name: "Add VCS-Specific Agent Prompt Injection"
+        description: "Document VCS-specific commit commands and worktree setup in agent prompts"
+        complexity: "S"
+        estimatedHours: 2
+        files:
+          - ".claude/commands/execute-phase.md"
+        dependencies:
+          - "3-2"
+          - "3-3"
+        acceptanceCriteria:
+          - "WORKTREE SETUP section template defined"
+          - "Includes cd {worktree_path} instruction"
+          - "Shows branch name and base ref"
+          - "VCS-specific commit commands documented"
+          - "git-spice: pnpm commit"
+          - "merge-commit: git commit -m '[{task-id}] ...'"
+          - "graphite: gt commit -m '[{task-id}] ...'"
+          - "Template shows where to inject task instructions"
+          - "Critical rules documented (ALWAYS work in worktree)"
+
+      - id: "3-5"
+        name: "Add Comprehensive Error Handling"
+        description: "Document error handling for worktree creation failures, integration conflicts, and cleanup failures"
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - ".claude/commands/execute-phase.md"
+        dependencies:
+          - "3-2"
+          - "3-3"
+        acceptanceCriteria:
+          - "Worktree creation failure handling documented"
+          - "Branch collision retry logic specified"
+          - "Integration conflict handling documented"
+          - "Keeps worktrees intact on conflict for manual resolution"
+          - "Provides conflict resolution instructions"
+          - "Cleanup failure handling documented"
+          - "Logs warnings but continues execution"
+          - "MCP unavailability error with installation guide"
+          - "All error messages include context and resolution steps"
+
+  - id: "phase-4"
+    name: "Testing & Documentation"
+    description: "Create E2E tests, performance benchmarks, comprehensive documentation, and final code review"
+    tasks:
+      - id: "4-1"
+        name: "Create E2E Test for git-spice Workflow"
+        description: "Create end-to-end test for complete git-spice workflow with worktrees and stack integration"
+        complexity: "M"
+        estimatedHours: 4
+        files:
+          - "test/e2e/vcs-modes/git-spice-workflow.test.ts"
+        dependencies:
+          - "2-8"
+        acceptanceCriteria:
+          - "E2E test creates real git repository"
+          - "Tests configure_vcs with git-spice mode"
+          - "Tests sequential execution with worktrees"
+          - "Tests parallel execution with worktrees"
+          - "Verifies stack creation and branch relationships"
+          - "Uses GitTestEnvironment for isolation"
+          - "Test passes in CI/CD"
+
+      - id: "4-2"
+        name: "Create E2E Test for merge-commit Workflow"
+        description: "Create end-to-end test for merge-commit workflow without stack dependencies"
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - "test/e2e/vcs-modes/merge-commit-workflow.test.ts"
+        dependencies:
+          - "2-8"
+        acceptanceCriteria:
+          - "E2E test for merge-commit mode"
+          - "Tests worktree creation from main branch"
+          - "Tests parallel execution with merge integration"
+          - "Verifies branches merged with --no-ff"
+          - "No stack dependencies tested"
+          - "Uses GitTestEnvironment"
+          - "Test passes in CI/CD"
+
+      - id: "4-3"
+        name: "Create E2E Tests for Error Scenarios"
+        description: "Create tests for worktree conflicts, VCS tool unavailability, and integration conflicts"
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - "test/e2e/vcs-modes/error-scenarios.test.ts"
+        dependencies:
+          - "2-8"
+        acceptanceCriteria:
+          - "Tests branch name collision handling"
+          - "Tests VCS tool unavailability (explicit mode)"
+          - "Tests default mode fallback"
+          - "Tests merge conflict detection"
+          - "Tests conflict reporting with file list"
+          - "Verifies error messages include resolution steps"
+          - "All error paths covered"
+
+      - id: "4-4"
+        name: "Create Performance Benchmarks"
+        description: "Create benchmarks for worktree operations to ensure performance requirements met"
+        complexity: "S"
+        estimatedHours: 2
+        files:
+          - "test/performance/vcs-operations.bench.ts"
+        dependencies: []
+        implementationSteps:
+          - "Create test/performance/vcs-operations.bench.ts file"
+          - "Set up Vitest benchmark framework"
+          - "Create benchmark for worktree creation time (target < 2s per task)"
+          - "Create benchmark for integration time (verify linear scaling)"
+          - "Create benchmark for validation overhead (target < 5ms per tool call)"
+          - "Create benchmark for event emission (target < 5ms per event)"
+          - "Generate performance report with comparison to NFR1 requirements"
+          - "Add baseline measurements from current implementation"
+        acceptanceCriteria:
+          - "Benchmark worktree creation time (< 2 seconds per task)"
+          - "Benchmark integration time (scales linearly)"
+          - "Benchmark validation overhead (< 5ms per tool call)"
+          - "Benchmark event emission (< 5ms per event)"
+          - "Performance report generated"
+          - "All requirements met (NFR1 criteria)"
+
+      - id: "4-5"
+        name: "Update CLAUDE.md with VCS Architecture"
+        description: "Document new VCS architecture patterns, MCP integration, and backend implementations in CLAUDE.md"
+        complexity: "M"
+        estimatedHours: 4
+        files:
+          - "CLAUDE.md"
+        dependencies:
+          - "1-9"
+          - "2-6"
+          - "3-5"
+        acceptanceCriteria:
+          - "VCS Backend Abstraction section added"
+          - "Documents VcsBackend and VcsStrategy patterns"
+          - "MCP VCS Tools section added with all 5 tools"
+          - "VCS mode configuration documented"
+          - "Backend implementation patterns documented"
+          - "Slash command integration patterns documented"
+          - "Error handling patterns documented"
+          - "Code examples for extension"
+
+      - id: "4-6"
+        name: "Create VCS Mode Configuration Guide"
+        description: "Create comprehensive guide for VCS mode configuration with examples for each backend"
+        complexity: "M"
+        estimatedHours: 3
+        files:
+          - "docs/vcs-configuration.md"
+        dependencies: []
+        acceptanceCriteria:
+          - "Configuration file format documented"
+          - "Examples for git-spice, merge-commit, graphite"
+          - "Explicit vs default mode explained"
+          - "Installation instructions per mode"
+          - "Mode selection decision tree"
+          - "Troubleshooting section with common issues"
+          - "Migration from old system documented"
+
+      - id: "4-7"
+        name: "Create Troubleshooting Guide"
+        description: "Document common issues and resolutions for VCS operations and MCP integration"
+        complexity: "S"
+        estimatedHours: 2
+        files:
+          - "docs/troubleshooting.md"
+        dependencies: []
+        implementationSteps:
+          - "Create docs/troubleshooting.md file"
+          - "Document worktree creation failures with resolution steps"
+          - "Document VCS tool unavailability solutions with installation commands"
+          - "Document merge conflict resolution steps with git commands"
+          - "Document MCP server connection issues and debugging steps"
+          - "Document branch naming collision resolution"
+          - "Document orphaned worktree cleanup with git worktree commands"
+          - "Add practical command examples for each issue"
+        acceptanceCriteria:
+          - "Worktree creation failures documented"
+          - "VCS tool unavailability solutions"
+          - "Merge conflict resolution steps"
+          - "MCP server connection issues"
+          - "Branch naming collisions"
+          - "Orphaned worktree cleanup"
+          - "Each issue includes commands to resolve"
+
+      - id: "4-8"
+        name: "Run Full Test Suite and Code Review"
+        description: "Execute complete test suite, fix any issues, run linting and type checking, and perform final code review"
+        complexity: "M"
+        estimatedHours: 4
+        files: []
+        dependencies:
+          - "2-8"
+          - "4-1"
+          - "4-2"
+          - "4-3"
+          - "4-4"
+        acceptanceCriteria:
+          - "pnpm test passes (unit, integration, e2e)"
+          - "pnpm lint passes with zero errors"
+          - "pnpm type-check passes with strict mode"
+          - "pnpm format:check passes"
+          - "Test coverage >90% for new code"
+          - "No any types in production code"
+          - "All error messages follow NFR3 standards"
+          - "Performance requirements met (NFR1)"
+          - "CI/CD pipeline succeeds"
+
+dependencies:
+  validation:
+    - type: "phase-sequential"
+      description: "Phases must complete in order: Phase 1 → 2 → 3 → 4"
+    - type: "no-cycles"
+      description: "Task dependency graph must be acyclic (DAG)"
+    - type: "within-phase-parallel"
+      description: "Tasks within same phase can run in parallel if no dependencies"
+
+quality-gates:
+  - phase: "phase-1"
+    criteria:
+      - "All VCS backend interfaces updated and documented"
+      - "MergeCommitBackend fully implemented with >90% test coverage"
+      - "GraphiteBackend and SaplingBackend stubs created"
+      - "VcsConfigService implemented and tested"
+      - "pnpm type-check passes with strict mode"
+      - "All existing tests still pass"
+  - phase: "phase-2"
+    criteria:
+      - "All 5 VCS MCP tools implemented and registered"
+      - "Zod schemas comprehensive with examples"
+      - "GitWorkflowManager removed from MCP server"
+      - "Integration tests pass for git-spice and merge-commit"
+      - "MCP server starts and tools are callable"
+      - "Unit and integration test coverage >90%"
+  - phase: "phase-3"
+    criteria:
+      - "Execute-phase supports MCP VCS tools"
+      - "Sequential execution uses worktrees"
+      - "Parallel execution uses isolated worktrees"
+      - "VCS-specific agent prompts documented"
+      - "Comprehensive error handling implemented"
+      - "Slash commands work end-to-end"
+  - phase: "phase-4"
+    criteria:
+      - "E2E tests pass for all implemented VCS modes"
+      - "Performance benchmarks meet NFR1 requirements"
+      - "CLAUDE.md updated with VCS architecture"
+      - "Configuration and troubleshooting guides created"
+      - "Full test suite passes (unit, integration, e2e)"
+      - "Code quality meets all NFR2 standards"
+      - "Documentation complete and accurate"
