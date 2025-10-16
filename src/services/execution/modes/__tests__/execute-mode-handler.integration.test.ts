@@ -113,6 +113,9 @@ describe('ExecuteModeHandlerImpl Integration Tests', () => {
         commits: ['mock-commit-hash'],
       }),
       cleanup: vi.fn().mockResolvedValue(undefined),
+      requiresWorktrees: vi.fn(() => false),
+      supportsParallelExecution: vi.fn(() => false),
+      supportsStacking: vi.fn(() => false),
     };
 
     // Mock the VcsStrategyFactory to return our mock strategy
