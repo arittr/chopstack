@@ -12,8 +12,8 @@
     "README.md"
   ],
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target node --format esm --sourcemap",
-    "build:watch": "bun build src/index.ts --outdir dist --target node --format esm --sourcemap --watch",
+    "build": "bun build src/index.ts --outdir dist --target node --format esm --sourcemap --packages external",
+    "build:watch": "bun build src/index.ts --outdir dist --target node --format esm --sourcemap --watch --packages external",
     "commit": "bun --filter commitment run commit",
     "dev:mcp": "bun --watch src/index.ts",
     "dev:mcp-inspect": "bun x fastmcp dev src/index.ts",
