@@ -4,42 +4,34 @@
   "description": "Chop massive AI changes into clean, reviewable PR stacks - AI-powered parallel Git workflows with intelligent task decomposition",
   "type": "module",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+    ".": "./dist/index.js"
   },
   "files": [
     "dist",
     "README.md"
   ],
   "scripts": {
-    "build": "tsup",
-    "build:watch": "tsup --watch",
-    "commit": "pnpm --filter commitment run commit",
-    "dev:mcp": "fastmcp dev src/index.ts",
-    "dev:mcp-inspect": "fastmcp inspect src/index.ts",
-    "dev:mcp-build": "tsup --watch",
-    "inspect:mcp": "fastmcp inspect src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node --format esm --sourcemap",
+    "build:watch": "bun build src/index.ts --outdir dist --target node --format esm --sourcemap --watch",
+    "commit": "bun --filter commitment run commit",
+    "dev:mcp": "bun --watch src/index.ts",
+    "dev:mcp-inspect": "bun x fastmcp dev src/index.ts",
+    "inspect:mcp": "bun x fastmcp inspect src/index.ts",
     "clean": "rm -rf dist",
-    "start:mcp": "node dist/index.js",
-    "lint": "pnpm run type-check && pnpm run format:check && eslint .",
-    "lint:fix": "pnpm run format && eslint . --fix",
+    "start:mcp": "bun dist/index.js",
+    "lint": "bun run type-check && bun run format:check && eslint .",
+    "lint:fix": "bun run format && eslint . --fix",
     "format": "prettier --cache --write .",
     "format:check": "prettier --cache --check .",
     "type-check": "tsc --noEmit",
-    "rulesync:generate": "rulesync import --targets claudecode --features \"*\" && rulesync generate",
-    "test": "vitest --run",
-    "test:clean": "rimraf ./test/tmp/*",
-    "test:watch": "vitest --watch",
-    "test:coverage": "vitest --coverage",
-    "test:integration": "vitest --project=integration --run",
-    "test:unit": "vitest --project=unit --run",
-    "test:e2e": "vitest --project=e2e --run",
-    "test:execution": "vitest --project=execution --run",
-    "prepublishOnly": "pnpm run clean && pnpm run build",
+    "test": "bun test",
+    "test:unit": "bun test src/**/*.test.ts",
+    "test:integration": "bun test src/**/*.integration.test.ts",
+    "test:e2e": "bun test test/e2e/**/*.test.ts",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "prepublishOnly": "bun run clean && bun run build",
     "prepare": "husky",
     "knip": "knip"
   },
@@ -58,9 +50,8 @@
   ],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.8.0",
   "engines": {
-    "node": ">=18.0.0"
+    "bun": ">=1.0.0"
   },
   "devDependencies": {
     "@anthropic-ai/claude-code": "^1.0.111",
