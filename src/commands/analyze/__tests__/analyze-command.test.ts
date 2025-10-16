@@ -152,6 +152,7 @@ Architecture details go here.
         spec: 'test-spec.md',
         verbose: false,
         format: 'text' as const,
+        agent: 'mock' as const,
       };
 
       const exitCode = await command.execute(options);
@@ -169,6 +170,7 @@ Architecture details go here.
         spec: 'test-spec.md',
         verbose: false,
         format: 'text' as const,
+        agent: 'mock' as const,
       };
 
       const exitCode = await command.execute(options);
@@ -183,6 +185,7 @@ Architecture details go here.
         spec: 'test-spec.md',
         verbose: false,
         format: 'text' as const,
+        agent: 'mock' as const,
       };
 
       const exitCode = await command.execute(options);
@@ -207,6 +210,7 @@ Architecture details go here.
         codebase: 'codebase.md',
         verbose: false,
         format: 'text' as const,
+        agent: 'mock' as const,
       };
 
       await command.execute(options);
@@ -221,6 +225,7 @@ Architecture details go here.
         output: 'report.json',
         verbose: false,
         format: 'text' as const,
+        agent: 'mock' as const,
       };
 
       await command.execute(options);
@@ -238,6 +243,7 @@ Architecture details go here.
         targetDir: '/custom/dir',
         verbose: false,
         format: 'text' as const,
+        agent: 'mock' as const,
       };
 
       await command.execute(options);
@@ -252,6 +258,7 @@ Architecture details go here.
         spec: 'nonexistent.md',
         verbose: false,
         format: 'text' as const,
+        agent: 'mock' as const,
       };
 
       const exitCode = await command.execute(options);
@@ -271,6 +278,7 @@ Architecture details go here.
         spec: 'test-spec.md',
         verbose: false,
         format: 'text' as const,
+        agent: 'mock' as const,
       };
 
       const exitCode = await command.execute(options);
@@ -288,6 +296,7 @@ Architecture details go here.
         spec: 'test-spec.md',
         verbose: false,
         format: 'json' as const,
+        agent: 'mock' as const,
       };
 
       await command.execute(options);
@@ -304,6 +313,7 @@ Architecture details go here.
         spec: 'test-spec.md',
         verbose: false,
         format: 'text' as const,
+        agent: 'mock' as const,
       };
 
       await command.execute(options);
@@ -329,6 +339,7 @@ Architecture details go here.
         spec: 'test-spec.md',
         verbose: false,
         format: 'text' as const,
+        agent: 'mock' as const,
       };
 
       await command.execute(options);
