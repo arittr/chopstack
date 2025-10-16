@@ -1,5 +1,11 @@
+import { isNonEmptyString } from '@/validation/guards';
+
 export const PromptBuilder = {
-  buildDecompositionPrompt(spec: string): string {
+  buildDecompositionPrompt(spec: string, planOutputPath?: string): string {
+    const outputInstruction = isNonEmptyString(planOutputPath)
+      ? `IMPORTANT: You have permission to write files. Use the Write tool to create ${planOutputPath} with the complete plan structure. Do NOT use ExitPlanMode - write the file directly.`
+      : `Output ONLY the YAML plan wrapped in \`\`\`yaml code fence`;
+
     return `ROLE: You are a task decomposition agent for chopstack v2.
 
 YOUR JOB: Generate a phase-based plan.yaml with well-scoped tasks following chopstack v2 patterns.
@@ -123,13 +129,22 @@ CRITICAL RULES:
 - ❌ NEVER create XS tasks (fold into related task)
 - ❌ NEVER output just a tasks array - output the COMPLETE plan structure
 
-IMPORTANT:
-- Output ONLY the YAML plan wrapped in \`\`\`yaml code fence
-- Always quote file paths that contain special characters like brackets [] or spaces
-- Example: "packages/app/src/app/api/users/[id]/route.ts" (quoted because of [])
-- Example: packages/app/src/services/user.service.ts (no quotes needed)
+IMPORTANT YAML FORMATTING RULES:
+- Quote file paths containing special characters: brackets [], spaces, colons :, etc.
+  - Example: "packages/app/src/app/api/users/[id]/route.ts" (quoted because of [])
+  - Example: packages/app/src/services/user.service.ts (no quotes needed)
+- Quote strings containing quotes by using single quotes around double quotes or vice versa:
+  - Example: '[data-theme="dark"]' (single quotes wrapping double quotes)
+  - Example: "[data-theme='dark']" (double quotes wrapping single quotes)
+- For multi-line strings with special characters, use the literal block scalar (|):
+  - Example:
+    description: |
+      This is a multi-line description
+      that can contain "quotes" and [brackets]
+- Always validate YAML syntax - unescaped quotes will cause parsing errors
 
-Generate the complete plan.yaml now.`;
+ACTION REQUIRED:
+${outputInstruction}`;
   },
 
   buildClaudeCodePrompt(specFile: string): string {
