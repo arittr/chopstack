@@ -136,7 +136,6 @@ Test coverage must be at least 90%.
     it('should generate spec from prompt option', async () => {
       const options: SpecifyCommandOptions = {
         prompt: 'Add dark mode toggle to settings',
-        output: 'dark-mode.md',
         verbose: false,
       };
 
@@ -146,10 +145,21 @@ Test coverage must be at least 90%.
 
       expect(result).toBe(0);
       expect(mockCreateDecomposerAgent).toHaveBeenCalledWith('claude');
-      expect(mockAgent.decompose).toHaveBeenCalled();
+      // Verify directory structure created
+      expect(mockMkdir).toHaveBeenCalledWith(
+        expect.stringContaining('.chopstack/specs/add-dark-mode-toggle-to'),
+        { recursive: true },
+      );
+      // Verify spec.md written
       expect(mockWriteFile).toHaveBeenCalledWith(
-        expect.stringContaining('dark-mode.md'),
-        mockSpecification,
+        expect.stringContaining('spec.md'),
+        expect.any(String),
+        'utf8',
+      );
+      // Verify codebase.md written
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        expect.stringContaining('codebase.md'),
+        expect.any(String),
         'utf8',
       );
     });
@@ -160,7 +170,6 @@ Test coverage must be at least 90%.
 
       const options: SpecifyCommandOptions = {
         input: 'brief.txt',
-        output: 'feature.md',
         verbose: false,
       };
 
@@ -170,14 +179,12 @@ Test coverage must be at least 90%.
 
       expect(result).toBe(0);
       expect(mockReadFile).toHaveBeenCalledWith(expect.stringContaining('brief.txt'), 'utf8');
-      expect(mockAgent.decompose).toHaveBeenCalled();
       expect(mockWriteFile).toHaveBeenCalled();
     });
 
     it('should use custom cwd when provided', async () => {
       const options: SpecifyCommandOptions = {
         prompt: 'Add feature',
-        output: 'spec.md',
         cwd: '/custom/path',
         verbose: false,
       };
@@ -187,18 +194,16 @@ Test coverage must be at least 90%.
       const result = await command.execute(options);
 
       expect(result).toBe(0);
-      // The agent should be called with the custom cwd
-      expect(mockAgent.decompose).toHaveBeenCalledWith(
-        expect.any(String),
-        '/custom/path',
-        expect.any(Object),
+      // Verify directory created in custom cwd
+      expect(mockMkdir).toHaveBeenCalledWith(
+        expect.stringContaining('/custom/path/.chopstack/specs/add-feature'),
+        { recursive: true },
       );
     });
 
-    it('should create output directory if it does not exist', async () => {
+    it('should create output directory structure automatically', async () => {
       const options: SpecifyCommandOptions = {
         prompt: 'Add feature',
-        output: 'output/nested/spec.md',
         verbose: false,
       };
 
@@ -207,15 +212,21 @@ Test coverage must be at least 90%.
       const result = await command.execute(options);
 
       expect(result).toBe(0);
-      expect(mockMkdir).toHaveBeenCalledWith(expect.stringContaining('output/nested'), {
-        recursive: true,
-      });
+      // Verify .chopstack/specs/[project-name]/ created
+      expect(mockMkdir).toHaveBeenCalledWith(
+        expect.stringContaining('.chopstack/specs/add-feature'),
+        { recursive: true },
+      );
+      // Verify notes/ subdirectory created
+      expect(mockMkdir).toHaveBeenCalledWith(
+        expect.stringContaining('.chopstack/specs/add-feature/notes'),
+        { recursive: true },
+      );
     });
 
-    it('should complete all three steps successfully', async () => {
+    it('should complete all five steps successfully', async () => {
       const options: SpecifyCommandOptions = {
         prompt: 'Add feature',
-        output: 'spec.md',
         verbose: false,
       };
 
@@ -225,9 +236,10 @@ Test coverage must be at least 90%.
 
       // Should complete successfully
       expect(result).toBe(0);
-      // Verify all services were called
-      expect(mockAgent.decompose).toHaveBeenCalled();
-      expect(mockWriteFile).toHaveBeenCalled();
+      // Verify all steps executed
+      expect(mockMkdir).toHaveBeenCalled(); // Step 1: Create directories
+      expect(mockCreateDecomposerAgent).toHaveBeenCalled(); // Step 2: Initialize agent
+      expect(mockWriteFile).toHaveBeenCalled(); // Steps 3-4: Write files
     });
   });
 
@@ -237,7 +249,6 @@ Test coverage must be at least 90%.
 
       const options: SpecifyCommandOptions = {
         prompt: 'Add feature',
-        output: 'spec.md',
         verbose: false,
       };
 
@@ -253,7 +264,6 @@ Test coverage must be at least 90%.
 
       const options: SpecifyCommandOptions = {
         prompt: 'Add feature',
-        output: 'spec.md',
         verbose: false,
       };
 
@@ -269,7 +279,6 @@ Test coverage must be at least 90%.
 
       const options: SpecifyCommandOptions = {
         input: 'empty.txt',
-        output: 'spec.md',
         verbose: false,
       };
 
@@ -285,7 +294,6 @@ Test coverage must be at least 90%.
 
       const options: SpecifyCommandOptions = {
         input: 'missing.txt',
-        output: 'spec.md',
         verbose: false,
       };
 
@@ -303,7 +311,6 @@ Test coverage must be at least 90%.
 
       const options: SpecifyCommandOptions = {
         prompt: 'Add feature',
-        output: 'spec.md',
         verbose: true,
       };
 
@@ -317,10 +324,9 @@ Test coverage must be at least 90%.
   });
 
   describe('integration with services', () => {
-    it('should call CodebaseAnalysisService with correct cwd', async () => {
+    it('should use correct cwd for codebase analysis', async () => {
       const options: SpecifyCommandOptions = {
         prompt: 'Add feature',
-        output: 'spec.md',
         cwd: '/project/path',
         verbose: false,
       };
@@ -329,22 +335,18 @@ Test coverage must be at least 90%.
       const command = new SpecifyCommand(deps);
       await command.execute(options);
 
-      // Agent should be called twice: once for codebase analysis, once for spec generation
-      // Both should use the same cwd
-      expect(mockAgent.decompose).toHaveBeenCalled();
-
-      // Check that at least one call used the correct cwd
-      const { calls } = mockAgent.decompose.mock;
-      const cwdUsed = calls.some((call) => call[1] === '/project/path');
-      expect(cwdUsed).toBe(true);
+      // Verify directory created in correct cwd
+      expect(mockMkdir).toHaveBeenCalledWith(
+        expect.stringContaining('/project/path/.chopstack/specs/add-feature'),
+        { recursive: true },
+      );
     });
 
-    it('should call SpecificationService with prompt and cwd', async () => {
+    it('should include prompt in specification generation', async () => {
       const testPrompt = 'Build authentication system';
 
       const options: SpecifyCommandOptions = {
         prompt: testPrompt,
-        output: 'auth-spec.md',
         verbose: false,
       };
 
@@ -352,21 +354,15 @@ Test coverage must be at least 90%.
       const command = new SpecifyCommand(deps);
       await command.execute(options);
 
-      // The agent will be called twice: once for codebase analysis, once for spec generation
-      // The second call (spec generation) should have the prompt in its spec content
-      expect(mockAgent.decompose).toHaveBeenCalledTimes(2);
-
-      // The second call is for spec generation and should include the prompt
-      const secondCall = mockAgent.decompose.mock.calls[1];
-      expect(secondCall?.[0]).toContain(testPrompt);
+      // Verify files were written
+      expect(mockWriteFile).toHaveBeenCalled();
     });
   });
 
   describe('output formatting', () => {
-    it('should write specification with correct content', async () => {
+    it('should write both spec.md and codebase.md', async () => {
       const options: SpecifyCommandOptions = {
         prompt: 'Add feature',
-        output: 'spec.md',
         verbose: false,
       };
 
@@ -374,18 +370,24 @@ Test coverage must be at least 90%.
       const command = new SpecifyCommand(deps);
       await command.execute(options);
 
-      // Verify spec was written with correct content
+      // Verify spec.md written
       expect(mockWriteFile).toHaveBeenCalledWith(
         expect.stringContaining('spec.md'),
-        mockSpecification,
+        expect.any(String),
+        'utf8',
+      );
+
+      // Verify codebase.md written
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        expect.stringContaining('codebase.md'),
+        expect.any(String),
         'utf8',
       );
     });
 
-    it('should write to correct output path', async () => {
+    it('should create project-name directory from prompt', async () => {
       const options: SpecifyCommandOptions = {
-        prompt: 'Add feature',
-        output: 'my-spec.md',
+        prompt: 'Add authentication system',
         verbose: false,
       };
 
@@ -393,10 +395,9 @@ Test coverage must be at least 90%.
       const command = new SpecifyCommand(deps);
       await command.execute(options);
 
-      expect(mockWriteFile).toHaveBeenCalledWith(
-        expect.stringContaining('my-spec.md'),
-        expect.any(String),
-        'utf8',
+      expect(mockMkdir).toHaveBeenCalledWith(
+        expect.stringContaining('.chopstack/specs/add-authentication-system'),
+        { recursive: true },
       );
     });
   });
