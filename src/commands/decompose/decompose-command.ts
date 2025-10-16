@@ -113,11 +113,34 @@ export class DecomposeCommand extends BaseCommand {
 
       return 0;
     } catch (error) {
-      this.logger.error(
-        chalk.red(
-          `❌ Decompose command failed: ${error instanceof Error ? error.message : String(error)}`,
-        ),
-      );
+      this.logger.error(chalk.red('❌ Decompose command failed'));
+      this.logger.error('');
+
+      if (error instanceof Error) {
+        // Show the error name and message
+        this.logger.error(chalk.red(`Error: ${error.name}: ${error.message}`));
+
+        // Show the cause chain if available
+        let currentCause: unknown = error.cause;
+        let depth = 0;
+        while (currentCause instanceof Error && depth < 5) {
+          depth++;
+          this.logger.error(
+            chalk.yellow(`  Caused by: ${currentCause.name}: ${currentCause.message}`),
+          );
+          currentCause = currentCause.cause;
+        }
+
+        // Show stack trace in verbose mode
+        if (options.verbose && error.stack !== undefined) {
+          this.logger.error('');
+          this.logger.error(chalk.dim('Stack trace:'));
+          this.logger.error(chalk.dim(error.stack));
+        }
+      } else {
+        this.logger.error(chalk.red(`Error: ${String(error)}`));
+      }
+
       return 1;
     }
   }

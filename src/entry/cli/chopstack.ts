@@ -2,9 +2,22 @@
 import { Command } from 'commander';
 import { ZodError } from 'zod';
 
-import { createDefaultDependencies, DecomposeCommand, RunCommand, StackCommand } from '@/commands';
+import {
+  AnalyzeCommand,
+  createDefaultDependencies,
+  DecomposeCommand,
+  RunCommand,
+  SpecifyCommand,
+  StackCommand,
+} from '@/commands';
 import { initializeEventConsumer } from '@/services/orchestration/adapters/task-execution-adapter-factory';
-import { validateDecomposeArgs, validateRunArgs, validateStackArgs } from '@/types/cli';
+import {
+  validateAnalyzeArgs,
+  validateDecomposeArgs,
+  validateRunArgs,
+  validateSpecifyArgs,
+  validateStackArgs,
+} from '@/types/cli';
 import { logger } from '@/utils/global-logger';
 
 /**
@@ -27,6 +40,73 @@ program
   .name('chopstack')
   .description('Chop massive AI changes into clean, reviewable PR stacks')
   .version('0.1.0');
+
+// Specify command
+addCommonOptions(
+  program
+    .command('specify')
+    .description('Generate comprehensive specification from brief prompt')
+    .option('--prompt <text>', 'Brief feature description prompt')
+    .option('--input <file>', 'Read prompt from file instead of --prompt')
+    .option('--cwd <dir>', 'Working directory to analyze (default: current directory)'),
+).action(async (options: unknown) => {
+  try {
+    const validatedOptions = validateSpecifyArgs(options);
+    const cliOptions = options as { silent?: boolean };
+    logger.configure({
+      verbose: Boolean(validatedOptions.verbose),
+      silent: cliOptions.silent ?? false,
+    });
+    initializeEventConsumer({ verbose: Boolean(validatedOptions.verbose) });
+    const deps = createDefaultDependencies({ logger });
+    const command = new SpecifyCommand(deps);
+    const exitCode = await command.execute(validatedOptions);
+    if (exitCode !== 0) {
+      throw new Error(`Specify command failed with exit code ${exitCode}`);
+    }
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw new TypeError(`Invalid specify options: ${error.message}`);
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Unknown validation error');
+  }
+});
+
+// Analyze command
+addCommonOptions(
+  program
+    .command('analyze')
+    .description('Analyze specification completeness and quality')
+    .requiredOption('--spec <file>', 'Path to specification file')
+    .option('--output <file>', 'Output file for JSON report (optional)'),
+).action(async (options: unknown) => {
+  try {
+    const validatedOptions = validateAnalyzeArgs(options);
+    const cliOptions = options as { silent?: boolean };
+    logger.configure({
+      verbose: Boolean(validatedOptions.verbose),
+      silent: cliOptions.silent ?? false,
+    });
+    initializeEventConsumer({ verbose: Boolean(validatedOptions.verbose) });
+    const deps = createDefaultDependencies({ logger });
+    const command = new AnalyzeCommand(deps);
+    const exitCode = await command.execute(validatedOptions);
+    if (exitCode !== 0) {
+      throw new Error(`Analyze command failed with exit code ${exitCode}`);
+    }
+  } catch (error) {
+    if (error instanceof ZodError) {
+      throw new TypeError(`Invalid analyze options: ${error.message}`);
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Unknown validation error');
+  }
+});
 
 // Decompose command
 addCommonOptions(
