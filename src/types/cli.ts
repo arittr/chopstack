@@ -110,7 +110,6 @@ export const SpecifyCommandOptionsSchema = z
   .object({
     prompt: z.string().optional(),
     input: z.string().optional(),
-    output: z.string().min(1, 'Output file path cannot be empty'),
     cwd: z.string().optional(),
     verbose: z.boolean().default(false),
   })
