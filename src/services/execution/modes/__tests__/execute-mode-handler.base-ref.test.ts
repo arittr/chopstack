@@ -40,6 +40,9 @@ describe('ExecuteModeHandlerImpl base ref selection', () => {
       cleanup: vi.fn(async () => {
         await Promise.resolve();
       }),
+      requiresWorktrees: vi.fn(() => false),
+      supportsParallelExecution: vi.fn(() => false),
+      supportsStacking: vi.fn(() => false),
     };
 
     const mockFactory = {
