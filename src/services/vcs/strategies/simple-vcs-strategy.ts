@@ -138,4 +138,26 @@ export class SimpleVcsStrategy implements VcsStrategy {
     logger.info(`[SimpleVcsStrategy] Cleanup - nothing to clean up`);
     // Nothing to cleanup in simple mode
   }
+
+  /**
+   * Simple strategy does not require worktrees
+   */
+  requiresWorktrees(): boolean {
+    return false;
+  }
+
+  /**
+   * Simple strategy does not support parallel execution
+   * (all tasks execute sequentially in the main directory)
+   */
+  supportsParallelExecution(): boolean {
+    return false;
+  }
+
+  /**
+   * Simple strategy does not support stacking
+   */
+  supportsStacking(): boolean {
+    return false;
+  }
 }
