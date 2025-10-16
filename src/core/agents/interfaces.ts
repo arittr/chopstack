@@ -30,6 +30,13 @@ export type AgentProvider = {
  */
 export type DecomposerAgent = {
   decompose(specContent: string, cwd: string, options?: { verbose?: boolean }): Promise<PlanV2>;
+
+  /**
+   * Query the agent with an arbitrary prompt and return the raw response.
+   * This is used for tasks that don't fit the decomposition pattern,
+   * like codebase analysis or specification generation.
+   */
+  query?(prompt: string, cwd: string, options?: { verbose?: boolean }): Promise<string>;
 };
 
 /**

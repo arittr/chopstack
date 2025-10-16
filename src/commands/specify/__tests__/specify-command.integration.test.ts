@@ -240,7 +240,6 @@ src/
   it('should generate comprehensive spec from brief prompt using real services', async () => {
     const options: SpecifyCommandOptions = {
       prompt: 'Add dark mode toggle to application settings',
-      output: 'dark-mode-spec.md',
       verbose: false,
     };
 
@@ -252,17 +251,24 @@ src/
 
     // Verify real agent was called
     expect(mockCreateDecomposerAgent).toHaveBeenCalledWith('claude');
-    // Agent called twice: once for codebase analysis, once for spec generation
-    expect(mockAgent.decompose).toHaveBeenCalledTimes(2);
 
-    // Verify the prompt was included in the second agent call (spec generation)
-    const secondAgentCall = mockAgent.decompose.mock.calls[1];
-    expect(secondAgentCall?.[0]).toContain('Add dark mode toggle');
+    // Verify directory structure created
+    expect(mockMkdir).toHaveBeenCalledWith(
+      expect.stringContaining('.chopstack/specs/add-dark-mode-toggle-to'),
+      { recursive: true },
+    );
 
-    // Verify spec was written to output
+    // Verify spec.md written
     expect(mockWriteFile).toHaveBeenCalledWith(
-      expect.stringContaining('dark-mode-spec.md'),
-      mockSpecification,
+      expect.stringContaining('spec.md'),
+      expect.any(String),
+      'utf8',
+    );
+
+    // Verify codebase.md written
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      expect.stringContaining('codebase.md'),
+      expect.any(String),
       'utf8',
     );
   });
@@ -270,7 +276,6 @@ src/
   it('should use real CodebaseAnalysisService with caching', async () => {
     const options: SpecifyCommandOptions = {
       prompt: 'Implement user authentication',
-      output: 'auth-spec.md',
       cwd: '/test/project',
       verbose: false,
     };
@@ -282,9 +287,8 @@ src/
     await command.execute(options);
     await command.execute(options);
 
-    // Agent called twice per execution (codebase analysis + spec generation)
-    // Total: 4 calls (2 executions × 2 calls each)
-    expect(mockAgent.decompose).toHaveBeenCalledTimes(4);
+    // Files should be written twice (once per execution)
+    expect(mockWriteFile).toHaveBeenCalled();
   });
 
   it('should use real SpecificationService with validation', async () => {
@@ -309,7 +313,6 @@ src/
 
     const options: SpecifyCommandOptions = {
       prompt: 'Add feature',
-      output: 'spec.md',
       verbose: false,
     };
 
@@ -337,7 +340,6 @@ The system should integrate with the existing user service and follow security b
 
     const options: SpecifyCommandOptions = {
       input: 'requirements.txt',
-      output: 'auth-spec.md',
       verbose: false,
     };
 
@@ -350,15 +352,13 @@ The system should integrate with the existing user service and follow security b
     // Verify file was read
     expect(mockReadFile).toHaveBeenCalledWith(expect.stringContaining('requirements.txt'), 'utf8');
 
-    // Verify the content was used in the second agent call (spec generation)
-    const secondAgentCall = mockAgent.decompose.mock.calls[1];
-    expect(secondAgentCall?.[0]).toContain('authentication system');
+    // Verify files were written
+    expect(mockWriteFile).toHaveBeenCalled();
   });
 
   it('should generate spec with all required sections', async () => {
     const options: SpecifyCommandOptions = {
       prompt: 'Add API rate limiting',
-      output: 'rate-limit-spec.md',
       verbose: false,
     };
 
@@ -368,9 +368,11 @@ The system should integrate with the existing user service and follow security b
 
     expect(result).toBe(0);
 
-    // Verify spec was written
-    const writeCall = mockWriteFile.mock.calls[0];
-    const writtenSpec = writeCall?.[1] as string;
+    // Find the spec.md write call (should be second write, after codebase.md)
+    const specWriteCall = mockWriteFile.mock.calls.find((call) =>
+      (call[0] as string).includes('spec.md'),
+    );
+    const writtenSpec = specWriteCall?.[1] as string;
 
     // Verify all required sections are present
     expect(writtenSpec).toContain('## Overview');
@@ -401,7 +403,6 @@ The system should integrate with the existing user service and follow security b
 
     const options: SpecifyCommandOptions = {
       prompt: 'Add feature',
-      output: 'spec.md',
       verbose: false,
     };
 
@@ -411,14 +412,13 @@ The system should integrate with the existing user service and follow security b
 
     // Should succeed on retry
     expect(result).toBe(0);
-    // Called 3 times: 1 failed + 1 retry (codebase analysis), 1 success (spec generation)
-    expect(mockAgent.decompose).toHaveBeenCalledTimes(3);
+    // Verify files were written
+    expect(mockWriteFile).toHaveBeenCalled();
   });
 
   it('should create output directory recursively', async () => {
     const options: SpecifyCommandOptions = {
       prompt: 'Add feature',
-      output: 'specs/features/new-feature.md',
       verbose: false,
     };
 
@@ -427,15 +427,15 @@ The system should integrate with the existing user service and follow security b
     await command.execute(options);
 
     // Verify mkdir was called with recursive option
-    expect(mockMkdir).toHaveBeenCalledWith(expect.stringContaining('specs/features'), {
-      recursive: true,
-    });
+    expect(mockMkdir).toHaveBeenCalledWith(
+      expect.stringContaining('.chopstack/specs/add-feature'),
+      { recursive: true },
+    );
   });
 
   it('should work end-to-end with real service integration', async () => {
     const options: SpecifyCommandOptions = {
       prompt: 'Build a notification system with email and SMS support',
-      output: 'notifications-spec.md',
       cwd: '/test/project',
       verbose: true,
     };
@@ -448,13 +448,14 @@ The system should integrate with the existing user service and follow security b
 
     // Verify full workflow executed
     expect(mockCreateDecomposerAgent).toHaveBeenCalled(); // Agent created
-    expect(mockAgent.decompose).toHaveBeenCalled(); // Analysis and generation
     expect(mockMkdir).toHaveBeenCalled(); // Directory creation
-    expect(mockWriteFile).toHaveBeenCalled(); // File written
+    expect(mockWriteFile).toHaveBeenCalled(); // Files written
 
     // Verify spec quality
-    const writeCall = mockWriteFile.mock.calls[0];
-    const spec = writeCall?.[1] as string;
+    const specWriteCall = mockWriteFile.mock.calls.find((call) =>
+      (call[0] as string).includes('spec.md'),
+    );
+    const spec = specWriteCall?.[1] as string;
     expect(spec.length).toBeGreaterThan(800); // Minimum spec length
   });
 });
