@@ -20,7 +20,8 @@ export class VcsStrategyFactory {
     logger.info(`[VcsStrategyFactory] Creating strategy for mode: ${mode}`);
 
     switch (mode) {
-      case 'simple': {
+      case 'simple':
+      case 'merge-commit': {
         return new SimpleVcsStrategy();
       }
 
@@ -28,8 +29,19 @@ export class VcsStrategyFactory {
         return new WorktreeVcsStrategy(this._vcsEngine);
       }
 
-      case 'stacked': {
+      case 'stacked':
+      case 'git-spice': {
         return new StackedVcsStrategy(this._vcsEngine);
+      }
+
+      case 'graphite': {
+        logger.error('Graphite mode not yet implemented, falling back to simple');
+        return new SimpleVcsStrategy();
+      }
+
+      case 'sapling': {
+        logger.error('Sapling mode not yet implemented, falling back to simple');
+        return new SimpleVcsStrategy();
       }
 
       default: {
