@@ -37,6 +37,18 @@ export class PlanValidationError extends DecomposerError {
   }
 }
 
+export class AgentExecutionError extends DecomposerError {
+  constructor(
+    agentType: string,
+    message: string,
+    public readonly exitCode?: number,
+    cause?: Error,
+  ) {
+    super(`Agent '${agentType}' execution failed: ${message}`, cause);
+    this.name = 'AgentExecutionError';
+  }
+}
+
 /**
  * Normalize unknown error-like values to a human-readable message.
  */

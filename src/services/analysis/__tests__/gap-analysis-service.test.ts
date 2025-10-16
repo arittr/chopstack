@@ -12,14 +12,14 @@ describe('GapAnalysisService', () => {
   });
 
   describe('analyze - required sections', () => {
-    it('should detect missing required sections', () => {
+    it('should detect missing required sections', async () => {
       const incompleteSpec = `
 # My Feature
 
 Just a brief description.
 `;
 
-      const report = service.analyze(incompleteSpec);
+      const report = await service.analyze(incompleteSpec);
 
       expect(report.completeness).toBeLessThan(100);
       expect(report.gaps.length).toBeGreaterThan(0);
@@ -34,7 +34,7 @@ Just a brief description.
       expect(missingSections.every((g) => g.severity === 'CRITICAL')).toBe(true);
     });
 
-    it('should pass when all required sections are present', () => {
+    it('should pass when all required sections are present', async () => {
       const completeSpec = `
 # Overview
 
@@ -115,7 +115,7 @@ The system follows a layered architecture with the following components:
 - Interactive demos
 `;
 
-      const report = service.analyze(completeSpec);
+      const report = await service.analyze(completeSpec);
 
       // Should have all sections
       const missingSections = report.gaps.filter((g) =>
@@ -126,7 +126,7 @@ The system follows a layered architecture with the following components:
   });
 
   describe('analyze - content depth', () => {
-    it('should detect sections that are too brief', () => {
+    it('should detect sections that are too brief', async () => {
       const shallowSpec = `
 ## Overview
 
@@ -149,7 +149,7 @@ A diagram.
 - Pass tests
 `;
 
-      const report = service.analyze(shallowSpec);
+      const report = await service.analyze(shallowSpec);
 
       const shallowSections = report.gaps.filter((g) => g.message.includes('too brief'));
       expect(shallowSections.length).toBeGreaterThan(0);
@@ -158,7 +158,7 @@ A diagram.
       expect(shallowSections.every((g) => g.severity === 'HIGH')).toBe(true);
     });
 
-    it('should pass sections with sufficient content', () => {
+    it('should pass sections with sufficient content', async () => {
       const detailedSpec = `
 ## Overview
 
@@ -191,7 +191,7 @@ Component communication uses RESTful APIs with JWT authentication. All services 
 All functional requirements must be implemented and tested with at least 95% code coverage. Performance must meet specified NFRs with under 100ms response time for critical paths. Security audit must pass with no high-severity findings. User documentation must be complete and accessible.
 `;
 
-      const report = service.analyze(detailedSpec);
+      const report = await service.analyze(detailedSpec);
 
       const shallowSections = report.gaps.filter((g) => g.message.includes('too brief'));
       expect(shallowSections.length).toBe(0);
@@ -199,7 +199,7 @@ All functional requirements must be implemented and tested with at least 95% cod
   });
 
   describe('analyze - ambiguous language', () => {
-    it('should detect ambiguous terms', () => {
+    it('should detect ambiguous terms', async () => {
       const ambiguousSpec = `
 ## Overview
 
@@ -216,7 +216,7 @@ This feature should probably add dark mode support. Maybe we can use system pref
 The architecture should be flexible and could be implemented in various ways.
 `;
 
-      const report = service.analyze(ambiguousSpec);
+      const report = await service.analyze(ambiguousSpec);
 
       const ambiguityGaps = report.gaps.filter((g) => g.category === 'ambiguity');
       expect(ambiguityGaps.length).toBeGreaterThan(0);
@@ -229,7 +229,7 @@ The architecture should be flexible and could be implemented in various ways.
       expect(ambiguityGap?.message).toContain('Ambiguous language detected');
     });
 
-    it('should not flag concrete language', () => {
+    it('should not flag concrete language', async () => {
       const concreteSpec = `
 ## Overview
 
@@ -246,7 +246,7 @@ This feature MUST add dark mode support. The system will use system preferences 
 The architecture uses React Context API for theme state management. All components receive theme via context.
 `;
 
-      const report = service.analyze(concreteSpec);
+      const report = await service.analyze(concreteSpec);
 
       const ambiguityGaps = report.gaps.filter((g) => g.category === 'ambiguity');
       expect(ambiguityGaps.length).toBe(0);
@@ -254,7 +254,7 @@ The architecture uses React Context API for theme state management. All componen
   });
 
   describe('analyze - placeholder text', () => {
-    it('should detect placeholder patterns', () => {
+    it('should detect placeholder patterns', async () => {
       const placeholderSpec = `
 ## Overview
 
@@ -271,7 +271,7 @@ This feature adds dark mode. ???
 The architecture [placeholder] uses React.
 `;
 
-      const report = service.analyze(placeholderSpec);
+      const report = await service.analyze(placeholderSpec);
 
       const placeholderGaps = report.gaps.filter((g) => g.message.includes('Placeholder text'));
       expect(placeholderGaps.length).toBeGreaterThan(0);
@@ -280,7 +280,7 @@ The architecture [placeholder] uses React.
       expect(placeholderGaps.every((g) => g.severity === 'CRITICAL')).toBe(true);
     });
 
-    it('should not flag complete content', () => {
+    it('should not flag complete content', async () => {
       const completeSpec = `
 ## Overview
 
@@ -297,7 +297,7 @@ This feature adds dark mode support to the application.
 The architecture uses React Context API for state management.
 `;
 
-      const report = service.analyze(completeSpec);
+      const report = await service.analyze(completeSpec);
 
       const placeholderGaps = report.gaps.filter((g) => g.message.includes('Placeholder text'));
       expect(placeholderGaps.length).toBe(0);
@@ -305,7 +305,7 @@ The architecture uses React Context API for state management.
   });
 
   describe('analyze - open questions', () => {
-    it('should detect unresolved open questions', () => {
+    it('should detect unresolved open questions', async () => {
       const specWithQuestions = `
 ## Overview
 
@@ -323,7 +323,7 @@ Feature overview here.
 **FR1**: Add dark mode support
 `;
 
-      const report = service.analyze(specWithQuestions);
+      const report = await service.analyze(specWithQuestions);
 
       const openQuestionGaps = report.gaps.filter((g) => g.message.includes('open questions'));
       expect(openQuestionGaps.length).toBeGreaterThan(0);
@@ -336,7 +336,7 @@ Feature overview here.
       expect(gap?.message).toContain('3 questions');
     });
 
-    it('should pass when no open questions exist', () => {
+    it('should pass when no open questions exist', async () => {
       const specWithoutQuestions = `
 ## Overview
 
@@ -349,13 +349,13 @@ Feature overview here.
 **FR3**: Store preference in localStorage
 `;
 
-      const report = service.analyze(specWithoutQuestions);
+      const report = await service.analyze(specWithoutQuestions);
 
       const openQuestionGaps = report.gaps.filter((g) => g.message.includes('open questions'));
       expect(openQuestionGaps.length).toBe(0);
     });
 
-    it('should pass when all questions are resolved (checked without question marks)', () => {
+    it('should pass when all questions are resolved (checked without question marks)', async () => {
       const specWithResolvedQuestions = `
 ## Overview
 
@@ -372,7 +372,7 @@ Feature overview here.
 **FR1**: Add dark mode support
 `;
 
-      const report = service.analyze(specWithResolvedQuestions);
+      const report = await service.analyze(specWithResolvedQuestions);
 
       const openQuestionGaps = report.gaps.filter((g) => g.message.includes('open questions'));
       expect(openQuestionGaps.length).toBe(0);
@@ -380,7 +380,7 @@ Feature overview here.
   });
 
   describe('analyze - cross-references', () => {
-    it('should detect requirement numbering gaps', () => {
+    it('should detect requirement numbering gaps', async () => {
       const specWithGaps = `
 # Requirements
 
@@ -393,7 +393,7 @@ Feature overview here.
 **NFR3**: Third non-functional (missing NFR2)
 `;
 
-      const report = service.analyze(specWithGaps);
+      const report = await service.analyze(specWithGaps);
 
       const numberingGaps = report.gaps.filter((g) => g.message.includes('numbering gaps'));
 
@@ -406,7 +406,7 @@ Feature overview here.
       }
     });
 
-    it('should pass when requirement numbering is sequential', () => {
+    it('should pass when requirement numbering is sequential', async () => {
       const specWithSequentialNumbers = `
 # Requirements
 
@@ -418,7 +418,7 @@ Feature overview here.
 **NFR2**: Second non-functional
 `;
 
-      const report = service.analyze(specWithSequentialNumbers);
+      const report = await service.analyze(specWithSequentialNumbers);
 
       const numberingGaps = report.gaps.filter((g) => g.message.includes('numbering gaps'));
       expect(numberingGaps.length).toBe(0);
@@ -426,7 +426,7 @@ Feature overview here.
   });
 
   describe('analyze - principle violations', () => {
-    it('should check for principle violations when principles provided', () => {
+    it('should check for principle violations when principles provided', async () => {
       const spec = `
 ## Architecture
 
@@ -443,7 +443,7 @@ The system uses singleton pattern for database access.
         ],
       };
 
-      const report = service.analyze(spec, principles);
+      const report = await service.analyze(spec, principles);
 
       // This is a simple check - the service might flag potential DI violations
       // Since this is heuristic-based, we just verify it doesn't crash
@@ -451,14 +451,14 @@ The system uses singleton pattern for database access.
       expect(report.gaps).toBeDefined();
     });
 
-    it('should not check for principle violations when none provided', () => {
+    it('should not check for principle violations when none provided', async () => {
       const spec = `
 ## Architecture
 
 The system uses singleton pattern.
 `;
 
-      const report = service.analyze(spec);
+      const report = await service.analyze(spec);
 
       // Should not have principle violation gaps
       const principleGaps = report.gaps.filter((g) => g.message.includes('principle'));
@@ -467,7 +467,7 @@ The system uses singleton pattern.
   });
 
   describe('analyze - completeness scoring', () => {
-    it('should score complete specifications at 100%', () => {
+    it('should score complete specifications at 100%', async () => {
       const completeSpec = `
 ## Overview
 
@@ -506,26 +506,26 @@ The application follows a modern microservices architecture with React frontend,
 All functional requirements MUST be implemented and tested with 95%+ code coverage. Performance MUST meet NFR specifications. Security audit MUST pass with no high-severity findings. Documentation MUST be complete.
 `;
 
-      const report = service.analyze(completeSpec);
+      const report = await service.analyze(completeSpec);
 
       expect(report.completeness).toBeGreaterThanOrEqual(90);
       expect(report.summary).toContain('COMPLETE');
     });
 
-    it('should score incomplete specifications below 100%', () => {
+    it('should score incomplete specifications below 100%', async () => {
       const incompleteSpec = `
 ## Overview
 
 Brief overview.
 `;
 
-      const report = service.analyze(incompleteSpec);
+      const report = await service.analyze(incompleteSpec);
 
       expect(report.completeness).toBeLessThan(100);
       expect(report.summary).toContain('INCOMPLETE');
     });
 
-    it('should calculate lower scores for specs with more gaps', () => {
+    it('should calculate lower scores for specs with more gaps', async () => {
       const poorSpec = `
 ## Overview
 
@@ -540,7 +540,7 @@ TBD
 **FR1**: Should do something [placeholder]
 `;
 
-      const report = service.analyze(poorSpec);
+      const report = await service.analyze(poorSpec);
 
       expect(report.completeness).toBeLessThan(50);
 
@@ -551,7 +551,7 @@ TBD
   });
 
   describe('analyze - remediation steps', () => {
-    it('should generate prioritized remediation steps', () => {
+    it('should generate prioritized remediation steps', async () => {
       const incompleteSpec = `
 ## Overview
 
@@ -566,7 +566,7 @@ Maybe implement feature. TBD
 **FR1**: Do something
 `;
 
-      const report = service.analyze(incompleteSpec);
+      const report = await service.analyze(incompleteSpec);
 
       expect(report.remediation.length).toBeGreaterThan(0);
 
@@ -588,7 +588,7 @@ Maybe implement feature. TBD
       }
     });
 
-    it('should assign sequential order numbers', () => {
+    it('should assign sequential order numbers', async () => {
       const incompleteSpec = `
 ## Overview
 
@@ -599,7 +599,7 @@ Brief.
 Short.
 `;
 
-      const report = service.analyze(incompleteSpec);
+      const report = await service.analyze(incompleteSpec);
 
       const orders = report.remediation.map((r) => r.order);
       const expectedOrders = Array.from({ length: orders.length }, (_, i) => i + 1);
@@ -609,7 +609,7 @@ Short.
   });
 
   describe('analyze - summary generation', () => {
-    it('should generate readable summary with gap counts', () => {
+    it('should generate readable summary with gap counts', async () => {
       const incompleteSpec = `
 ## Overview
 
@@ -620,7 +620,7 @@ Brief overview with placeholder text ???
 Maybe add this feature. TBD
 `;
 
-      const report = service.analyze(incompleteSpec);
+      const report = await service.analyze(incompleteSpec);
 
       expect(report.summary).toContain('Completeness:');
       expect(report.summary).toContain('%');
@@ -642,7 +642,7 @@ Maybe add this feature. TBD
       }
     });
 
-    it('should indicate no gaps for complete specs', () => {
+    it('should indicate no gaps for complete specs', async () => {
       const completeSpec = `
 ## Overview
 
@@ -665,7 +665,7 @@ The system follows a layered microservices architecture with React frontend usin
 All requirements MUST be implemented with 95%+ test coverage, performance under 100ms for critical paths, security audit passed, and complete documentation.
 `;
 
-      const report = service.analyze(completeSpec);
+      const report = await service.analyze(completeSpec);
 
       if (report.completeness === 100) {
         expect(report.summary).toContain('no gaps');
@@ -675,26 +675,26 @@ All requirements MUST be implemented with 95%+ test coverage, performance under 
   });
 
   describe('edge cases', () => {
-    it('should handle empty specification', () => {
+    it('should handle empty specification', async () => {
       const emptySpec = '';
 
-      const report = service.analyze(emptySpec);
+      const report = await service.analyze(emptySpec);
 
       expect(report.completeness).toBeLessThanOrEqual(30); // Empty spec gets base quality/consistency score
       expect(report.gaps.length).toBeGreaterThan(0);
       expect(report.summary).toContain('INCOMPLETE');
     });
 
-    it('should handle specification with only whitespace', () => {
+    it('should handle specification with only whitespace', async () => {
       const whitespaceSpec = '   \n\n\n   ';
 
-      const report = service.analyze(whitespaceSpec);
+      const report = await service.analyze(whitespaceSpec);
 
       expect(report.completeness).toBeLessThanOrEqual(30); // Whitespace spec gets base quality/consistency score
       expect(report.gaps.length).toBeGreaterThan(0);
     });
 
-    it('should handle very large specifications', () => {
+    it('should handle very large specifications', async () => {
       const largeSpec = `
 ## Overview
 ${'This is a very detailed overview section. '.repeat(100)}
@@ -712,7 +712,7 @@ ${'Architecture description repeated. '.repeat(100)}
 ${'Criterion text. '.repeat(50)}
 `;
 
-      const report = service.analyze(largeSpec);
+      const report = await service.analyze(largeSpec);
 
       expect(report).toBeDefined();
       expect(report.completeness).toBeGreaterThan(0);
