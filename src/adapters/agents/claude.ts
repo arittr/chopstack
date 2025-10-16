@@ -52,6 +52,18 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
     }
   }
 
+  async query(prompt: string, cwd: string, options?: { verbose?: boolean }): Promise<string> {
+    try {
+      const stdout = await this._executeClaudeCommand(prompt, cwd, options?.verbose ?? false);
+      return this._extractTextResponse(stdout);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new AgentNotFoundError('claude', error);
+      }
+      throw new AgentNotFoundError('claude');
+    }
+  }
+
   getCapabilities(): AgentCapabilities {
     return {
       maxContextLength: 200_000,
@@ -216,6 +228,40 @@ export class ClaudeCodeDecomposer implements DecomposerAgent {
 
   private _validateAndReturnPlan(parsedContent: ParsedContent): PlanV2 {
     return YamlPlanParser.parse(parsedContent.content);
+  }
+
+  /**
+   * Extract text response from Claude output (for query method)
+   */
+  private _extractTextResponse(stdout: string): string {
+    // Try JSON wrapper format first (Claude CLI stream-json)
+    try {
+      const lines = stdout.trim().split('\n');
+
+      for (const line of lines) {
+        if (line.trim() === '') {
+          continue;
+        }
+
+        try {
+          const json = JSON.parse(line) as ClaudeResponse;
+          // Look for the final result object
+          if (json.type === 'result' && isNonEmptyString(json.result)) {
+            logger.debug('✅ Found JSON result object');
+            return json.result;
+          }
+        } catch {
+          // Skip lines that aren't valid JSON
+          continue;
+        }
+      }
+    } catch {
+      // Fall through to direct text extraction
+    }
+
+    // Fallback: return the full output as-is
+    logger.debug('🔍 No JSON wrapper found, returning full output');
+    return stdout;
   }
 }
 
