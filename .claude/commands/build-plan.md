@@ -11,7 +11,7 @@ YOUR JOB: Generate a validated, execution-ready plan.yaml from a specification b
 User will specify: `/build-plan {spec-path}`
 
 Examples:
-- `/build-plan @specs/chopstack-v2_phase2/spec.md` → Generate plan from Phase 2 spec
+- `/build-plan @.chopstack/specs/chopstack-v2_phase2/spec.md` → Generate plan from Phase 2 spec
 - `/build-plan dark-mode.md` → Generate plan from dark mode spec
 
 ## Process Gates (CRITICAL - MUST FOLLOW IN ORDER)
@@ -36,108 +36,26 @@ The chopstack v2 process has TWO mandatory gates that prevent poor quality plans
 
 **Objective**: Achieve 100% spec completeness with 0 open questions.
 
-1. Use Task tool to spawn analysis agent:
+1. Use Task tool to spawn **@agent-spec-completeness-analyzer** with this prompt:
 
 ```
-ROLE: You are a specification analysis agent for chopstack v2.
+Analyze the specification at {spec-path} for completeness before task decomposition.
 
-YOUR JOB: Analyze the specification for completeness and identify ALL open questions that must be resolved before decomposition.
+Read the specification file and perform a comprehensive analysis to identify:
+- Missing components, types, interfaces, and technical requirements
+- Required audits that need to be conducted
+- Architecture decisions that must be made
+- Scope clarifications needed
+- Any gaps that would prevent accurate task decomposition
 
-SPECIFICATION: Read {spec-path}
+Produce your standard Specification Completeness Analysis report with:
+- Completeness score (0-100%)
+- Open questions categorized (Audits, Architecture, Scope)
+- Gaps by severity (CRITICAL, HIGH, MEDIUM, LOW)
+- Prioritized remediation steps
+- Gate 1 status (BLOCKED or READY)
 
-ANALYSIS REQUIREMENTS:
-
-1. **Gap Detection** - Identify missing information:
-   - Missing components, types, interfaces
-   - Incomplete sections
-   - Vague requirements
-   - Undefined scope boundaries
-   - Missing acceptance criteria
-
-2. **Open Questions** - Identify questions requiring resolution:
-   - Required audits (e.g., "count v1 type usage by module")
-   - Architecture decisions (e.g., "use Context API or Redux?")
-   - Scope clarifications (e.g., "include mobile responsive?")
-   - Implementation approach questions
-   - Complexity estimates that need validation
-
-3. **Severity Categorization**:
-   - CRITICAL: Blocks decomposition entirely
-   - HIGH: Will cause poor task breakdown
-   - MEDIUM: May affect task granularity
-   - LOW: Minor clarifications
-
-4. **Completeness Score**: 0-100%
-   - 100% = Ready for decomposition
-   - < 100% = Has gaps or open questions
-
-OUTPUT FORMAT:
-
-```markdown
-# Specification Analysis Report
-
-## Completeness Score: {score}%
-
-## Open Questions (MUST BE RESOLVED)
-
-### Required Audits
-1. [AUDIT-1] Count v1 type usage by module
-   - Why: Informs task granularity and complexity estimates
-   - Action: Run grep analysis, document findings in spec
-
-2. [AUDIT-2] {description}
-   - Why: {reasoning}
-   - Action: {what user must do}
-
-### Architecture Decisions
-1. [ARCH-1] {question}
-   - Why: {impact on task breakdown}
-   - Action: {what user must decide}
-
-### Scope Clarifications
-1. [SCOPE-1] {question}
-   - Why: {impact}
-   - Action: {what user must clarify}
-
-## Gaps by Severity
-
-### CRITICAL
-- [ ] {gap-1}: {description}
-- [ ] {gap-2}: {description}
-
-### HIGH
-- [ ] {gap-3}: {description}
-
-### MEDIUM
-- [ ] {gap-4}: {description}
-
-### LOW
-- [ ] {gap-5}: {description}
-
-## Remediation Steps (Prioritized)
-
-1. [CRITICAL] {step}
-2. [HIGH] {step}
-3. [MEDIUM] {step}
-
-## Gate 1 Status
-
-- Open Questions: {count}
-- Completeness: {score}%
-- **GATE 1**: {BLOCKED | READY}
-
-{If BLOCKED:}
-❌ Cannot proceed to decomposition until:
-- All open questions are resolved
-- All required audits are completed
-- Spec is updated with findings
-- Completeness reaches 100%
-
-{If READY:}
-✅ Ready for decomposition
-```
-
-Execute analysis now.
+This is for the /build-plan workflow, so be thorough - incomplete specs lead to poor task breakdown.
 ```
 
 2. **Review analysis report**:
@@ -158,131 +76,38 @@ Execute analysis now.
 - ✅ GATE 1 passed (completeness = 100%, open questions = 0)
 - ✅ Specification has been updated with all resolutions
 
-1. Use Task tool to spawn decomposition agent:
+1. Use Task tool to spawn **@agent-task-decomposition-planner** with this prompt:
 
 ```
-ROLE: You are a task decomposition agent for chopstack v2.
+Decompose the specification at {spec-path} into an execution-ready plan.yaml.
 
-YOUR JOB: Generate a phase-based plan.yaml with well-scoped tasks following chopstack v2 patterns.
+Read the complete specification and transform it into a phase-based plan following chopstack v2 patterns:
 
-SPECIFICATION: Read {spec-path}
+**Task Sizing Guidelines**:
+- Target: Most tasks should be M (2-4 hours)
+- NEVER create XL tasks (>8 hours) - split into multiple M tasks
+- NEVER create XS tasks (<1 hour) - fold into related M tasks
+- Use L (4-8 hours) sparingly - consider splitting
 
-DECOMPOSITION REQUIREMENTS:
+**Task Quality Requirements**:
+- Clear descriptions with WHAT, WHY, and HOW
+- Explicit file paths (no wildcards like src/**/*.ts)
+- 3-5 specific, testable acceptance criteria per task
+- Minimal dependencies (only what's truly required)
+- 3-7 implementation steps
 
-1. **Phase Organization**:
-   - Group tasks into logical phases (setup → implementation → polish)
-   - Identify sequential vs parallel opportunities
-   - Ensure correct architectural ordering (DB → API → UI)
+**Phase Organization**:
+- Group into logical phases (foundation → implementation → polish)
+- Use 'sequential' strategy when tasks have dependencies
+- Use 'parallel' strategy when tasks are independent
+- Ensure architectural ordering (types → services → API → UI)
 
-2. **Task Sizing** (T-Shirt Complexity):
-   - XS (< 1h): Fold into related task
-   - S (1-2h): Quick wins, well-defined
-   - M (2-4h): TARGET SIZE - most tasks should be M
-   - L (4-8h): Use sparingly, consider splitting
-   - XL (> 8h): NEVER USE - must be split
+Generate a complete plan.yaml file with:
+- Phase definitions with strategies and task lists
+- Task definitions with all required fields
+- Success metrics (quantitative and qualitative)
 
-3. **Task Quality**:
-   - Clear description (why, not just what)
-   - Explicit file list (no wildcards like `src/**/*.ts`)
-   - Specific acceptance criteria
-   - Minimal, logical dependencies only
-
-4. **Phase Strategies**:
-   - sequential: Tasks must run in order (dependencies, setup work)
-   - parallel: Tasks can run simultaneously (independent work)
-
-OUTPUT FORMAT: Generate valid plan.yaml following this structure:
-
-```yaml
-name: {Plan Name}
-description: |
-  {Multi-line description}
-
-specification: {spec-path}
-mode: plan
-strategy: phased-parallel
-
-phases:
-  # Phase 1: Foundation/Setup (usually sequential)
-  - id: phase-1-foundation
-    name: {Phase Name}
-    strategy: sequential
-    tasks:
-      - task-1-1-{kebab-case-id}
-      - task-1-2-{kebab-case-id}
-    complexity: M + S = Medium Phase
-    notes: |
-      Why these tasks are grouped together.
-      Why this strategy (sequential vs parallel).
-
-  # Phase 2: Implementation (often parallel)
-  - id: phase-2-implementation
-    name: {Phase Name}
-    strategy: parallel
-    tasks:
-      - task-2-1-{kebab-case-id}
-      - task-2-2-{kebab-case-id}
-      - task-2-3-{kebab-case-id}
-    complexity: M + M + M = Large (parallelizable)
-    requires: [phase-1-foundation]
-    notes: |
-      Why these tasks can run in parallel.
-
-  # Phase 3: Polish/Validation (usually sequential)
-  - id: phase-3-polish
-    name: {Phase Name}
-    strategy: sequential
-    tasks:
-      - task-3-1-{kebab-case-id}
-    complexity: M = Medium
-    requires: [phase-2-implementation]
-    notes: |
-      Final cleanup and validation.
-
-tasks:
-  - id: task-1-1-{kebab-case-id}
-    name: {Task Name}
-    complexity: M  # Target: most tasks should be M
-    description: |
-      Clear description explaining WHAT to do and WHY.
-
-      Implementation approach:
-      - Step 1
-      - Step 2
-      - Step 3
-
-      Why this task exists and how it fits in the plan.
-    files:
-      - src/specific/file1.ts
-      - src/specific/file2.ts
-      # NO wildcards like src/**/*.ts
-    dependencies:
-      - task-1-0-prerequisite  # Only if truly required
-    acceptance_criteria:
-      - Specific criterion 1
-      - Specific criterion 2
-      - Specific criterion 3
-
-  # More tasks...
-
-success_metrics:
-  quantitative:
-    - Test coverage: 95%+
-    - Performance: {specific metric}
-  qualitative:
-    - Code quality: {description}
-    - User experience: {description}
-```
-
-CRITICAL RULES:
-- ✅ Most tasks should be M complexity
-- ✅ Specific file paths (no wildcards)
-- ✅ Clear acceptance criteria
-- ❌ NEVER create XL tasks
-- ❌ NEVER use vague file patterns
-- ❌ NEVER create XS tasks (fold into related task)
-
-Generate plan.yaml now.
+Save the plan to: {spec-directory}/plan.yaml
 ```
 
 2. **Save generated plan**:
@@ -295,114 +120,44 @@ Generate plan.yaml now.
 
 **Objective**: Validate task quality and catch issues before execution.
 
-1. Use Task tool to spawn validation agent:
+1. Use Task tool to spawn **@agent-task-decomposition-planner** with this prompt:
 
 ```
-ROLE: You are a plan quality validator for chopstack v2.
+Validate the plan at {plan-path} for quality issues before execution.
 
-YOUR JOB: Analyze the generated plan for quality issues that would cause problems during execution.
+Read the generated plan.yaml and audit it for quality issues that could cause execution problems:
 
-PLAN: Read {plan-path}
+**CRITICAL Issues** (MUST FIX):
+- XL complexity tasks (>8 hours) - must be split
+- Tasks with no acceptance criteria
+- Tasks with no files specified
+- Circular dependencies
 
-VALIDATION REQUIREMENTS:
+**HIGH Issues** (STRONGLY RECOMMEND FIX):
+- L complexity tasks (consider splitting)
+- Tasks with >10 files (likely too large)
+- Wildcard file patterns (e.g., src/**/*.ts)
+- Tasks with >5 dependencies (too coupled)
+- Short descriptions (<50 characters)
 
-Analyze each task for these quality issues:
+**MEDIUM Issues** (CONSIDER):
+- Too many XS tasks (>30% of total)
+- Tasks with 0 dependencies (suspicious for non-initial tasks)
+- Ambiguous descriptions
+- Missing implementation steps
 
-1. **CRITICAL Issues** (MUST FIX):
-   - XL complexity tasks (> 8 hours)
-   - Empty or missing acceptance criteria
-   - No files specified
+**LOW Issues** (OPTIONAL):
+- Naming inconsistencies
+- Documentation gaps
+- Suboptimal phase organization
 
-2. **HIGH Issues** (STRONGLY RECOMMEND FIX):
-   - L complexity tasks (consider splitting)
-   - Tasks touching > 10 files
-   - Vague file patterns (wildcards like `src/**/*.ts`)
-   - Tasks with > 5 dependencies
-   - Short descriptions (< 50 chars)
+Produce your standard Plan Quality Report with:
+- Summary of issue counts by severity
+- Issues by task with specific fix suggestions
+- Recommended actions (prioritized)
+- Gate 2 status (BLOCKED, WARNING, or READY)
 
-3. **MEDIUM Issues** (CONSIDER):
-   - Too many XS tasks (fold into larger tasks)
-   - Tasks with 0 dependencies (missing prerequisites?)
-   - Ambiguous descriptions
-
-4. **LOW Issues** (OPTIONAL):
-   - Minor naming inconsistencies
-   - Documentation gaps
-
-OUTPUT FORMAT:
-
-```markdown
-# Task Quality Report
-
-## Summary
-- CRITICAL: {count}
-- HIGH: {count}
-- MEDIUM: {count}
-- LOW: {count}
-
-{If CRITICAL or HIGH > 0:}
-⚠️  BLOCKING ISSUES FOUND - Plan may fail during execution
-
-{If all issues LOW or none:}
-✅ Plan is execution-ready
-
-## Issues by Task
-
-### Task: {task-id}
-  🔴 [CRITICAL] {issue description}
-     💡 {specific suggestion for fixing}
-
-  🟠 [HIGH] {issue description}
-     💡 {specific suggestion for fixing}
-
-  🟡 [MEDIUM] {issue description}
-     💡 {suggestion}
-
-  🟢 [LOW] {issue description}
-     💡 {suggestion}
-
-## Recommended Actions
-
-{If CRITICAL or HIGH issues exist:}
-
-**MUST FIX BEFORE EXECUTION:**
-
-1. Task {task-id}: {issue summary}
-   - Split into: {task-a}, {task-b}, {task-c}
-   - Reason: {why split is needed}
-
-2. Task {task-id}: {issue summary}
-   - Change: {specific fix}
-   - Reason: {why fix is needed}
-
-{If only MEDIUM or LOW issues:}
-
-**OPTIONAL IMPROVEMENTS:**
-
-1. {improvement suggestion}
-2. {improvement suggestion}
-
-## Gate 2 Status
-
-- Critical Issues: {count}
-- High Issues: {count}
-- **GATE 2**: {BLOCKED | WARNING | READY}
-
-{If BLOCKED (CRITICAL issues):}
-❌ Cannot execute until CRITICAL issues are fixed
-- User MUST edit plan.yaml
-- Re-run quality validation after fixing
-
-{If WARNING (HIGH issues):}
-⚠️  Can proceed but high risk of execution problems
-- STRONGLY RECOMMEND fixing HIGH issues first
-- Or proceed with caution
-
-{If READY:}
-✅ Plan is execution-ready
-```
-
-Execute validation now.
+For each issue, provide WHAT the problem is, WHY it matters, and HOW to fix it with exact YAML examples.
 ```
 
 2. **Review validation report**:
@@ -556,7 +311,7 @@ After (split into M tasks):
 A successful plan generation looks like:
 
 ```
-📋 Building plan from specs/chopstack-v2_phase2/spec.md
+📋 Building plan from .chopstack/specs/chopstack-v2_phase2/spec.md
 
 GATE 1: Analyzing specification...
 ├─ Reading spec...
@@ -570,7 +325,7 @@ Generating plan...
 ├─ Creating phases...
 ├─ Defining tasks...
 ├─ Setting dependencies...
-└─ ✅ Plan written to specs/chopstack-v2_phase2/plan.yaml
+└─ ✅ Plan written to .chopstack/specs/chopstack-v2_phase2/plan.yaml
 
 GATE 2: Validating task quality...
 ├─ Checking complexity distribution...
