@@ -14,9 +14,17 @@
 
 import type { FastMCP } from 'fastmcp';
 
-import type { ConfigureVcsParams, CreateWorktreeParams } from '@/entry/mcp/schemas/vcs-schemas';
+import type {
+  ConfigureVcsParams,
+  CreateWorktreeParams,
+  IntegrateStackParams,
+} from '@/entry/mcp/schemas/vcs-schemas';
 
-import { ConfigureVcsSchema, CreateWorktreeSchema } from '@/entry/mcp/schemas/vcs-schemas';
+import {
+  ConfigureVcsSchema,
+  CreateWorktreeSchema,
+  IntegrateStackSchema,
+} from '@/entry/mcp/schemas/vcs-schemas';
 import { VcsConfigServiceImpl } from '@/services/vcs/vcs-config';
 import { VcsEngineServiceImpl } from '@/services/vcs/vcs-engine-service';
 import { logger } from '@/utils/global-logger';
@@ -229,8 +237,115 @@ export function registerVcsTools(mcp: FastMCP): void {
     },
   });
 
-  // TODO: Implement remaining tools (2-4, 2-5)
-  // - integrate_task_stack
+  // Tool 3: Integrate task stack
+  mcp.addTool({
+    name: 'integrate_task_stack',
+    description:
+      'Integrate completed task branches into stack based on VCS mode. ' +
+      'Handles mode-specific stack integration (git-spice restacking, merge-commit merges). ' +
+      'Detects and reports merge conflicts with resolution steps. ' +
+      'Optionally submits stack for review (creates PRs).',
+    parameters: IntegrateStackSchema,
+    execute: async (params: IntegrateStackParams) => {
+      try {
+        logger.debug('integrate_task_stack called', { params });
+
+        // Get working directory (default to current directory)
+        const workdir = params.workdir ?? process.cwd();
+
+        // Create VCS engine service with default configuration
+        const vcsEngine = new VcsEngineServiceImpl({
+          branchPrefix: 'task',
+          shadowPath: '.chopstack/shadows',
+          cleanupOnSuccess: true,
+          cleanupOnFailure: false,
+          conflictStrategy: 'fail',
+          stackSubmission: {
+            enabled: Boolean(params.submit),
+            draft: false,
+            autoMerge: false,
+          },
+        });
+        await vcsEngine.initialize(workdir);
+
+        logger.info(
+          `Integrating ${params.tasks.length} task(s) into ${params.targetBranch}${params.submit ? ' with PR submission' : ''}`,
+        );
+
+        // Convert task parameters to ExecutionTask structure
+        const executionTasks = params.tasks.map((task) => ({
+          id: task.id,
+          name: task.name,
+          complexity: 'M' as const,
+          description: task.name,
+          files: [],
+          acceptanceCriteria: [],
+          dependencies: [],
+          maxRetries: 0,
+          retryCount: 0,
+          state: 'completed' as const,
+          stateHistory: [],
+          branchName: task.branchName ?? `task/${task.id}`,
+        }));
+
+        // Build stack from tasks
+        const result = await vcsEngine.buildStackFromTasks(executionTasks, workdir, {
+          parentRef: params.targetBranch,
+          submitStack: params.submit,
+        });
+
+        // Extract branch names from result
+        const branches = result.branches.map((b) => b.branchName);
+
+        logger.info('Stack integration completed', {
+          branches,
+          prUrls: result.prUrls,
+        });
+
+        return JSON.stringify({
+          status: 'success',
+          branches,
+          conflicts: [],
+          prUrls: result.prUrls ?? [],
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('integrate_task_stack failed', { error: errorMessage, tasks: params.tasks });
+
+        // Check for conflict indicators
+        const isConflict =
+          errorMessage.toLowerCase().includes('conflict') ||
+          errorMessage.toLowerCase().includes('merge') ||
+          errorMessage.toLowerCase().includes('rebase');
+
+        if (isConflict) {
+          // Provide conflict resolution guidance
+          const conflicts = params.tasks.map((task) => ({
+            taskId: task.id,
+            files: [],
+            resolution: `Fix conflicts in worktree .chopstack/shadows/${task.id}, then retry integration`,
+          }));
+
+          return JSON.stringify({
+            status: 'failed',
+            branches: params.tasks.map((t) => t.branchName ?? `task/${t.id}`),
+            conflicts,
+            error: `Integration failed due to merge conflicts in ${conflicts.length} task(s)`,
+          });
+        }
+
+        // Generic error response
+        return JSON.stringify({
+          status: 'failed',
+          branches: params.tasks.map((t) => t.branchName ?? `task/${t.id}`),
+          conflicts: [],
+          error: errorMessage,
+        });
+      }
+    },
+  });
+
+  // TODO: Implement remaining tools (2-5)
   // - cleanup_task_worktree
   // - list_task_worktrees
 }
