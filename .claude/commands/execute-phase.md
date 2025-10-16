@@ -375,6 +375,480 @@ After all tasks complete:
 
 ## Error Handling
 
+### Worktree Creation Failures
+
+**Scenario 1: Branch Name Collision**
+
+If `create_task_worktree` fails due to branch already existing:
+
+```
+❌ Worktree Creation Failed
+
+Task: {task-id}
+Error: Branch 'task/{task-id}' already exists
+
+Context:
+- Working directory: {workdir}
+- Base reference: {base_ref}
+- Attempted branch: task/{task-id}
+
+Cause:
+A branch with this name already exists, likely from a previous run that wasn't cleaned up properly.
+
+Resolution:
+1. Check for leftover worktree:
+   git worktree list
+
+2. If worktree exists, remove it:
+   git worktree remove .chopstack/shadows/{task-id}
+
+3. If branch exists without worktree, delete branch:
+   git branch -D task/{task-id}
+
+4. Retry execution:
+   /execute-phase {project} {phase-id}
+
+Debug:
+# List all branches with task prefix
+git branch --list 'task/*'
+
+# Check worktree status
+git worktree list --porcelain
+```
+
+**Automatic Retry Logic**:
+The MCP tool should attempt to resolve branch collisions automatically:
+1. First attempt: Create branch `task/{task-id}`
+2. On collision: Retry with timestamp suffix `task/{task-id}-{timestamp}`
+3. Max retries: 3
+4. If still fails: Report error with manual resolution steps
+
+**Scenario 2: Worktree Path Conflict**
+
+If worktree directory already exists:
+
+```
+❌ Worktree Path Conflict
+
+Task: {task-id}
+Error: Directory '.chopstack/shadows/{task-id}' already exists
+
+Context:
+- Working directory: {workdir}
+- Worktree path: .chopstack/shadows/{task-id}
+
+Cause:
+The worktree directory exists from a previous run but is not registered with git.
+
+Resolution:
+1. Check directory contents:
+   ls -la .chopstack/shadows/{task-id}
+
+2. If safe to remove, delete directory:
+   rm -rf .chopstack/shadows/{task-id}
+
+3. Prune stale worktrees:
+   git worktree prune
+
+4. Retry execution:
+   /execute-phase {project} {phase-id}
+
+Debug:
+# Check for orphaned worktrees
+git worktree list | grep -v "bare"
+```
+
+**Scenario 3: Base Reference Invalid**
+
+If the base reference doesn't exist:
+
+```
+❌ Invalid Base Reference
+
+Task: {task-id}
+Error: Reference '{base_ref}' not found
+
+Context:
+- Working directory: {workdir}
+- Base reference: {base_ref}
+- Task dependencies: {task.dependencies}
+
+Cause:
+The specified base reference does not exist. This may indicate:
+- Missing prerequisite task commits
+- Incorrect branch name
+- Repository state mismatch
+
+Resolution:
+1. Check current branch:
+   git branch --show-current
+
+2. Verify recent commits:
+   git log --oneline -10
+
+3. If prerequisite tasks incomplete:
+   - Review phase dependencies in plan.yaml
+   - Execute prerequisite phases first
+   - Then retry: /execute-phase {project} {phase-id}
+
+4. If base reference should be 'main':
+   - Check main branch exists: git branch --list main
+   - Check out main: git checkout main
+   - Retry execution
+
+Debug:
+# List all branches
+git branch -a
+
+# Check for the specific reference
+git show-ref {base_ref}
+```
+
+### Integration Conflict Handling
+
+**Scenario: Merge Conflicts During Stack Integration**
+
+If `integrate_task_stack` detects merge conflicts:
+
+```
+❌ Integration Conflicts Detected
+
+Phase: {phase-id}
+Conflicts in {conflict_count} task(s):
+
+Task: {task-id-1}
+Branch: task/{task-id-1}
+Conflicting files:
+  - {file-path-1}
+  - {file-path-2}
+
+Task: {task-id-2}
+Branch: task/{task-id-2}
+Conflicting files:
+  - {file-path-3}
+
+Context:
+- Integration strategy: {vcs_mode}
+- Target branch: {target_branch}
+- Total tasks in phase: {task_count}
+- Successfully integrated: {success_count}
+
+Cause:
+Multiple tasks modified the same files in conflicting ways. This indicates:
+- Task boundaries in plan.yaml overlap
+- Tasks have hidden dependencies not captured in plan
+- Parallel execution assumptions violated
+
+Resolution:
+1. Worktrees preserved for manual resolution:
+   - {worktree-path-1}
+   - {worktree-path-2}
+
+2. Fix conflicts manually in each worktree:
+   cd {worktree-path-1}
+   # Edit conflicting files
+   git add .
+   {vcs_commit_command}
+
+3. After fixing all conflicts, retry integration:
+   /execute-phase {project} {phase-id}
+
+4. If conflicts persist, adjust plan.yaml:
+   - Review task.files for overlapping file lists
+   - Split conflicting tasks into separate phases
+   - Add explicit dependencies between conflicting tasks
+   - Change phase strategy from 'parallel' to 'sequential'
+
+Alternative:
+For git-spice mode, manually restack:
+cd {workdir}
+gs upstack restack
+
+For merge-commit mode, manually merge:
+git checkout {target_branch}
+git merge --no-ff task/{task-id-1}
+# Resolve conflicts
+git merge --no-ff task/{task-id-2}
+
+Debug:
+# Show conflicting hunks
+git diff --check
+
+# List all conflicts
+git diff --name-only --diff-filter=U
+```
+
+**Conflict Prevention**:
+- Before parallel execution, analyze task.files for overlaps
+- Warn if multiple tasks list same file
+- Suggest changing to sequential strategy if high overlap detected
+
+### Cleanup Failure Handling
+
+**Scenario 1: Worktree Removal Fails**
+
+If `cleanup_task_worktree` fails to remove worktree:
+
+```
+⚠️ Worktree Cleanup Failed (Non-Critical)
+
+Task: {task-id}
+Warning: Failed to remove worktree at {worktree-path}
+Error: {error_message}
+
+Context:
+- Worktree path: {worktree-path}
+- Branch name: {branch-name}
+- Keep branch: {keep_branch_flag}
+
+Cause:
+The worktree directory may be locked, in use, or contain uncommitted changes.
+
+Resolution:
+Execution will continue, but manual cleanup recommended:
+
+1. Check worktree status:
+   git worktree list
+
+2. Force remove if safe:
+   git worktree remove --force {worktree-path}
+
+3. If worktree still exists:
+   rm -rf {worktree-path}
+   git worktree prune
+
+4. Clean up branch if needed:
+   git branch -D {branch-name}
+
+Note: This is a warning, not an error. Phase execution continues.
+
+Debug:
+# Check if directory is in use
+lsof +D {worktree-path}
+
+# Check for uncommitted changes
+cd {worktree-path} && git status
+```
+
+**Cleanup Policy**:
+- Log warnings but continue execution
+- Accumulate cleanup failures and report at end of phase
+- Suggest bulk cleanup command after phase completes
+- Track orphaned worktrees for automatic cleanup in next run
+
+**Scenario 2: Branch Deletion Fails**
+
+If branch deletion fails after worktree cleanup:
+
+```
+⚠️ Branch Cleanup Failed (Non-Critical)
+
+Task: {task-id}
+Warning: Failed to delete branch '{branch-name}'
+Error: {error_message}
+
+Context:
+- Branch: {branch-name}
+- VCS mode: {vcs_mode}
+- Integration status: {integration_status}
+
+Cause:
+Branch may be:
+- Currently checked out in another worktree
+- Protected by git configuration
+- Part of an active stack (git-spice)
+
+Resolution:
+Manual cleanup recommended:
+
+1. Check branch status:
+   git branch --list {branch-name}
+
+2. Verify not checked out elsewhere:
+   git worktree list
+
+3. Force delete if safe:
+   git branch -D {branch-name}
+
+4. For git-spice stacks, check stack status:
+   gs stack log
+
+Note: This is a warning. Phase execution continues.
+```
+
+### MCP Tool Unavailability
+
+**Scenario: MCP Server Not Running or Not Configured**
+
+If MCP tools are not available during Step 0:
+
+```
+❌ MCP Server Not Available
+
+The chopstack MCP server is required for worktree-based task execution.
+
+Verification Failed:
+- configure_vcs tool: ❌ Not found
+- create_task_worktree tool: ❌ Not found
+
+Context:
+- Phase: {phase-id}
+- Execution strategy: {strategy}
+- Task count: {task_count}
+
+Cause:
+The MCP server is not running, not configured, or the tools are not registered.
+
+Installation & Setup:
+1. Ensure chopstack MCP server is installed:
+   npm install -g @chopstack/mcp-server
+   # or
+   pnpm add -g @chopstack/mcp-server
+
+2. Configure MCP server in Claude Code:
+   - Open Claude Code settings
+   - Navigate to MCP Server configuration
+   - Add chopstack MCP server:
+     {
+       "mcpServers": {
+         "chopstack": {
+           "command": "chopstack-mcp",
+           "args": ["server"]
+         }
+       }
+     }
+
+3. Restart Claude Code to load MCP server
+
+4. Verify MCP tools are available:
+   - Check for configure_vcs tool
+   - Check for create_task_worktree tool
+   - Check for integrate_task_stack tool
+   - Check for cleanup_task_worktree tool
+
+5. Retry execution:
+   /execute-phase {project} {phase-id}
+
+Alternative (Not Recommended):
+For sequential phases only, you can execute without worktrees:
+- Tasks will run in the same directory
+- File conflicts may occur
+- No isolation between tasks
+- Manual conflict resolution required
+
+To proceed without MCP (sequential only):
+/execute-phase {project} {phase-id} --no-worktrees
+
+For More Information:
+- MCP Server Documentation: https://github.com/chopstack/chopstack-mcp
+- Troubleshooting Guide: docs/troubleshooting.md#mcp-server
+```
+
+### VCS Mode Configuration Errors
+
+**Scenario 1: Explicit VCS Tool Not Found**
+
+If user configured git-spice but `gs` binary not found:
+
+```
+❌ VCS Tool Not Available
+
+Requested mode: git-spice
+Source: ~/.chopstack/config.yaml (explicit configuration)
+Error: 'gs' binary not found in PATH
+
+Context:
+- Working directory: {workdir}
+- Configuration file: ~/.chopstack/config.yaml
+- Configured mode: git-spice
+- Search paths: {PATH}
+
+Cause:
+git-spice is configured as the VCS mode but the 'gs' binary is not installed.
+
+Installation Instructions:
+
+Option 1 - Homebrew (macOS/Linux):
+  brew install abhinav/git-spice/git-spice
+
+Option 2 - Go Install:
+  go install go.abhg.dev/gs@latest
+
+Option 3 - Binary Download:
+  # Download from: https://github.com/abhinav/git-spice/releases
+  # Extract and add to PATH
+
+Verify Installation:
+  gs --version
+
+Alternative - Change VCS Mode:
+If you prefer not to install git-spice, change mode in config:
+
+  ~/.chopstack/config.yaml:
+    vcs:
+      mode: merge-commit  # Simple merge workflow (requires only git)
+
+Or remove the mode configuration to use merge-commit default:
+
+  ~/.chopstack/config.yaml:
+    vcs:
+      # mode: git-spice  # Comment out or remove this line
+
+Then retry:
+  /execute-phase {project} {phase-id}
+
+For More Information:
+- git-spice documentation: https://abhinav.github.io/git-spice/
+- chopstack VCS modes: docs/vcs-configuration.md
+```
+
+**Scenario 2: Default Mode Fails (Git Not Installed)**
+
+If default mode (merge-commit) fails because git is missing:
+
+```
+❌ Git Not Found
+
+Error: 'git' binary not found in PATH
+
+Context:
+- VCS mode: merge-commit (default)
+- Working directory: {workdir}
+- Search paths: {PATH}
+
+Cause:
+Git is not installed on this system. Git is required for all VCS modes including the default merge-commit mode.
+
+Installation Instructions:
+
+macOS:
+  # Using Homebrew
+  brew install git
+
+  # Using Xcode Command Line Tools
+  xcode-select --install
+
+Linux (Debian/Ubuntu):
+  sudo apt-get update
+  sudo apt-get install git
+
+Linux (Fedora/RHEL):
+  sudo dnf install git
+
+Windows:
+  # Download from: https://git-scm.com/download/win
+  # Or use winget:
+  winget install Git.Git
+
+Verify Installation:
+  git --version
+
+After installing Git, retry:
+  /execute-phase {project} {phase-id}
+```
+
+### Agent Execution Errors
+
 ### Agent Asks Questions
 If any agent asks a question instead of executing:
 
@@ -407,6 +881,32 @@ If parallel agents conflict:
    - Adjust so files don't overlap
    - Update plan.yaml
    - Re-run: `/execute-phase {project} {phase-id}`
+
+### General Error Handling Principles
+
+**Error Message Format**:
+All error messages must include:
+1. **What Failed**: Clear description of the operation
+2. **Context**: Relevant information (task ID, file paths, branch names, etc.)
+3. **Cause**: Why the failure occurred
+4. **Resolution**: Step-by-step instructions to fix
+5. **Debug**: Optional commands for investigation
+
+**Error Severity Levels**:
+- **❌ Critical**: Execution must stop, user action required
+- **⚠️ Warning**: Execution continues, manual cleanup recommended
+- **ℹ️ Info**: Informational, no action required
+
+**Retry Strategy**:
+- Automatic retry: Branch name collisions (up to 3 attempts)
+- Manual retry: All other failures require user intervention
+- Idempotent operations: Safe to retry after manual fixes
+
+**Error Recovery**:
+- Keep worktrees intact on integration conflicts for manual resolution
+- Log all failures for post-phase summary report
+- Provide exact commands for manual resolution
+- Link to documentation for complex scenarios
 
 ## Important Notes
 
