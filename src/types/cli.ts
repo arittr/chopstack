@@ -162,6 +162,7 @@ export const AnalyzeCommandOptionsSchema = z
     codebase: z.string().optional(),
     output: z.string().optional(),
     format: z.enum(['text', 'json']).default('text'),
+    agent: AgentTypeSchema.default('claude'),
     targetDir: z.string().optional(),
     verbose: z.boolean().default(false),
   })
