@@ -886,3 +886,478 @@ describe('VCS MCP Tools - create_task_worktree', () => {
     });
   });
 });
+
+describe('VCS MCP Tools - integrate_task_stack', () => {
+  let mockVcsEngine: {
+    buildStackFromTasks: ReturnType<typeof vi.fn>;
+    initialize: ReturnType<typeof vi.fn>;
+  };
+
+  let mockMcp: {
+    addTool: ReturnType<typeof vi.fn>;
+  };
+
+  /**
+   * Helper to get the execute function for integrate_task_stack
+   */
+  function getExecuteFunction(): (params: never) => Promise<string> {
+    const integrateStackCall = mockMcp.addTool.mock.calls.find(
+      (call) => call[0].name === 'integrate_task_stack',
+    );
+    if (integrateStackCall === undefined) {
+      throw new Error('integrate_task_stack tool not registered');
+    }
+    return integrateStackCall[0].execute as (params: never) => Promise<string>;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Mock VcsEngineService
+    mockVcsEngine = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      buildStackFromTasks: vi.fn(),
+    };
+
+    vi.mocked(VcsEngineServiceImpl).mockImplementation(
+      () => mockVcsEngine as unknown as VcsEngineServiceImpl,
+    );
+
+    // Create mock FastMCP instance
+    mockMcp = {
+      addTool: vi.fn(),
+    };
+  });
+
+  describe('Tool Registration', () => {
+    it('should register integrate_task_stack tool', () => {
+      registerVcsTools(mockMcp as never);
+
+      expect(mockMcp.addTool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'integrate_task_stack',
+          description: expect.stringContaining('Integrate completed task branches'),
+          parameters: expect.any(Object),
+          execute: expect.any(Function),
+        }),
+      );
+    });
+  });
+
+  describe('Success Paths', () => {
+    it('should integrate single task successfully', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockResolvedValue({
+        branches: [{ branchName: 'task/task-1', commitHash: 'abc123', taskId: 'task-1' }],
+        parentRef: 'main',
+        prUrls: [],
+      });
+
+      const result = await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        submit: false,
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response).toEqual({
+        status: 'success',
+        branches: ['task/task-1'],
+        conflicts: [],
+        prUrls: [],
+      });
+
+      // Verify VcsEngine was called correctly
+      expect(mockVcsEngine.initialize).toHaveBeenCalledWith('/test/project');
+      expect(mockVcsEngine.buildStackFromTasks).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({
+            id: 'task-1',
+            name: 'Setup types',
+            branchName: 'task/task-1',
+            complexity: 'M',
+            state: 'completed',
+          }),
+        ],
+        '/test/project',
+        {
+          parentRef: 'main',
+          submitStack: false,
+        },
+      );
+    });
+
+    it('should integrate multiple tasks successfully', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockResolvedValue({
+        branches: [
+          { branchName: 'task/task-1', commitHash: 'abc123', taskId: 'task-1' },
+          { branchName: 'task/task-2', commitHash: 'def456', taskId: 'task-2' },
+        ],
+        parentRef: 'main',
+        prUrls: [],
+      });
+
+      const result = await execute({
+        tasks: [
+          { id: 'task-1', name: 'Setup types' },
+          { id: 'task-2', name: 'Add validation' },
+        ],
+        targetBranch: 'main',
+        submit: false,
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.status).toBe('success');
+      expect(response.branches).toEqual(['task/task-1', 'task/task-2']);
+      expect(response.conflicts).toEqual([]);
+    });
+
+    it('should integrate with custom branch names', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockResolvedValue({
+        branches: [{ branchName: 'custom/branch-1', commitHash: 'abc123', taskId: 'task-1' }],
+        parentRef: 'main',
+        prUrls: [],
+      });
+
+      const result = await execute({
+        tasks: [{ id: 'task-1', name: 'Custom task', branchName: 'custom/branch-1' }],
+        targetBranch: 'main',
+        submit: false,
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.branches).toEqual(['custom/branch-1']);
+
+      // Verify custom branch name was passed
+      expect(mockVcsEngine.buildStackFromTasks).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({
+            id: 'task-1',
+            branchName: 'custom/branch-1',
+          }),
+        ],
+        '/test/project',
+        expect.any(Object),
+      );
+    });
+
+    it('should integrate with PR submission', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockResolvedValue({
+        branches: [{ branchName: 'task/task-1', commitHash: 'abc123', taskId: 'task-1' }],
+        parentRef: 'main',
+        prUrls: ['https://github.com/org/repo/pull/123'],
+      });
+
+      const result = await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        submit: true,
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.status).toBe('success');
+      expect(response.prUrls).toEqual(['https://github.com/org/repo/pull/123']);
+
+      // Verify submit flag was passed
+      expect(mockVcsEngine.buildStackFromTasks).toHaveBeenCalledWith(
+        expect.any(Array),
+        '/test/project',
+        expect.objectContaining({
+          submitStack: true,
+        }),
+      );
+    });
+
+    it('should use current directory when workdir not provided', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      const currentDir = process.cwd();
+      mockVcsEngine.buildStackFromTasks.mockResolvedValue({
+        branches: [{ branchName: 'task/task-1', commitHash: 'abc123', taskId: 'task-1' }],
+        parentRef: 'main',
+        prUrls: [],
+      });
+
+      await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+      } as never);
+
+      expect(mockVcsEngine.initialize).toHaveBeenCalledWith(currentDir);
+      expect(mockVcsEngine.buildStackFromTasks).toHaveBeenCalledWith(
+        expect.any(Array),
+        currentDir,
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe('Failure Paths', () => {
+    it('should handle merge conflict errors', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockRejectedValue(
+        new Error('Merge conflict in src/auth/login.ts'),
+      );
+
+      const result = await execute({
+        tasks: [
+          { id: 'task-1', name: 'Setup types' },
+          { id: 'task-2', name: 'Add validation' },
+        ],
+        targetBranch: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.status).toBe('failed');
+      expect(response.conflicts).toHaveLength(2);
+      expect(response.conflicts[0]).toMatchObject({
+        taskId: 'task-1',
+        files: [],
+        resolution: expect.stringContaining('Fix conflicts in worktree'),
+      });
+      expect(response.error).toContain('merge conflicts');
+    });
+
+    it('should handle rebase conflict errors', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockRejectedValue(
+        new Error('Rebase failed with conflicts'),
+      );
+
+      const result = await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.status).toBe('failed');
+      expect(response.conflicts).toHaveLength(1);
+      expect(response.error).toContain('merge conflicts');
+    });
+
+    it('should handle generic integration errors', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockRejectedValue(
+        new Error('Branch not found: task/task-1'),
+      );
+
+      const result = await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.status).toBe('failed');
+      expect(response.conflicts).toEqual([]);
+      expect(response.error).toBe('Branch not found: task/task-1');
+    });
+
+    it('should handle unknown error types', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockRejectedValue('String error');
+
+      const result = await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const response = JSON.parse(result);
+      expect(response.status).toBe('failed');
+      expect(response.error).toBe('Unknown error');
+    });
+  });
+
+  describe('Logging', () => {
+    beforeEach(() => {
+      mockVcsEngine.buildStackFromTasks.mockResolvedValue({
+        branches: [{ branchName: 'task/task-1', commitHash: 'abc123', taskId: 'task-1' }],
+        parentRef: 'main',
+        prUrls: [],
+      });
+    });
+
+    it('should log debug info on tool call', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      const params = {
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        workdir: '/test/project',
+      };
+
+      await execute(params as never);
+
+      expect(logger.debug).toHaveBeenCalledWith('integrate_task_stack called', { params });
+    });
+
+    it('should log integration start', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        submit: false,
+        workdir: '/test/project',
+      } as never);
+
+      expect(logger.info).toHaveBeenCalledWith('Integrating 1 task(s) into main');
+    });
+
+    it('should log integration with PR submission', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        submit: true,
+        workdir: '/test/project',
+      } as never);
+
+      expect(logger.info).toHaveBeenCalledWith(
+        'Integrating 1 task(s) into main with PR submission',
+      );
+    });
+
+    it('should log integration success', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      expect(logger.info).toHaveBeenCalledWith(
+        'Stack integration completed',
+        expect.objectContaining({
+          branches: ['task/task-1'],
+        }),
+      );
+    });
+
+    it('should log errors with task context', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockRejectedValue(new Error('Test error'));
+
+      await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'integrate_task_stack failed',
+        expect.objectContaining({
+          error: 'Test error',
+          tasks: [{ id: 'task-1', name: 'Setup types' }],
+        }),
+      );
+    });
+  });
+
+  describe('Response Format', () => {
+    it('should return JSON.stringify() response', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockResolvedValue({
+        branches: [{ branchName: 'task/task-1', commitHash: 'abc123', taskId: 'task-1' }],
+        parentRef: 'main',
+        prUrls: [],
+      });
+
+      const result = await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      // Verify result is a valid JSON string
+      expect(typeof result).toBe('string');
+      expect(() => {
+        JSON.parse(result) as unknown;
+      }).not.toThrow();
+
+      const parsed = JSON.parse(result) as Record<string, unknown>;
+      expect(parsed).toHaveProperty('status');
+      expect(parsed).toHaveProperty('branches');
+    });
+
+    it('should include all required success fields', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockResolvedValue({
+        branches: [{ branchName: 'task/task-1', commitHash: 'abc123', taskId: 'task-1' }],
+        parentRef: 'main',
+        prUrls: ['https://github.com/org/repo/pull/123'],
+      });
+
+      const result = await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        submit: true,
+        workdir: '/test/project',
+      } as never);
+
+      const parsed = JSON.parse(result);
+      expect(parsed).toHaveProperty('status', 'success');
+      expect(parsed).toHaveProperty('branches');
+      expect(parsed).toHaveProperty('conflicts');
+      expect(parsed).toHaveProperty('prUrls');
+    });
+
+    it('should include all required failure fields', async () => {
+      registerVcsTools(mockMcp as never);
+      const execute = getExecuteFunction();
+
+      mockVcsEngine.buildStackFromTasks.mockRejectedValue(new Error('Test error'));
+
+      const result = await execute({
+        tasks: [{ id: 'task-1', name: 'Setup types' }],
+        targetBranch: 'main',
+        workdir: '/test/project',
+      } as never);
+
+      const parsed = JSON.parse(result);
+      expect(parsed).toHaveProperty('status', 'failed');
+      expect(parsed).toHaveProperty('branches');
+      expect(parsed).toHaveProperty('conflicts');
+      expect(parsed).toHaveProperty('error');
+    });
+  });
+});
