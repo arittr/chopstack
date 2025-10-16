@@ -81,7 +81,8 @@ addCommonOptions(
     .command('analyze')
     .description('Analyze specification completeness and quality')
     .requiredOption('--spec <file>', 'Path to specification file')
-    .option('--output <file>', 'Output file for JSON report (optional)'),
+    .option('--output <file>', 'Output file for JSON report (optional)')
+    .option('--agent <type>', 'Agent to use for LLM-powered gap analysis: claude|mock', 'claude'),
 ).action(async (options: unknown) => {
   try {
     const validatedOptions = validateAnalyzeArgs(options);

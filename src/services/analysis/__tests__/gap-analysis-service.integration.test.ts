@@ -15,12 +15,12 @@ describe('GapAnalysisService Integration', () => {
   });
 
   describe('real-world specification analysis', () => {
-    it('should analyze chopstack v2 phase 2 specification', () => {
+    it('should analyze chopstack v2 phase 2 specification', async () => {
       // Load actual spec file from project
       const specPath = join(process.cwd(), 'specs/chopstack-v2_phase2/spec.md');
       const specContent = readFileSync(specPath, 'utf8');
 
-      const report = service.analyze(specContent);
+      const report = await service.analyze(specContent);
 
       // Verify report structure
       expect(report).toBeDefined();
@@ -53,7 +53,7 @@ describe('GapAnalysisService Integration', () => {
       }
     });
 
-    it('should analyze specification with project principles', () => {
+    it('should analyze specification with project principles', async () => {
       const specContent = `
 ## Overview
 
@@ -113,7 +113,7 @@ All requirements implemented with 95%+ test coverage. DI pattern used throughout
         ],
       };
 
-      const report = service.analyze(specContent, principles);
+      const report = await service.analyze(specContent, principles);
 
       // Spec follows principles, so should score well
       expect(report.completeness).toBeGreaterThan(80);
@@ -127,7 +127,7 @@ All requirements implemented with 95%+ test coverage. DI pattern used throughout
       expect(principleViolations.length).toBeLessThanOrEqual(1);
     });
 
-    it('should handle incomplete real-world specification', () => {
+    it('should handle incomplete real-world specification', async () => {
       const incompleteSpec = `
 # Feature: Add Dark Mode
 
@@ -148,7 +148,7 @@ Add dark mode to the application.
 Maybe we should support light, dark, and system modes. TBD on the exact implementation.
 `;
 
-      const report = service.analyze(incompleteSpec);
+      const report = await service.analyze(incompleteSpec);
 
       // Should detect multiple issues
       expect(report.completeness).toBeLessThan(70);
@@ -173,7 +173,7 @@ Maybe we should support light, dark, and system modes. TBD on the exact implemen
       expect(report.remediation[0]?.priority).toBe('CRITICAL');
     });
 
-    it('should handle specification with multiple requirement types', () => {
+    it('should handle specification with multiple requirement types', async () => {
       const specWithMixedRequirements = `
 ## Overview
 
@@ -212,7 +212,7 @@ Microservices architecture with React frontend, Node.js backend, PostgreSQL data
 All functional requirements implemented with 95% test coverage. Performance metrics met. Security audit passed.
 `;
 
-      const report = service.analyze(specWithMixedRequirements);
+      const report = await service.analyze(specWithMixedRequirements);
 
       // Should handle multiple requirement types
       expect(report).toBeDefined();
@@ -227,7 +227,7 @@ All functional requirements implemented with 95% test coverage. Performance metr
       }
     });
 
-    it('should provide comprehensive analysis for complex specification', () => {
+    it('should provide comprehensive analysis for complex specification', async () => {
       const complexSpec = `
 # Specification: Advanced Feature Implementation
 
@@ -374,7 +374,7 @@ The system follows a microservices architecture with the following components:
 - Browser extensions
 `;
 
-      const report = service.analyze(complexSpec);
+      const report = await service.analyze(complexSpec);
 
       // Complex spec should score very well
       expect(report.completeness).toBeGreaterThan(90);
@@ -398,7 +398,7 @@ The system follows a microservices architecture with the following components:
   });
 
   describe('gap categorization and severity', () => {
-    it('should assign correct severities to different gap types', () => {
+    it('should assign correct severities to different gap types', async () => {
       const specWithVariousIssues = `
 ## Overview
 
@@ -422,7 +422,7 @@ Short background section.
 Architecture section is too brief.
 `;
 
-      const report = service.analyze(specWithVariousIssues);
+      const report = await service.analyze(specWithVariousIssues);
 
       // Check that severities are correctly assigned
       const criticalGaps = report.gaps.filter((g) => g.severity === 'CRITICAL');
@@ -445,7 +445,7 @@ Architecture section is too brief.
   });
 
   describe('performance with large specifications', () => {
-    it('should handle large specifications efficiently', () => {
+    it('should handle large specifications efficiently', async () => {
       // Generate a large specification
       const sections = [
         `## Overview\n${'Detailed overview. '.repeat(500)}`,
@@ -458,7 +458,7 @@ Architecture section is too brief.
       const largeSpec = sections.join('\n\n');
 
       const startTime = Date.now();
-      const report = service.analyze(largeSpec);
+      const report = await service.analyze(largeSpec);
       const duration = Date.now() - startTime;
 
       // Should complete in reasonable time (< 1 second)
@@ -472,7 +472,7 @@ Architecture section is too brief.
   });
 
   describe('remediation step ordering', () => {
-    it('should order remediation steps by severity then sequence', () => {
+    it('should order remediation steps by severity then sequence', async () => {
       const specWithMultipleIssues = `
 ## Overview
 
@@ -487,7 +487,7 @@ TBD background section.
 **FR1**: Requirement maybe needs work
 `;
 
-      const report = service.analyze(specWithMultipleIssues);
+      const report = await service.analyze(specWithMultipleIssues);
 
       // Verify remediation is ordered correctly
       let lastPriority = 'CRITICAL';

@@ -29,7 +29,11 @@ export type AgentProvider = {
  * Decomposer agent interface using v2 types
  */
 export type DecomposerAgent = {
-  decompose(specContent: string, cwd: string, options?: { verbose?: boolean }): Promise<PlanV2>;
+  decompose(
+    specContent: string,
+    cwd: string,
+    options?: { planOutputPath?: string; verbose?: boolean },
+  ): Promise<PlanV2>;
 
   /**
    * Query the agent with an arbitrary prompt and return the raw response.
