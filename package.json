@@ -19,7 +19,7 @@
     "build": "tsup",
     "build:watch": "tsup --watch",
     "commit": "pnpm --filter commitment run commit",
-    "dev:mcp": "tsx watch --clear-screen=false src/index.ts",
+    "dev:mcp": "fastmcp dev src/index.ts",
     "dev:mcp-inspect": "fastmcp inspect src/index.ts",
     "dev:mcp-build": "tsup --watch",
     "inspect:mcp": "fastmcp inspect src/index.ts",
