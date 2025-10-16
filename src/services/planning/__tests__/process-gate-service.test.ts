@@ -35,7 +35,7 @@ function createTestPlan(tasks: TaskV2[]): PlanV2 {
 describe('ProcessGateService', () => {
   describe('Pre-generation gate', () => {
     describe('Section detection', () => {
-      it('should detect "## Open Tasks/Questions" section', () => {
+      it('should detect "## Open Tasks/Questions" section', async () => {
         const service = new ProcessGateService();
         const specContent = `
 # Specification
@@ -51,14 +51,14 @@ Some content here.
 More content.
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(2);
         expect(result.issues[0]).toContain('How many components');
       });
 
-      it('should detect "## Open Questions" section', () => {
+      it('should detect "## Open Questions" section', async () => {
         const service = new ProcessGateService();
         const specContent = `
 # Specification
@@ -70,13 +70,13 @@ More content.
 Content here.
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(1);
       });
 
-      it('should detect "## Unresolved Questions" section', () => {
+      it('should detect "## Unresolved Questions" section', async () => {
         const service = new ProcessGateService();
         const specContent = `
 # Specification
@@ -88,13 +88,13 @@ Content here.
 Content here.
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(1);
       });
 
-      it('should return no issues if section does not exist', () => {
+      it('should return no issues if section does not exist', async () => {
         const service = new ProcessGateService();
         const specContent = `
 # Specification
@@ -106,7 +106,7 @@ Complete specification without open questions.
 All requirements are defined.
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(false);
         expect(result.issues).toHaveLength(0);
@@ -114,7 +114,7 @@ All requirements are defined.
     });
 
     describe('Unchecked checkbox detection', () => {
-      it('should detect "- [ ]" pattern', () => {
+      it('should detect "- [ ]" pattern', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Tasks/Questions
@@ -122,26 +122,26 @@ All requirements are defined.
 - [ ] Question two
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(2);
       });
 
-      it('should detect "[ ]" pattern without dash', () => {
+      it('should detect "[ ]" pattern without dash', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Questions
 [ ] Question without dash
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(1);
       });
 
-      it('should not flag checked checkboxes "- [x]"', () => {
+      it('should not flag checked checkboxes "- [x]"', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Tasks/Questions
@@ -149,13 +149,13 @@ All requirements are defined.
 - [x] Completed question two
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(false);
         expect(result.issues).toHaveLength(0);
       });
 
-      it('should handle mixed checked and unchecked', () => {
+      it('should handle mixed checked and unchecked', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Tasks/Questions
@@ -164,7 +164,7 @@ All requirements are defined.
 - [x] Another completed question
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(1);
@@ -173,7 +173,7 @@ All requirements are defined.
     });
 
     describe('Question marker detection', () => {
-      it('should detect question marks', () => {
+      it('should detect question marks', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Questions
@@ -181,13 +181,13 @@ What is the performance requirement?
 How many users will access this?
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(2);
       });
 
-      it('should detect "TODO:" marker', () => {
+      it('should detect "TODO:" marker', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Tasks/Questions
@@ -195,13 +195,13 @@ TODO: Complete codebase audit
 TODO: Decide on state management approach
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(2);
       });
 
-      it('should detect "TBD:" marker', () => {
+      it('should detect "TBD:" marker', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Questions
@@ -209,13 +209,13 @@ TBD: Database schema design
 TBD: API endpoint structure
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(2);
       });
 
-      it('should detect mixed markers', () => {
+      it('should detect mixed markers', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Tasks/Questions
@@ -224,7 +224,7 @@ TODO: Complete audit
 TBD: Performance targets
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(3);
@@ -232,7 +232,7 @@ TBD: Performance targets
     });
 
     describe('Edge cases', () => {
-      it('should handle empty section', () => {
+      it('should handle empty section', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Tasks/Questions
@@ -240,13 +240,13 @@ TBD: Performance targets
 ## Next Section
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(false);
         expect(result.issues).toHaveLength(0);
       });
 
-      it('should handle section at end of file', () => {
+      it('should handle section at end of file', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Requirements
@@ -256,13 +256,13 @@ Content here.
 - [ ] Unresolved question
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(1);
       });
 
-      it('should skip empty lines and headers', () => {
+      it('should skip empty lines and headers', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Tasks/Questions
@@ -273,17 +273,17 @@ Content here.
 
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(1);
       });
 
-      it('should handle empty spec content', () => {
+      it('should handle empty spec content', async () => {
         const service = new ProcessGateService();
         const specContent = '';
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(false);
         expect(result.issues).toHaveLength(0);
@@ -291,41 +291,41 @@ Content here.
     });
 
     describe('Gate bypass', () => {
-      it('should bypass gate when skipGates=true', () => {
+      it('should bypass gate when skipGates=true', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Questions
 - [ ] Unresolved question
 `;
 
-        const result = service.checkPreGeneration(specContent, { skipGates: true });
+        const result = await service.checkPreGeneration(specContent, { skipGates: true });
 
         expect(result.blocking).toBe(false);
         expect(result.message).toContain('skipped');
         expect(result.issues).toHaveLength(0);
       });
 
-      it('should enforce gate when skipGates=false', () => {
+      it('should enforce gate when skipGates=false', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Questions
 - [ ] Unresolved question
 `;
 
-        const result = service.checkPreGeneration(specContent, { skipGates: false });
+        const result = await service.checkPreGeneration(specContent, { skipGates: false });
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(1);
       });
 
-      it('should enforce gate when skipGates is undefined', () => {
+      it('should enforce gate when skipGates is undefined', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Questions
 - [ ] Unresolved question
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.blocking).toBe(true);
         expect(result.issues).toHaveLength(1);
@@ -333,7 +333,7 @@ Content here.
     });
 
     describe('Error message formatting', () => {
-      it('should include all unresolved questions in message', () => {
+      it('should include all unresolved questions in message', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Tasks/Questions
@@ -342,7 +342,7 @@ Content here.
 - [ ] Question three
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.message).toContain('3 unresolved');
         expect(result.message).toContain('Question one');
@@ -350,14 +350,14 @@ Content here.
         expect(result.message).toContain('Question three');
       });
 
-      it('should include actionable guidance', () => {
+      it('should include actionable guidance', async () => {
         const service = new ProcessGateService();
         const specContent = `
 ## Open Questions
 - [ ] Unresolved
 `;
 
-        const result = service.checkPreGeneration(specContent);
+        const result = await service.checkPreGeneration(specContent);
 
         expect(result.message).toContain('Action Required');
         expect(result.message).toContain('Complete all audits');
@@ -569,7 +569,7 @@ Content here.
 
   describe('Integration scenarios', () => {
     describe('Both gates pass', () => {
-      it('should pass pre-generation with complete spec', () => {
+      it('should pass pre-generation with complete spec', async () => {
         const service = new ProcessGateService();
         const completeSpec = `
 # Specification
@@ -584,7 +584,7 @@ All requirements defined.
 Architecture is documented.
 `;
 
-        const preResult = service.checkPreGeneration(completeSpec);
+        const preResult = await service.checkPreGeneration(completeSpec);
 
         expect(preResult.blocking).toBe(false);
       });
@@ -611,14 +611,14 @@ Architecture is documented.
     });
 
     describe('Both gates fail', () => {
-      it('should fail pre-generation with open questions', () => {
+      it('should fail pre-generation with open questions', async () => {
         const service = new ProcessGateService();
         const incompleteSpec = `
 ## Open Questions
 - [ ] Unresolved question
 `;
 
-        const preResult = service.checkPreGeneration(incompleteSpec);
+        const preResult = await service.checkPreGeneration(incompleteSpec);
 
         expect(preResult.blocking).toBe(true);
       });
@@ -634,7 +634,7 @@ Architecture is documented.
     });
 
     describe('Both gates bypass', () => {
-      it('should bypass both gates with skipGates=true', () => {
+      it('should bypass both gates with skipGates=true', async () => {
         const service = new ProcessGateService();
         const incompleteSpec = `
 ## Open Questions
@@ -642,7 +642,7 @@ Architecture is documented.
 `;
         const poorPlan = createTestPlan([createTestTask({ complexity: 'XL' })]);
 
-        const preResult = service.checkPreGeneration(incompleteSpec, { skipGates: true });
+        const preResult = await service.checkPreGeneration(incompleteSpec, { skipGates: true });
         const postResult = service.checkPostGeneration(poorPlan, { skipGates: true });
 
         expect(preResult.blocking).toBe(false);
