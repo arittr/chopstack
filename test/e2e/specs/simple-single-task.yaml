@@ -1,9 +1,0 @@
-tasks:
-  - id: create-readme
-    title: Create simple README file
-    description: Create a basic README with project info
-    touches: []
-    produces: [README-test.md]
-    requires: []
-    estimatedLines: 10
-    agentPrompt: Create a README-test.md file with a header "# Test Project" and a description "This is a test file created by chopstack for validation purposes."
