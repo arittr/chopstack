@@ -31,63 +31,56 @@ export class DecomposeCommand extends BaseCommand {
     try {
       // Read the specification file
       const specPath = resolve(options.spec);
-      this.logger.info(chalk.blue(`📄 Reading spec from: ${specPath}`));
+      this.logger.info(chalk.blue('📋 Building plan from specification'));
+      this.logger.info(chalk.dim(`📄 Spec: ${specPath}`));
+      this.logger.info('');
 
       const specContent = await readFile(specPath, 'utf8');
-      this.logger.info(chalk.dim(`📄 Spec content length: ${specContent.length} characters`));
 
-      // Pre-generation gate: Check for open questions in specification
-      const gateService = new ProcessGateService();
-      const preGateResult = gateService.checkPreGeneration(specContent, {
-        skipGates: options.skipGates,
-      });
-
-      if (preGateResult.blocking) {
-        this.logger.error(chalk.red(preGateResult.message));
-        return 1;
-      }
-
-      this.logger.info(chalk.cyan(`🤖 Using agent: ${options.agent}`));
+      // STEP 1: GATE 1 - Analyze specification for completeness
+      this.logger.info(chalk.cyan('GATE 1: Analyzing specification...'));
 
       // Create the appropriate agent (includes capability validation)
       const agent = await createDecomposerAgent(options.agent);
 
+      // Initialize gate service with agent for intelligent gap analysis
+      const gateService = new ProcessGateService(agent);
+      const preGateResult = await gateService.checkPreGeneration(specContent, {
+        skipGates: options.skipGates,
+      });
+
+      if (preGateResult.blocking) {
+        this.logger.error(chalk.red('GATE 1: ❌ FAILED'));
+        this.logger.error('');
+        this.logger.error(chalk.red(preGateResult.message));
+        return 1;
+      }
+
+      this.logger.info(chalk.green('GATE 1: ✅ PASSED'));
+      this.logger.info('');
+
+      // STEP 2: Generate plan
+      this.logger.info(chalk.cyan('Generating plan...'));
+      this.logger.info(chalk.dim(`🤖 Using agent: ${options.agent}`));
+
       // Get working directory (from targetDir or context)
       const cwd = options.targetDir ?? this.dependencies.context.cwd;
+
+      // Calculate plan output path: spec directory + /plan.yaml
+      const specDir = specPath.slice(0, Math.max(0, specPath.lastIndexOf('/')));
+      const planPath = `${specDir}/plan.yaml`;
 
       // Generate plan with retry logic
       const result = await generatePlanWithRetry(agent, specContent, cwd, {
         maxRetries: 3,
         verbose: options.verbose,
+        planOutputPath: planPath,
       });
-
-      // Post-generation gate: Check task quality
-      const postGateResult = gateService.checkPostGeneration(result.plan, {
-        skipGates: options.skipGates,
-      });
-
-      // Display quality report (even if gate passes with warnings)
-      if (isValidArray(postGateResult.issues) && postGateResult.issues.length > 0) {
-        this.logger.warn(chalk.yellow('\n📊 Quality Gate Report:'));
-        for (const issue of postGateResult.issues) {
-          this.logger.warn(chalk.yellow(`  • ${issue}`));
-        }
-        this.logger.warn(''); // Empty line for formatting
-      }
-
-      if (postGateResult.blocking) {
-        this.logger.error(chalk.red(postGateResult.message));
-        return 1;
-      }
-
-      // Calculate metrics and output the plan
-      const metrics = DagValidator.calculateMetrics(result.plan);
-      await PlanOutputter.outputPlan(result.plan, options.output);
 
       if (!result.success) {
         // Final validation failed
         const validation = DagValidator.validatePlan(result.plan);
-        this.logger.error(chalk.red('❌ Plan validation failed after all retry attempts:'));
+        this.logger.error(chalk.red('❌ Plan generation failed after all retry attempts:'));
         if (isValidArray(validation.conflicts)) {
           this.logger.error(chalk.yellow(`  File conflicts: ${validation.conflicts.join(', ')}`));
         }
@@ -106,10 +99,56 @@ export class DecomposeCommand extends BaseCommand {
         return 1;
       }
 
-      this.logger.info(chalk.green('✅ Plan generated and validated successfully!'));
-      this.logger.info(chalk.dim(`📊 Total tasks: ${result.plan.tasks.length}`));
-      this.logger.info(chalk.dim(`📊 Max parallel: ${metrics.maxParallelization}`));
-      this.logger.info(chalk.dim(`📊 Critical path: ${metrics.criticalPathLength} steps`));
+      // Output the plan
+      await PlanOutputter.outputPlan(result.plan, options.output);
+      this.logger.info(chalk.green('✅ Plan generated'));
+      this.logger.info('');
+
+      // STEP 3: GATE 2 - Validate task quality
+      this.logger.info(chalk.cyan('GATE 2: Validating task quality...'));
+      const postGateResult = gateService.checkPostGeneration(result.plan, {
+        skipGates: options.skipGates,
+      });
+
+      // Display quality report details
+      if (isValidArray(postGateResult.issues) && postGateResult.issues.length > 0) {
+        this.logger.warn(chalk.yellow('📊 Quality issues detected:'));
+        for (const issue of postGateResult.issues) {
+          this.logger.warn(chalk.yellow(`  • ${issue}`));
+        }
+        this.logger.warn('');
+      }
+
+      if (postGateResult.blocking) {
+        this.logger.error(chalk.red('GATE 2: ❌ FAILED'));
+        this.logger.error('');
+        this.logger.error(chalk.red(postGateResult.message));
+        return 1;
+      }
+
+      this.logger.info(chalk.green('GATE 2: ✅ PASSED'));
+      this.logger.info('');
+
+      // Final summary
+      const metrics = DagValidator.calculateMetrics(result.plan);
+      this.logger.info(chalk.green('✅ Plan Generation Complete'));
+      this.logger.info('');
+      this.logger.info(chalk.cyan('Plan Details:'));
+      this.logger.info(chalk.dim(`  Location: ${options.output ?? 'stdout'}`));
+      this.logger.info(chalk.dim(`  Tasks: ${result.plan.tasks.length}`));
+      this.logger.info(chalk.dim(`  Max parallel: ${metrics.maxParallelization}`));
+      this.logger.info(chalk.dim(`  Critical path: ${metrics.criticalPathLength} steps`));
+      this.logger.info('');
+
+      if (options.output !== undefined) {
+        this.logger.info(chalk.cyan('Next Steps:'));
+        this.logger.info(chalk.dim('  To review plan:'));
+        this.logger.info(chalk.dim(`    cat ${options.output}`));
+        this.logger.info(chalk.dim('  To validate plan:'));
+        this.logger.info(chalk.dim(`    chopstack run --plan ${options.output} --mode validate`));
+        this.logger.info(chalk.dim('  To execute plan:'));
+        this.logger.info(chalk.dim(`    chopstack run --plan ${options.output} --mode execute`));
+      }
 
       return 0;
     } catch (error) {
