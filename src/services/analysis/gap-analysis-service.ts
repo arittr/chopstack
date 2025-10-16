@@ -1,3 +1,4 @@
+import type { DecomposerAgent } from '@/core/agents/interfaces';
 import type {
   AnalysisReport,
   Gap,
@@ -7,7 +8,7 @@ import type {
 } from '@/types/schemas-v2';
 
 import { logger } from '@/utils/global-logger';
-import { hasContent, isNonEmptyArray, isNonNullish } from '@/validation/guards';
+import { hasContent, isNonEmptyArray, isNonEmptyString, isNonNullish } from '@/validation/guards';
 
 /**
  * Section requirement definition
@@ -21,20 +22,27 @@ type SectionRequirement = {
 /**
  * Service for analyzing specification completeness and detecting gaps.
  *
- * This service validates specifications by:
- * - Checking for required sections
- * - Validating content depth (minimum character counts)
- * - Detecting ambiguous language (should, maybe, TBD, TODO)
- * - Finding placeholder text (???, [fill this in])
- * - Parsing open questions/tasks
- * - Validating cross-references
- * - Calculating completeness scores
- * - Generating prioritized remediation steps
+ * Uses a hybrid approach combining fast static checks with intelligent LLM analysis:
+ *
+ * STATIC CHECKS (Fast, deterministic):
+ * - Missing required sections (CRITICAL)
+ * - Placeholder text detection (CRITICAL)
+ * - Unchecked open questions (CRITICAL)
+ * - Content depth validation (HIGH)
+ * - Cross-reference consistency (MEDIUM)
+ *
+ * LLM-POWERED ANALYSIS (Context-aware, intelligent):
+ * - Vague requirements detection (understands RFC 2119 vs ambiguity)
+ * - Architecture decision gaps (identifies missing design choices)
+ * - Scope ambiguities (finds unclear boundaries)
+ * - Implicit assumptions (surfaces hidden dependencies)
+ * - Technical depth assessment (evaluates completeness contextually)
  *
  * @example
  * ```typescript
- * const service = new GapAnalysisService();
- * const report = service.analyze(specContent, principles);
+ * const agent = createDecomposerAgent('claude');
+ * const service = new GapAnalysisService(agent);
+ * const report = await service.analyze(specContent, principles);
  *
  * console.log(report.completeness); // 75
  * console.log(report.gaps.length); // 3
@@ -42,6 +50,7 @@ type SectionRequirement = {
  * ```
  */
 export class GapAnalysisService {
+  constructor(private readonly _agent?: DecomposerAgent) {}
   /**
    * Required sections with their detection patterns and minimum lengths
    */
@@ -95,43 +104,64 @@ export class GapAnalysisService {
   /**
    * Analyze specification completeness and generate report.
    *
+   * Uses hybrid approach:
+   * 1. Fast static checks (CRITICAL gaps that block decomposition)
+   * 2. LLM-powered analysis (context-aware gap detection) - if agent provided
+   * 3. Fallback heuristics (simple pattern matching) - if no agent
+   *
    * @param specContent - Full markdown specification content
    * @param principles - Optional project principles for validation
    * @returns Comprehensive analysis report with gaps and remediation steps
    */
-  analyze(specContent: string, principles?: ProjectPrinciples): AnalysisReport {
+  async analyze(specContent: string, principles?: ProjectPrinciples): Promise<AnalysisReport> {
     logger.debug('🔍 Starting specification gap analysis...');
 
     const gaps: Gap[] = [];
 
-    // 1. Check required sections
+    // PHASE 1: FAST STATIC CHECKS (required, deterministic)
+    logger.debug('  Phase 1: Running static checks...');
+
+    // 1. Check required sections (CRITICAL)
     const sectionGaps = this._checkRequiredSections(specContent);
     gaps.push(...sectionGaps);
 
-    // 2. Validate content depth
-    const depthGaps = this._checkContentDepth(specContent);
-    gaps.push(...depthGaps);
-
-    // 3. Detect ambiguous language
-    const ambiguityGaps = this._detectAmbiguousLanguage(specContent);
-    gaps.push(...ambiguityGaps);
-
-    // 4. Find placeholder text
+    // 2. Find placeholder text (CRITICAL)
     const placeholderGaps = this._detectPlaceholders(specContent);
     gaps.push(...placeholderGaps);
 
-    // 5. Parse open questions
+    // 3. Parse open questions (CRITICAL)
     const openQuestionGaps = this._parseOpenQuestions(specContent);
     gaps.push(...openQuestionGaps);
 
-    // 6. Validate cross-references (requirements → architecture → acceptance criteria)
+    // 4. Validate cross-references (MEDIUM)
     const crossRefGaps = this._validateCrossReferences(specContent);
     gaps.push(...crossRefGaps);
 
-    // 7. Check principle violations if provided
-    if (isNonNullish(principles) && isNonEmptyArray(principles.principles)) {
-      const principleGaps = this._checkPrincipleViolations(specContent, principles);
-      gaps.push(...principleGaps);
+    // PHASE 2: INTELLIGENT ANALYSIS (context-aware)
+    logger.debug('  Phase 2: Running intelligent analysis...');
+
+    if (isNonNullish(this._agent)) {
+      // Use LLM for context-aware gap detection
+      logger.debug('    Using LLM agent for intelligent analysis');
+      const llmGaps = await this._analyzeWithAgent(specContent, principles);
+      gaps.push(...llmGaps);
+    } else {
+      // Fallback to simple heuristics
+      logger.debug('    No agent provided, using fallback heuristics');
+
+      // Validate content depth (HIGH)
+      const depthGaps = this._checkContentDepth(specContent);
+      gaps.push(...depthGaps);
+
+      // Detect ambiguous language (MEDIUM - brittle without LLM)
+      const ambiguityGaps = this._detectAmbiguousLanguage(specContent);
+      gaps.push(...ambiguityGaps);
+
+      // Check principle violations if provided (MEDIUM - brittle without LLM)
+      if (isNonNullish(principles) && isNonEmptyArray(principles.principles)) {
+        const principleGaps = this._checkPrincipleViolations(specContent, principles);
+        gaps.push(...principleGaps);
+      }
     }
 
     // Calculate completeness score
@@ -542,6 +572,232 @@ export class GapAnalysisService {
         reasoning: `${gap.severity} gap: ${gap.message}`,
         artifacts: gap.artifacts,
       }));
+  }
+
+  /**
+   * Analyze specification using LLM agent for intelligent gap detection.
+   *
+   * The LLM agent can:
+   * - Understand RFC 2119 MUST/SHOULD vs ambiguous "should"
+   * - Identify missing architecture decisions
+   * - Detect vague requirements that need clarification
+   * - Find scope ambiguities
+   * - Surface implicit assumptions
+   */
+  private async _analyzeWithAgent(
+    specContent: string,
+    principles?: ProjectPrinciples,
+  ): Promise<Gap[]> {
+    try {
+      const prompt = this._buildAnalysisPrompt(specContent, principles);
+
+      // Check if agent exists and supports query method
+      if (!this._agentSupportsQuery(this._agent)) {
+        logger.warn('⚠️ Agent does not support query method, falling back to heuristics');
+        return this._fallbackHeuristicAnalysis(specContent, principles);
+      }
+
+      // Call agent with gap analysis prompt (type safe after guard above)
+      const response = await this._agent.query(prompt, process.cwd(), { verbose: false });
+
+      // Parse structured gap response from LLM
+      const gaps = this._parseAgentGaps(response);
+
+      logger.debug(`  ✓ LLM analysis found ${gaps.length} gaps`);
+      return gaps;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn(`⚠️ LLM analysis failed: ${errorMessage}, falling back to heuristics`);
+      return this._fallbackHeuristicAnalysis(specContent, principles);
+    }
+  }
+
+  /**
+   * Type guard to check if agent supports query method
+   */
+  private _agentSupportsQuery(agent: DecomposerAgent | undefined): agent is DecomposerAgent & {
+    query: (prompt: string, cwd: string, options?: { verbose?: boolean }) => Promise<string>;
+  } {
+    return isNonNullish(agent) && 'query' in agent && typeof agent.query === 'function';
+  }
+
+  /**
+   * Build LLM prompt for gap analysis.
+   *
+   * Follows the pattern from .claude/commands/build-plan.md analysis agent.
+   */
+  private _buildAnalysisPrompt(specContent: string, principles?: ProjectPrinciples): string {
+    const principlesSection =
+      isNonNullish(principles) && isNonEmptyArray(principles.principles)
+        ? `
+## Project Principles (Must Follow)
+
+${principles.principles.map((p) => `- **${p.category}**: ${p.rule}`).join('\n')}
+`
+        : '';
+
+    return `ROLE: You are a specification analysis agent for chopstack v2.
+
+YOUR JOB: Analyze the specification for completeness and identify gaps that would lead to poor task decomposition.
+
+SPECIFICATION TO ANALYZE:
+
+\`\`\`markdown
+${specContent}
+\`\`\`
+${principlesSection}
+
+ANALYSIS REQUIREMENTS:
+
+1. **Vague Requirements Detection**
+   - Identify requirements that are too ambiguous to implement
+   - Distinguish between RFC 2119 language (MUST/SHOULD/MAY) and actual ambiguity
+   - Flag unclear scope boundaries
+   - Example GOOD: "The system MUST validate email format using RFC 5322 regex"
+   - Example BAD: "The system should handle emails somehow"
+
+2. **Architecture Decision Gaps**
+   - Identify missing design choices that will affect implementation
+   - Flag undefined component boundaries
+   - Find missing technology choices
+   - Example: "Storage mechanism not specified (database vs file vs memory?)"
+
+3. **Scope Ambiguities**
+   - Find unclear feature boundaries
+   - Identify unaddressed edge cases
+   - Flag missing acceptance criteria details
+   - Example: "What happens when user is offline?"
+
+4. **Implicit Assumptions**
+   - Surface hidden dependencies or requirements
+   - Find unstated technical constraints
+   - Identify assumed knowledge
+   - Example: "Assumes existing authentication system (not defined)"
+
+5. **Technical Depth Assessment**
+   - Evaluate if requirements are detailed enough for implementation
+   - Check if architecture has sufficient detail
+   - Verify acceptance criteria are testable
+${
+  isNonNullish(principles)
+    ? `
+6. **Principle Violations**
+   - Check if specification contradicts project principles
+   - Flag architectural patterns that violate established conventions
+`
+    : ''
+}
+
+SEVERITY GUIDELINES:
+- CRITICAL: Blocks decomposition entirely (missing core requirements, contradictory specs)
+- HIGH: Will cause poor task breakdown (vague requirements, missing architecture)
+- MEDIUM: May affect task granularity (unclear scope, implicit assumptions)
+- LOW: Minor clarifications (small ambiguities that can be resolved during execution)
+
+OUTPUT FORMAT (JSON):
+\`\`\`json
+{
+  "gaps": [
+    {
+      "id": "gap-vague-authentication",
+      "severity": "HIGH",
+      "category": "gap",
+      "message": "Authentication requirements are vague: 'support login' lacks detail on method (OAuth, JWT, session?)",
+      "artifacts": ["specification"],
+      "remediation": "Specify authentication method, session management, and token handling approach"
+    },
+    {
+      "id": "gap-missing-error-handling",
+      "severity": "MEDIUM",
+      "category": "gap",
+      "message": "Error handling strategy not defined for API failures",
+      "artifacts": ["specification"],
+      "remediation": "Add section defining retry logic, fallback behavior, and user-facing error messages"
+    }
+  ]
+}
+\`\`\`
+
+IMPORTANT:
+- Return ONLY the JSON object wrapped in \`\`\`json code fence
+- Do NOT flag RFC 2119 keywords (MUST/SHOULD/MAY) as ambiguous - they are intentional
+- Focus on gaps that would lead to poor task decomposition
+- Be specific: include the problematic text and concrete remediation
+- Each gap must have: id, severity, category, message, artifacts, remediation
+
+Begin analysis now.`;
+  }
+
+  /**
+   * Parse agent response into structured Gap[] array.
+   *
+   * Expects JSON response with { gaps: Gap[] } structure.
+   */
+  private _parseAgentGaps(response: string): Gap[] {
+    try {
+      // Extract JSON from markdown code fence
+      const jsonMatch = response.match(/```json\n([\S\s]+?)\n```/);
+      const jsonContent = jsonMatch?.[1];
+
+      if (!isNonEmptyString(jsonContent)) {
+        throw new Error('No JSON code block found in response');
+      }
+
+      // Parse JSON
+      const parsed = JSON.parse(jsonContent) as { gaps?: unknown };
+
+      // Validate structure
+      if (!isNonNullish(parsed.gaps) || !Array.isArray(parsed.gaps)) {
+        throw new Error('Response missing gaps array');
+      }
+
+      // Validate each gap has required fields
+      const gaps: Gap[] = [];
+      for (const gap of parsed.gaps) {
+        if (
+          typeof gap !== 'object' ||
+          gap === null ||
+          !('id' in gap) ||
+          !('severity' in gap) ||
+          !('category' in gap) ||
+          !('message' in gap) ||
+          !('artifacts' in gap)
+        ) {
+          logger.warn(`⚠️ Skipping invalid gap: ${JSON.stringify(gap)}`);
+          continue;
+        }
+
+        gaps.push(gap as Gap);
+      }
+
+      return gaps;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to parse agent gaps: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Fallback to simple heuristic analysis when LLM is unavailable.
+   */
+  private _fallbackHeuristicAnalysis(specContent: string, principles?: ProjectPrinciples): Gap[] {
+    const gaps: Gap[] = [];
+
+    // Validate content depth (HIGH)
+    const depthGaps = this._checkContentDepth(specContent);
+    gaps.push(...depthGaps);
+
+    // Detect ambiguous language (MEDIUM - brittle without LLM)
+    const ambiguityGaps = this._detectAmbiguousLanguage(specContent);
+    gaps.push(...ambiguityGaps);
+
+    // Check principle violations if provided (MEDIUM - brittle without LLM)
+    if (isNonNullish(principles) && isNonEmptyArray(principles.principles)) {
+      const principleGaps = this._checkPrincipleViolations(specContent, principles);
+      gaps.push(...principleGaps);
+    }
+
+    return gaps;
   }
 
   /**
