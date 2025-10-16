@@ -48,7 +48,8 @@
     "test:execution": "vitest --project=execution --run",
     "test:repo": "node dist/bin/chopstack.js run --plan ./test/e2e/specs/add-dark-mode-v3.yaml --mode execute --vcs-mode stacked --agent claude --write-log --target-dir ../typescript-nextjs-starter",
     "prepublishOnly": "pnpm run clean && pnpm run build",
-    "prepare": "husky"
+    "prepare": "husky",
+    "knip": "knip"
   },
   "keywords": [
     "chopstack",
@@ -93,6 +94,7 @@
     "husky": "^9.1.7",
     "ink-testing-library": "^4.0.0",
     "jiti": "^2.6.0",
+    "knip": "^5.66.0",
     "prettier": "^3.6.2",
     "rimraf": "^6.0.1",
     "rulesync": "^1.0.0",
