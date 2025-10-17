@@ -1,11 +1,11 @@
-import { vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { YamlPlanParser } from '@/io/yaml-parser';
 
 // Mock the Zod schema validation
-vi.mock('@/types/schemas-v2', () => ({
+mock.module('@/types/schemas-v2', () => ({
   planSchemaV2: {
-    parse: vi.fn((data: unknown) => {
+    parse: mock((data: unknown) => {
       // Simple mock - return the data if it has tasks array
       if (
         data !== null &&
