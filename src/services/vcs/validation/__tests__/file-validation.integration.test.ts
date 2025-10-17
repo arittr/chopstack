@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { setupGitTest } from '@test/helpers';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { ExecutionTask } from '@/core/execution/types';
 import type { VcsStrategyContext } from '@/core/vcs/vcs-strategy';

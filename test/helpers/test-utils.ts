@@ -1,9 +1,8 @@
 import type { SimpleGit } from 'simple-git';
-import type { MockedFunction } from 'vitest';
 
 import { execSync, type ExecSyncOptions } from 'node:child_process';
 
-import { afterEach, beforeEach, vi } from 'vitest';
+import { afterEach, beforeEach, mock, type Mock } from 'bun:test';
 
 import { isNonNullish } from '@/validation/guards';
 
@@ -197,8 +196,8 @@ export async function waitFor(
 /**
  * Creates a mock function with type safety.
  */
-export function createMockFn<T extends (...args: any[]) => any>(): MockedFunction<T> {
-  return vi.fn() as MockedFunction<T>;
+export function createMockFn<T extends (...args: any[]) => any>(): Mock<T> {
+  return mock() as Mock<T>;
 }
 
 /**
@@ -248,13 +247,13 @@ export async function createTestCommits(
  * Helper to simulate git-spice being available.
  */
 export function mockGitSpiceAvailable(isAvailable = true): void {
-  vi.mock('node:child_process', async (importOriginal) => {
+  mock.module('node:child_process', async (importOriginal) => {
     const actual = await importOriginal<{ [key: string]: unknown; execSync: typeof execSync }>();
     const originalExecSync = actual.execSync;
 
     return {
       ...actual,
-      execSync: vi.fn().mockImplementation((cmd: unknown, options?: unknown) => {
+      execSync: mock().mockImplementation((cmd: unknown, options?: unknown) => {
         if (typeof cmd === 'string' && cmd.includes('git-spice') && cmd.includes('--version')) {
           if (isAvailable) {
             return 'git-spice version 0.1.0';
