@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await, unicorn/no-unused-properties, @typescript-eslint/strict-boolean-expressions */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type {
   CommitOptionsGeneric,

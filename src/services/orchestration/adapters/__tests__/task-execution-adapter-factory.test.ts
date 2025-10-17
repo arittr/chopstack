@@ -1,33 +1,33 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { ClaudeCliTaskExecutionAdapter } from '../claude-cli-task-execution-adapter';
 import { MockTaskExecutionAdapter } from '../mock-task-execution-adapter';
 import { TaskExecutionAdapterFactory } from '../task-execution-adapter-factory';
 
 // Mock logger to suppress warnings in tests
-vi.mock('@/utils/logger', () => ({
+mock.module('@/utils/logger', () => ({
   Logger: class {
-    warn = vi.fn();
-    info = vi.fn();
-    error = vi.fn();
-    debug = vi.fn();
-    configure = vi.fn();
-    getOptions = vi.fn(() => ({}));
+    warn = mock();
+    info = mock();
+    error = mock();
+    debug = mock();
+    configure = mock();
+    getOptions = mock(() => ({}));
   },
 }));
 
-vi.mock('@/utils/global-logger', () => ({
+mock.module('@/utils/global-logger', () => ({
   logger: {
-    warn: vi.fn(),
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
+    warn: mock(),
+    info: mock(),
+    error: mock(),
+    debug: mock(),
   },
 }));
 
 describe('TaskExecutionAdapterFactory', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.restore();
   });
 
   describe('createAdapter', () => {
