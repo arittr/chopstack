@@ -1,5 +1,5 @@
 import { testWorktreeManager } from '@test/utils/testing-harness-worktree-manager';
-import { afterAll } from 'vitest';
+import { afterAll } from 'bun:test';
 
 import { isValidArray } from '@/validation/guards';
 

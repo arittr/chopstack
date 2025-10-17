@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import type { TaskV2 } from '@/types/schemas-v2';
 
@@ -10,7 +10,7 @@ describe('ExecutionEventBus', () => {
   describe('event emission', () => {
     it('should emit task:start events', () => {
       const eventBus = new ExecutionEventBus();
-      const handler = vi.fn();
+      const handler = mock();
       eventBus.onTaskStart(handler);
 
       const task: TaskV2 = {
@@ -38,7 +38,7 @@ describe('ExecutionEventBus', () => {
 
     it('should emit task:progress events', () => {
       const eventBus = new ExecutionEventBus();
-      const handler = vi.fn();
+      const handler = mock();
       eventBus.onTaskProgress(handler);
 
       const progress = {
@@ -56,7 +56,7 @@ describe('ExecutionEventBus', () => {
 
     it('should emit task:complete events', () => {
       const eventBus = new ExecutionEventBus();
-      const handler = vi.fn();
+      const handler = mock();
       eventBus.onTaskComplete(handler);
 
       const result = {
@@ -74,7 +74,7 @@ describe('ExecutionEventBus', () => {
 
     it('should emit task:failed events', () => {
       const eventBus = new ExecutionEventBus();
-      const handler = vi.fn();
+      const handler = mock();
       eventBus.onTaskFailed(handler);
 
       const error = new Error('Task failed');
@@ -89,7 +89,7 @@ describe('ExecutionEventBus', () => {
 
     it('should emit stream:data events', () => {
       const eventBus = new ExecutionEventBus();
-      const handler = vi.fn();
+      const handler = mock();
       eventBus.onStreamData(handler);
 
       const streamEvent = {
@@ -107,7 +107,7 @@ describe('ExecutionEventBus', () => {
 
     it('should emit log events', () => {
       const eventBus = new ExecutionEventBus();
-      const handler = vi.fn();
+      const handler = mock();
       eventBus.onLog(handler);
 
       eventBus.emitLog(LogLevel.INFO, 'Test message', { foo: 'bar' });
@@ -121,7 +121,7 @@ describe('ExecutionEventBus', () => {
 
     it('should emit vcs:branch-created events', () => {
       const eventBus = new ExecutionEventBus();
-      const handler = vi.fn();
+      const handler = mock();
       eventBus.onBranchCreated(handler);
 
       eventBus.emitBranchCreated('feature-branch', 'main');
@@ -134,7 +134,7 @@ describe('ExecutionEventBus', () => {
 
     it('should emit vcs:commit events', () => {
       const eventBus = new ExecutionEventBus();
-      const handler = vi.fn();
+      const handler = mock();
       eventBus.onCommit(handler);
 
       eventBus.emitCommit('feature-branch', 'Add feature', ['src/feature.ts']);
@@ -150,8 +150,8 @@ describe('ExecutionEventBus', () => {
   describe('multiple listeners', () => {
     it('should support multiple listeners for the same event', () => {
       const eventBus = new ExecutionEventBus();
-      const handler1 = vi.fn();
-      const handler2 = vi.fn();
+      const handler1 = mock();
+      const handler2 = mock();
 
       eventBus.onLog(handler1);
       eventBus.onLog(handler2);
@@ -166,7 +166,7 @@ describe('ExecutionEventBus', () => {
   describe('listener management', () => {
     it('should remove all listeners for a specific event', () => {
       const eventBus = new ExecutionEventBus();
-      const handler = vi.fn();
+      const handler = mock();
 
       eventBus.onLog(handler);
       eventBus.removeAllListenersForEvent('log');
@@ -177,8 +177,8 @@ describe('ExecutionEventBus', () => {
 
     it('should get listener count for an event', () => {
       const eventBus = new ExecutionEventBus();
-      const handler1 = vi.fn();
-      const handler2 = vi.fn();
+      const handler1 = mock();
+      const handler2 = mock();
 
       eventBus.onLog(handler1);
       eventBus.onLog(handler2);
