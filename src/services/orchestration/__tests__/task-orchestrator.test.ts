@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { isNonNullish } from '@/validation/guards';
 
@@ -15,9 +15,9 @@ describe('TaskOrchestrator', () => {
   beforeEach(() => {
     emittedUpdates = [];
     mockAdapter = {
-      executeTask: vi.fn(),
-      stopTask: vi.fn(),
-      getAllTaskStatuses: vi.fn(),
+      executeTask: mock(),
+      stopTask: mock(),
+      getAllTaskStatuses: mock(),
     };
     orchestrator = new TaskOrchestrator(mockAdapter);
     orchestrator.on('taskUpdate', (update: StreamingUpdate) => emittedUpdates.push(update));
@@ -35,7 +35,7 @@ describe('TaskOrchestrator', () => {
         duration: 1000,
       };
 
-      vi.mocked(mockAdapter.executeTask).mockResolvedValue(mockResult);
+      mock(mockAdapter.executeTask).mockResolvedValue(mockResult);
 
       const result = await orchestrator.executeTask(
         'task-1',
@@ -56,7 +56,7 @@ describe('TaskOrchestrator', () => {
         stderr: 'Command not found',
       });
 
-      vi.mocked(mockAdapter.executeTask).mockRejectedValue(error);
+      mock(mockAdapter.executeTask).mockRejectedValue(error);
 
       await expect(
         orchestrator.executeTask('task-1', 'Test Task', 'Do something', [], '/test'),
@@ -66,7 +66,7 @@ describe('TaskOrchestrator', () => {
     });
 
     it('should wrap non-Error exceptions in TaskExecutionError', async () => {
-      vi.mocked(mockAdapter.executeTask).mockRejectedValue('String error');
+      mock(mockAdapter.executeTask).mockRejectedValue('String error');
 
       await expect(
         orchestrator.executeTask('task-1', 'Test Task', 'Do something', []),
@@ -77,7 +77,7 @@ describe('TaskOrchestrator', () => {
     });
 
     it('should handle streaming updates correctly', async () => {
-      vi.mocked(mockAdapter.executeTask).mockImplementation(async (_req, emitUpdate) => {
+      mock(mockAdapter.executeTask).mockImplementation(async (_req, emitUpdate) => {
         await Promise.resolve();
         // Emit some updates
         emitUpdate({
@@ -137,7 +137,7 @@ describe('TaskOrchestrator', () => {
     });
 
     it('should clean up resources on error', async () => {
-      vi.mocked(mockAdapter.executeTask).mockRejectedValue(new Error('Failed'));
+      mock(mockAdapter.executeTask).mockRejectedValue(new Error('Failed'));
 
       await expect(orchestrator.executeTask('task-1', 'Test', 'Do it', [])).rejects.toThrow();
 
@@ -149,7 +149,7 @@ describe('TaskOrchestrator', () => {
   describe('stopTask', () => {
     it('should stop a task successfully', () => {
       if (isNonNullish(mockAdapter.stopTask)) {
-        vi.mocked(mockAdapter.stopTask).mockReturnValue(true);
+        mock(mockAdapter.stopTask).mockReturnValue(true);
       }
 
       const stopped = orchestrator.stopTask('task-1');
@@ -170,7 +170,7 @@ describe('TaskOrchestrator', () => {
 
     it('should emit status update when task is stopped', () => {
       if (isNonNullish(mockAdapter.stopTask)) {
-        vi.mocked(mockAdapter.stopTask).mockReturnValue(true);
+        mock(mockAdapter.stopTask).mockReturnValue(true);
       }
 
       orchestrator.stopTask('task-1');
@@ -191,7 +191,7 @@ describe('TaskOrchestrator', () => {
     });
 
     it('should track task status through execution', async () => {
-      vi.mocked(mockAdapter.executeTask).mockImplementation(async () => {
+      mock(mockAdapter.executeTask).mockImplementation(async () => {
         await Promise.resolve();
         // Check status is running during execution
         expect(orchestrator.getTaskStatus('task-1')).toBe('running');
@@ -212,7 +212,7 @@ describe('TaskOrchestrator', () => {
 
   describe('getAllTaskStatuses', () => {
     it('should return copy of statuses map', async () => {
-      vi.mocked(mockAdapter.executeTask).mockResolvedValue({
+      mock(mockAdapter.executeTask).mockResolvedValue({
         taskId: 'task-1',
         mode: 'execute',
         status: 'completed',
@@ -237,7 +237,7 @@ describe('TaskOrchestrator', () => {
         resolveTask = resolve;
       });
 
-      vi.mocked(mockAdapter.executeTask).mockImplementation(async () => {
+      mock(mockAdapter.executeTask).mockImplementation(async () => {
         await taskPromise;
         return {
           taskId: 'task-1',
@@ -277,7 +277,7 @@ describe('TaskOrchestrator', () => {
         { command: 'claude', args: ['-p', 'test'] },
       );
 
-      vi.mocked(mockAdapter.executeTask).mockRejectedValue(originalError);
+      mock(mockAdapter.executeTask).mockRejectedValue(originalError);
 
       try {
         await orchestrator.executeTask('task-1', 'Test', 'Do it', []);
@@ -293,7 +293,7 @@ describe('TaskOrchestrator', () => {
 
     it('should wrap regular Error with context', async () => {
       const originalError = new Error('Network timeout');
-      vi.mocked(mockAdapter.executeTask).mockRejectedValue(originalError);
+      mock(mockAdapter.executeTask).mockRejectedValue(originalError);
 
       try {
         await orchestrator.executeTask('task-1', 'Test', 'Do it', []);
