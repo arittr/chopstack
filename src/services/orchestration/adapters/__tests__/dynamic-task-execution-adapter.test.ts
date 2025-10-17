@@ -1,21 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import type { StreamingUpdate, TaskExecutionRequest } from '@/services/orchestration/types';
 
 import { DynamicTaskExecutionAdapter } from '../dynamic-task-execution-adapter';
 
 // Mock the factory
-vi.mock('../task-execution-adapter-factory', () => ({
+mock.module('../task-execution-adapter-factory', () => ({
   TaskExecutionAdapterFactory: {
-    createAdapter: vi.fn((agent) => ({
-      executeTask: vi.fn().mockResolvedValue({
+    createAdapter: mock((agent) => ({
+      executeTask: mock().mockResolvedValue({
         taskId: 'test-task',
         status: 'completed',
         duration: 100,
         output: `Executed with ${agent}`,
       }),
-      stopTask: vi.fn().mockReturnValue(true),
-      getAllTaskStatuses: vi.fn().mockReturnValue(new Map([['test-task', 'running']])),
+      stopTask: mock().mockReturnValue(true),
+      getAllTaskStatuses: mock().mockReturnValue(new Map([['test-task', 'running']])),
     })),
   },
 }));
@@ -25,9 +25,9 @@ describe('DynamicTaskExecutionAdapter', () => {
   let mockEmitUpdate: (update: StreamingUpdate) => void;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.restore();
     adapter = new DynamicTaskExecutionAdapter();
-    mockEmitUpdate = vi.fn();
+    mockEmitUpdate = mock();
   });
 
   describe('executeTask', () => {

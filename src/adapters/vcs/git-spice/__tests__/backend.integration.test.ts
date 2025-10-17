@@ -1,5 +1,5 @@
 import { setupGitTest } from '@test/helpers';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { GitSpiceBackend } from '@/adapters/vcs/git-spice/backend';
 
