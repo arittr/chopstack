@@ -37,7 +37,7 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     /* Node types */
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "bun-types"]
   },
   "include": [
     "src/**/*.ts",
