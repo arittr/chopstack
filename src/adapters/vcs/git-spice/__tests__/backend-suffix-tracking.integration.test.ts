@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import { setupGitTest } from '@test/helpers';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 
