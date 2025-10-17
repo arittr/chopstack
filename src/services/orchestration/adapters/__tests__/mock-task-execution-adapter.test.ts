@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import type { StreamingUpdate, TaskExecutionRequest } from '@/services/orchestration/types';
 
@@ -9,9 +9,9 @@ describe('MockTaskExecutionAdapter', () => {
   let mockEmitUpdate: (update: StreamingUpdate) => void;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.restore();
     adapter = new MockTaskExecutionAdapter();
-    mockEmitUpdate = vi.fn();
+    mockEmitUpdate = mock();
   });
 
   describe('executeTask', () => {
