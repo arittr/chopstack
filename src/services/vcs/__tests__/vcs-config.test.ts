@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import type { VcsMode } from '@/core/vcs/vcs-strategy';
 
@@ -10,47 +10,43 @@ import { VcsConfigFileError, VcsToolUnavailableError } from '../types';
 import { VcsConfigServiceImpl } from '../vcs-config';
 
 // Mock file system
-vi.mock('node:fs', async () => {
+mock.module('node:fs', async () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-  const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
+  const actual = await import<typeof import('node:fs')>('node:fs');
   return {
     ...actual,
     promises: {
-      readFile: vi.fn(),
+      readFile: mock(),
     },
   };
 });
 
 // Mock backend implementations
-const { mockGitSpiceIsAvailable, mockMergeCommitIsAvailable, mockGraphiteIsAvailable } = vi.hoisted(
-  () => ({
-    mockGitSpiceIsAvailable: vi.fn(),
-    mockMergeCommitIsAvailable: vi.fn(),
-    mockGraphiteIsAvailable: vi.fn(),
-  }),
-);
+const mockGitSpiceIsAvailable = mock();
+const mockMergeCommitIsAvailable = mock();
+const mockGraphiteIsAvailable = mock();
 
-vi.mock('@/adapters/vcs/git-spice/backend', () => ({
-  GitSpiceBackend: vi.fn().mockImplementation(() => ({
+mock.module('@/adapters/vcs/git-spice/backend', () => ({
+  GitSpiceBackend: mock().mockImplementation(() => ({
     isAvailable: mockGitSpiceIsAvailable,
   })),
 }));
 
-vi.mock('@/adapters/vcs/merge-commit/backend', () => ({
-  MergeCommitBackend: vi.fn().mockImplementation(() => ({
+mock.module('@/adapters/vcs/merge-commit/backend', () => ({
+  MergeCommitBackend: mock().mockImplementation(() => ({
     isAvailable: mockMergeCommitIsAvailable,
   })),
 }));
 
-vi.mock('@/adapters/vcs/graphite/backend', () => ({
-  GraphiteBackend: vi.fn().mockImplementation(() => ({
+mock.module('@/adapters/vcs/graphite/backend', () => ({
+  GraphiteBackend: mock().mockImplementation(() => ({
     isAvailable: mockGraphiteIsAvailable,
   })),
 }));
 
-vi.mock('@/adapters/vcs/sapling/backend', () => ({
-  SaplingBackend: vi.fn().mockImplementation(() => ({
-    isAvailable: vi.fn().mockResolvedValue(false),
+mock.module('@/adapters/vcs/sapling/backend', () => ({
+  SaplingBackend: mock().mockImplementation(() => ({
+    isAvailable: mock().mockResolvedValue(false),
   })),
 }));
 
@@ -60,7 +56,7 @@ describe('VcsConfigServiceImpl', () => {
 
   beforeEach(() => {
     service = new VcsConfigServiceImpl();
-    vi.clearAllMocks();
+    mock.restore();
 
     // Default: all backends unavailable
     mockGitSpiceIsAvailable.mockResolvedValue(false);
@@ -70,7 +66,7 @@ describe('VcsConfigServiceImpl', () => {
 
   describe('loadConfig', () => {
     it('should load config with CLI mode taking priority', async () => {
-      vi.mocked(fs.readFile).mockResolvedValue('vcs:\n  mode: merge-commit\n');
+      mock(fs.readFile).mockResolvedValue('vcs:\n  mode: merge-commit\n');
 
       const config = await service.loadConfig(testWorkdir, 'git-spice');
 
@@ -79,7 +75,7 @@ describe('VcsConfigServiceImpl', () => {
     });
 
     it('should load config from file when CLI mode not provided', async () => {
-      vi.mocked(fs.readFile).mockResolvedValue('vcs:\n  mode: graphite\n');
+      mock(fs.readFile).mockResolvedValue('vcs:\n  mode: graphite\n');
 
       const config = await service.loadConfig(testWorkdir);
 
@@ -90,7 +86,7 @@ describe('VcsConfigServiceImpl', () => {
     it('should use defaults when config file does not exist', async () => {
       const enoentError = new Error('ENOENT') as Error & { code?: string };
       enoentError.code = 'ENOENT';
-      vi.mocked(fs.readFile).mockRejectedValue(enoentError);
+      mock(fs.readFile).mockRejectedValue(enoentError);
 
       const config = await service.loadConfig(testWorkdir);
 
@@ -103,7 +99,7 @@ describe('VcsConfigServiceImpl', () => {
     });
 
     it('should load all config fields from file', async () => {
-      vi.mocked(fs.readFile).mockResolvedValue(
+      mock(fs.readFile).mockResolvedValue(
         'vcs:\n' +
           '  mode: git-spice\n' +
           '  trunk: develop\n' +
@@ -124,13 +120,13 @@ describe('VcsConfigServiceImpl', () => {
     });
 
     it('should throw VcsConfigFileError for invalid YAML', async () => {
-      vi.mocked(fs.readFile).mockResolvedValue('invalid: yaml: [');
+      mock(fs.readFile).mockResolvedValue('invalid: yaml: [');
 
       await expect(service.loadConfig(testWorkdir)).rejects.toThrow(VcsConfigFileError);
     });
 
     it('should throw VcsConfigFileError for file read errors', async () => {
-      vi.mocked(fs.readFile).mockRejectedValue(new Error('Permission denied'));
+      mock(fs.readFile).mockRejectedValue(new Error('Permission denied'));
 
       await expect(service.loadConfig(testWorkdir)).rejects.toThrow(VcsConfigFileError);
     });
@@ -138,7 +134,7 @@ describe('VcsConfigServiceImpl', () => {
     it('should use correct config path', async () => {
       const enoentError = new Error('ENOENT') as Error & { code?: string };
       enoentError.code = 'ENOENT';
-      vi.mocked(fs.readFile).mockRejectedValue(enoentError);
+      mock(fs.readFile).mockRejectedValue(enoentError);
 
       await service.loadConfig(testWorkdir);
 
@@ -152,7 +148,7 @@ describe('VcsConfigServiceImpl', () => {
       // Load config first so validateMode has workdir
       const enoentError = new Error('ENOENT') as Error & { code?: string };
       enoentError.code = 'ENOENT';
-      vi.mocked(fs.readFile).mockRejectedValue(enoentError);
+      mock(fs.readFile).mockRejectedValue(enoentError);
       await service.loadConfig(testWorkdir);
     });
 
@@ -289,7 +285,7 @@ describe('VcsConfigServiceImpl', () => {
     it('should return config after loadConfig is called', async () => {
       const enoentError = new Error('ENOENT') as Error & { code?: string };
       enoentError.code = 'ENOENT';
-      vi.mocked(fs.readFile).mockRejectedValue(enoentError);
+      mock(fs.readFile).mockRejectedValue(enoentError);
 
       await service.loadConfig(testWorkdir, 'git-spice');
       const config = service.getConfig();
@@ -302,7 +298,7 @@ describe('VcsConfigServiceImpl', () => {
 
   describe('config priority', () => {
     it('should prioritize CLI mode over file mode', async () => {
-      vi.mocked(fs.readFile).mockResolvedValue('vcs:\n  mode: merge-commit\n  trunk: develop\n');
+      mock(fs.readFile).mockResolvedValue('vcs:\n  mode: merge-commit\n  trunk: develop\n');
 
       const config = await service.loadConfig(testWorkdir, 'git-spice');
 
@@ -311,7 +307,7 @@ describe('VcsConfigServiceImpl', () => {
     });
 
     it('should prioritize file mode over defaults', async () => {
-      vi.mocked(fs.readFile).mockResolvedValue('vcs:\n  mode: graphite\n');
+      mock(fs.readFile).mockResolvedValue('vcs:\n  mode: graphite\n');
 
       const config = await service.loadConfig(testWorkdir);
 
@@ -321,7 +317,7 @@ describe('VcsConfigServiceImpl', () => {
     it('should use defaults when neither CLI nor file specify values', async () => {
       const enoentError = new Error('ENOENT') as Error & { code?: string };
       enoentError.code = 'ENOENT';
-      vi.mocked(fs.readFile).mockRejectedValue(enoentError);
+      mock(fs.readFile).mockRejectedValue(enoentError);
 
       const config = await service.loadConfig(testWorkdir);
 
