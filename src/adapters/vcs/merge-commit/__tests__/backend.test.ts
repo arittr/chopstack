@@ -2,28 +2,28 @@
  * Unit tests for MergeCommitBackend
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { GitWrapper } from '@/adapters/vcs/git-wrapper';
 
 import { MergeCommitBackend, MergeCommitError } from '../backend';
 
 // Mock GitWrapper
-vi.mock('@/adapters/vcs/git-wrapper');
+mock.module('@/adapters/vcs/git-wrapper');
 
 describe('MergeCommitBackend', () => {
   let backend: MergeCommitBackend;
   let mockGit: {
-    checkout: ReturnType<typeof vi.fn>;
-    cherryPick: ReturnType<typeof vi.fn>;
+    checkout: ReturnType<typeof mock>;
+    cherryPick: ReturnType<typeof mock>;
     git: {
-      add: ReturnType<typeof vi.fn>;
-      checkoutBranch: ReturnType<typeof vi.fn>;
-      commit: ReturnType<typeof vi.fn>;
-      deleteLocalBranch: ReturnType<typeof vi.fn>;
-      merge: ReturnType<typeof vi.fn>;
-      status: ReturnType<typeof vi.fn>;
-      version: ReturnType<typeof vi.fn>;
+      add: ReturnType<typeof mock>;
+      checkoutBranch: ReturnType<typeof mock>;
+      commit: ReturnType<typeof mock>;
+      deleteLocalBranch: ReturnType<typeof mock>;
+      merge: ReturnType<typeof mock>;
+      status: ReturnType<typeof mock>;
+      version: ReturnType<typeof mock>;
     };
   };
 
@@ -32,21 +32,21 @@ describe('MergeCommitBackend', () => {
 
     // Create mock git instance
     mockGit = {
-      checkout: vi.fn(),
-      cherryPick: vi.fn(),
+      checkout: mock(),
+      cherryPick: mock(),
       git: {
-        add: vi.fn().mockResolvedValue(undefined),
-        checkoutBranch: vi.fn().mockResolvedValue(undefined),
-        commit: vi.fn().mockResolvedValue({ commit: 'abc123' }),
-        deleteLocalBranch: vi.fn().mockResolvedValue(undefined),
-        merge: vi.fn().mockResolvedValue(undefined),
-        status: vi.fn().mockResolvedValue({ conflicted: [] }),
-        version: vi.fn().mockResolvedValue({ major: 2, minor: 40 }),
+        add: mock().mockResolvedValue(undefined),
+        checkoutBranch: mock().mockResolvedValue(undefined),
+        commit: mock().mockResolvedValue({ commit: 'abc123' }),
+        deleteLocalBranch: mock().mockResolvedValue(undefined),
+        merge: mock().mockResolvedValue(undefined),
+        status: mock().mockResolvedValue({ conflicted: [] }),
+        version: mock().mockResolvedValue({ major: 2, minor: 40 }),
       },
     };
 
     // Mock GitWrapper constructor
-    vi.mocked(GitWrapper).mockImplementation(() => mockGit as unknown as GitWrapper);
+    mock(GitWrapper).mockImplementation(() => mockGit as unknown as GitWrapper);
   });
 
   describe('isAvailable', () => {
