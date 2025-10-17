@@ -12,57 +12,55 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Build the project
-pnpm run build
+bun run build
 
-# Watch mode development (CLI)
-pnpm run dev
-
-# Watch mode development (library)
-pnpm run dev:lib
-
-# MCP server development
-pnpm run dev:mcp
+# Watch mode development (MCP server)
+bun run dev:mcp
 
 # Inspect MCP server
-pnpm run inspect:mcp
+bun run inspect:mcp
+
+# Production mode
+bun run start:mcp
 ```
 
 ### Code Quality and Testing
 
 ```bash
 # Run linting
-pnpm run lint
+bun run lint
 
 # Fix linting issues automatically
-pnpm run lint:fix
+bun run lint:fix
 
 # Type checking
-pnpm run type-check
+bun run type-check
 
 # Format code
-pnpm run format
+bun run format
 
 # Check formatting
-pnpm run format:check
+bun run format:check
 
 # Tests
-pnpm run test           # All tests (unit + E2E + execution)
-pnpm run test:unit      # Unit tests only
-pnpm run test:e2e       # E2E integration tests
-pnpm run test:execution # Execution planning tests
+bun test                # All tests
+bun test --watch        # Watch mode
+bun test --coverage     # With coverage
+bun run test:unit       # Unit tests only
+bun run test:e2e        # E2E integration tests
 ```
 
 ### Running the CLI
 
 ```bash
 # Run built CLI
-pnpm run start
+bun run start
 
 # Run MCP server
-pnpm run start:mcp
+bun run start:mcp
 
 # Clean build artifacts
-pnpm run clean
+bun run clean
 ```
 
 ## Architecture Overview
@@ -79,7 +77,7 @@ This project has a dual-purpose architecture:
 - **MCP Server** (`src/mcp/server.ts`): FastMCP server with task orchestration tools
 - **Task Orchestrator** (`src/mcp/orchestrator.ts`): Manages parallel task execution using Claude Code CLI in plan mode
 - **Execution Testing** (`test/execution/`): Tests Claude's execution planning using `--permission-mode plan`
-- **Build System**: Uses `tsup` for ESM-only builds targeting Node.js 18+ with dual entry points
+- **Build System**: Uses Bun's built-in bundler for ESM-only builds targeting Bun runtime
 
 ### Key Design Patterns
 
@@ -87,20 +85,20 @@ The codebase follows these architectural patterns:
 
 1. **Functional Pattern Matching**: Uses `ts-pattern` extensively for control flow instead of switch/if-else chains
 2. **Type-First Design**: Leverages Zod schemas for runtime validation, especially for MCP integration
-3. **ESM-Only**: Built as ESM modules using latest TypeScript and Node.js features
+3. **ESM-Only**: Built as ESM modules using latest TypeScript and Bun features
 4. **Strict TypeScript**: All strict compiler options enabled with comprehensive type safety
 
 ### Technology Stack
 
-- **Runtime**: Node.js >=18.0.0 with ESM modules
+- **Runtime**: Bun >=1.0.0
 - **Language**: TypeScript with very strict configuration
-- **Package Manager**: pnpm (required)
-- **Build Tool**: tsup for fast ESM builds
+- **Package Manager**: Bun (built-in)
+- **Build Tool**: Bun (built-in bundler)
 - **MCP Framework**: FastMCP (built on official MCP SDK)
 - **Pattern Matching**: ts-pattern for functional control flow
 - **Validation**: Zod for schema validation and runtime type checking
 - **External Types**: Official Claude Code SDK types from `@anthropic-ai/claude-code`
-- **Testing**: Vitest for all testing, custom execution testing framework
+- **Testing**: Bun test for all testing, custom execution testing framework
 
 ### Logging Architecture
 
@@ -289,8 +287,8 @@ The ESLint configuration enforces this import order:
 The project uses FastMCP for simplified MCP server development:
 
 - Leverages Zod schemas with FastMCP's Standard Schema support
-- Use `fastmcp dev src/index.ts` for development
-- Use `fastmcp inspect src/index.ts` to inspect the server
+- Use `bun x fastmcp dev src/index.ts` for development
+- Use `bun x fastmcp inspect src/index.ts` to inspect the server
 - Built-in session management and error handling
 
 ## File Structure
@@ -337,8 +335,10 @@ The project follows a modern, comprehensive testing approach with four distinct 
 **Example**:
 ```typescript
 // src/utils/__tests__/plan-generator.test.ts
-vi.mock('@/agents');
-vi.mock('@/utils/dag-validator');
+import { mock } from 'bun:test';
+
+mock.module('@/agents', () => ({ /* mock implementation */ }));
+mock.module('@/utils/dag-validator', () => ({ /* mock implementation */ }));
 
 // Tests generatePlanWithRetry logic with mocked agent and validator
 expect(mockAgent.decompose).toHaveBeenCalledWith(expectedPrompt, cwd, options);
@@ -387,18 +387,16 @@ expect(result).toBe(0); // Real success/failure
 
 ```bash
 # All tests
-pnpm test
+bun test
 
 # By type
-pnpm test:unit                  # Fast unit tests only
-pnpm test:integration          # Integration tests only
-pnpm test:e2e                  # End-to-end CLI tests
-pnpm test:execution            # Execution planning tests
+bun run test:unit              # Fast unit tests only
+bun run test:integration       # Integration tests only
+bun run test:e2e               # End-to-end CLI tests
 
 # Development
-pnpm test:watch                # Watch mode
-pnpm test:coverage             # Coverage report
-pnpm test:ui                   # Interactive UI
+bun test --watch               # Watch mode
+bun test --coverage            # Coverage report
 ```
 
 ### Test Organization Principles
@@ -417,7 +415,7 @@ We recently modernized the test suite by:
 - **Adding comprehensive unit tests** for CLI commands and core utilities
 - **Creating integration tests** that validate real class interactions
 - **Adopting hybrid test layout** with co-located tests for better maintainability
-- **Migrating from Jest to Vitest** for better performance and modern features
+- **Migrating from Jest to Vitest to Bun test** for better performance and modern features
 
 The result is a clean, focused test suite that tests our actual functionality rather than external dependencies.
 
@@ -582,7 +580,7 @@ The project includes a unique execution testing framework that validates Claude'
 
 ```bash
 # Run execution tests only
-pnpm run test:execution
+bun run test:execution
 
 # Tests validate:
 # - Plan structure and quality (0-100 score)
@@ -1322,9 +1320,9 @@ describe('MyVcsBackend', () => {
 
 ## Development Notes
 
-- Package manager is strictly pnpm (not npm or yarn)
-- Build targets Node.js 18+ with ESM-only output
-- Uses incremental TypeScript builds for performance
+- Package manager is strictly Bun (not npm, yarn, or pnpm)
+- Build targets Bun runtime with ESM-only output
+- Uses incremental TypeScript builds for type checking
 - ESLint configuration is very strict with comprehensive rules for TypeScript, imports, and code quality
 - Uses official Claude Code SDK types from `@anthropic-ai/claude-code` package
 - README.md is minimal (placeholder), main documentation is in .cursorrules
