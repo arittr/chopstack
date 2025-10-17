@@ -7,18 +7,18 @@
  */
 
 import { createGitTestEnvironment, type GitTestEnvironment } from '@test/helpers';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { registerVcsTools } from '../vcs-tools';
 
 describe('VCS MCP Tools Integration', () => {
   let gitEnv: GitTestEnvironment;
   let mockMcp: {
-    addTool: ReturnType<typeof vi.fn>;
+    addTool: ReturnType<typeof mock>;
   };
 
   beforeEach(async () => {
-    vi.clearAllMocks();
+    mock.restore();
 
     // Create isolated git test environment
     gitEnv = createGitTestEnvironment('vcs-tools-integration');
@@ -26,7 +26,7 @@ describe('VCS MCP Tools Integration', () => {
 
     // Create mock FastMCP instance
     mockMcp = {
-      addTool: vi.fn(),
+      addTool: mock(),
     };
 
     // Register VCS tools
