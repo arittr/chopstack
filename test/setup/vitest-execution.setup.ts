@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { mock } from 'bun:test';
 
 // Import worktree cleanup to ensure it runs after all tests
 import './worktree-cleanup';
@@ -7,24 +7,24 @@ import './worktree-cleanup';
 // Allow real API calls but provide utilities for test management
 
 // Mock file system operations to avoid side effects
-vi.mock('node:fs/promises', () => ({
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-  mkdir: vi.fn(),
-  stat: vi.fn(),
-  access: vi.fn(),
+mock.module('node:fs/promises', () => ({
+  readFile: mock(),
+  writeFile: mock(),
+  mkdir: mock(),
+  stat: mock(),
+  access: mock(),
 }));
 
 // Mock git operations to avoid repository side effects
-vi.mock('simple-git', () => ({
-  simpleGit: vi.fn(() => ({
-    init: vi.fn(),
-    add: vi.fn(),
-    commit: vi.fn(),
-    branch: vi.fn(),
-    checkout: vi.fn(),
-    status: vi.fn(),
-    diff: vi.fn(),
+mock.module('simple-git', () => ({
+  simpleGit: mock(() => ({
+    init: mock(),
+    add: mock(),
+    commit: mock(),
+    branch: mock(),
+    checkout: mock(),
+    status: mock(),
+    diff: mock(),
   })),
 }));
 

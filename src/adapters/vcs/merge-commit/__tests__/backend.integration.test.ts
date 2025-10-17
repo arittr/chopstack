@@ -6,7 +6,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import { setupGitTest } from '@test/helpers';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'bun:test';
 
 import { MergeCommitBackend, MergeCommitError } from '../backend';
 
