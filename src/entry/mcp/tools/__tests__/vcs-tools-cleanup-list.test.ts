@@ -4,7 +4,7 @@
  * Tests the remaining VCS MCP tools with mocked VCS services.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { VcsEngineServiceImpl } from '@/services/vcs/vcs-engine-service';
 import { logger } from '@/utils/global-logger';
@@ -12,33 +12,33 @@ import { logger } from '@/utils/global-logger';
 import { registerVcsTools } from '../vcs-tools';
 
 // Mock VcsEngineService
-vi.mock('@/services/vcs/vcs-engine-service', () => ({
-  VcsEngineServiceImpl: vi.fn(),
+mock.module('@/services/vcs/vcs-engine-service', () => ({
+  VcsEngineServiceImpl: mock(),
 }));
 
 // Mock logger
-vi.mock('@/utils/global-logger', () => ({
+mock.module('@/utils/global-logger', () => ({
   logger: {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
+    debug: mock(),
+    info: mock(),
+    warn: mock(),
+    error: mock(),
   },
 }));
 
 // Mock GitWrapper
-vi.mock('@/adapters/vcs/git-wrapper', () => ({
-  GitWrapper: vi.fn(),
+mock.module('@/adapters/vcs/git-wrapper', () => ({
+  GitWrapper: mock(),
 }));
 
 describe('VCS MCP Tools - cleanup_task_worktree', () => {
   let mockVcsEngine: {
-    cleanupWorktrees: ReturnType<typeof vi.fn>;
-    initialize: ReturnType<typeof vi.fn>;
+    cleanupWorktrees: ReturnType<typeof mock>;
+    initialize: ReturnType<typeof mock>;
   };
 
   let mockMcp: {
-    addTool: ReturnType<typeof vi.fn>;
+    addTool: ReturnType<typeof mock>;
   };
 
   /**
@@ -55,21 +55,21 @@ describe('VCS MCP Tools - cleanup_task_worktree', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.restore();
 
     // Mock VcsEngineService
     mockVcsEngine = {
-      initialize: vi.fn().mockResolvedValue(undefined),
-      cleanupWorktrees: vi.fn().mockResolvedValue(undefined),
+      initialize: mock().mockResolvedValue(undefined),
+      cleanupWorktrees: mock().mockResolvedValue(undefined),
     };
 
-    vi.mocked(VcsEngineServiceImpl).mockImplementation(
+    mock(VcsEngineServiceImpl).mockImplementation(
       () => mockVcsEngine as unknown as VcsEngineServiceImpl,
     );
 
     // Create mock FastMCP instance
     mockMcp = {
-      addTool: vi.fn(),
+      addTool: mock(),
     };
   });
 
@@ -312,11 +312,11 @@ describe('VCS MCP Tools - cleanup_task_worktree', () => {
 
 describe('VCS MCP Tools - list_task_worktrees', () => {
   let mockMcp: {
-    addTool: ReturnType<typeof vi.fn>;
+    addTool: ReturnType<typeof mock>;
   };
 
   let mockGitWrapper: {
-    listWorktrees: ReturnType<typeof vi.fn>;
+    listWorktrees: ReturnType<typeof mock>;
   };
 
   /**
@@ -333,20 +333,20 @@ describe('VCS MCP Tools - list_task_worktrees', () => {
   }
 
   beforeEach(async () => {
-    vi.clearAllMocks();
+    mock.restore();
 
     // Mock GitWrapper
     mockGitWrapper = {
-      listWorktrees: vi.fn().mockResolvedValue([]),
+      listWorktrees: mock().mockResolvedValue([]),
     };
 
     // Import and mock the module
     const { GitWrapper } = await import('@/adapters/vcs/git-wrapper');
-    vi.mocked(GitWrapper).mockImplementation(() => mockGitWrapper as never);
+    mock(GitWrapper).mockImplementation(() => mockGitWrapper as never);
 
     // Create mock FastMCP instance
     mockMcp = {
-      addTool: vi.fn(),
+      addTool: mock(),
     };
   });
 
