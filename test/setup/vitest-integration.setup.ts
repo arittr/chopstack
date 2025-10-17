@@ -1,5 +1,5 @@
 import { MOCK_RESPONSES } from '@test/constants/test-paths';
-import { vi } from 'vitest';
+import { mock, spyOn } from 'bun:test';
 
 // Import worktree cleanup to ensure it runs after all tests
 import './worktree-cleanup';
@@ -15,7 +15,7 @@ const cleanedUpPaths = new Set<string>();
 
 // Mock Node.js file system operations - we don't want to actually write files
 // But allow real operations for tests that specifically need them (like VcsEngine integration)
-vi.mock('node:fs/promises', async (importOriginal) => {
+mock.module('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal();
 
   // Check if we're running a test that should use real fs operations
@@ -35,7 +35,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 
   // Otherwise use our mocked version
   return {
-    readFile: vi.fn().mockImplementation((path: unknown) => {
+    readFile: mock().mockImplementation((path: unknown) => {
       if (typeof path === 'string') {
         if (path.includes('package.json')) {
           return '{"name": "chopstack"}';
@@ -46,18 +46,18 @@ vi.mock('node:fs/promises', async (importOriginal) => {
       }
       return 'mock file content';
     }),
-    writeFile: vi.fn().mockImplementation((path: unknown) => {
+    writeFile: mock().mockImplementation((path: unknown) => {
       if (typeof path === 'string') {
         createdPaths.add(path);
       }
     }),
-    mkdir: vi.fn().mockImplementation((path: unknown) => {
+    mkdir: mock().mockImplementation((path: unknown) => {
       if (typeof path === 'string') {
         createdPaths.add(path);
       }
     }),
-    stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
-    access: vi.fn().mockImplementation((path: unknown) => {
+    stat: mock().mockResolvedValue({ isDirectory: () => true }),
+    access: mock().mockImplementation((path: unknown) => {
       if (typeof path === 'string') {
         // If path was cleaned up, it should not be accessible
         if (cleanedUpPaths.has(path)) {
@@ -95,13 +95,13 @@ vi.mock('node:fs/promises', async (importOriginal) => {
         throw new Error(`ENOENT: no such file or directory, access '${path}'`);
       }
     }),
-    unlink: vi.fn().mockImplementation((path: unknown) => {
+    unlink: mock().mockImplementation((path: unknown) => {
       if (typeof path === 'string') {
         createdPaths.delete(path);
         cleanedUpPaths.add(path);
       }
     }),
-    rm: vi.fn().mockImplementation((path: unknown) => {
+    rm: mock().mockImplementation((path: unknown) => {
       if (typeof path === 'string') {
         createdPaths.delete(path);
         cleanedUpPaths.add(path);
@@ -117,7 +117,7 @@ export const mockFsCleanup = (path: string): void => {
 };
 
 // Mock subprocess execution - but allow real execution for integration tests
-vi.mock('node:child_process', async (importOriginal) => {
+mock.module('node:child_process', async (importOriginal) => {
   const actual = await importOriginal();
 
   // Check if we're running a test that should use real subprocess execution
@@ -139,9 +139,9 @@ vi.mock('node:child_process', async (importOriginal) => {
 
   // Otherwise use our mocked version
   return {
-    spawn: vi.fn(),
+    spawn: mock(),
     // eslint-disable-next-line promise/prefer-await-to-callbacks
-    exec: vi.fn().mockImplementation((cmd: unknown, options?: unknown, callback?: unknown) => {
+    exec: mock().mockImplementation((cmd: unknown, options?: unknown, callback?: unknown) => {
       // Handle promisified exec (used by util.promisify(exec))
       let actualCallback = callback;
 
@@ -180,12 +180,12 @@ vi.mock('node:child_process', async (importOriginal) => {
       }
       return { stdout: MOCK_RESPONSES.GENERIC_COMMAND, stderr: '' };
     }),
-    execSync: vi.fn(),
+    execSync: mock(),
   };
 });
 
 // Mock external agents that make API calls - but allow real calls for integration tests
-vi.mock('@/agents', async (importOriginal) => {
+mock.module('@/agents', async (importOriginal) => {
   const actual = await importOriginal();
 
   // Check if we're running a test that should use real agents
@@ -199,12 +199,12 @@ vi.mock('@/agents', async (importOriginal) => {
 
   // Otherwise use mocked version
   return {
-    createDecomposerAgent: vi.fn(),
+    createDecomposerAgent: mock(),
   };
 });
 
 // Mock complex execution engine - but allow real for integration tests
-vi.mock('@/engine/execution-engine', async (importOriginal) => {
+mock.module('@/engine/execution-engine', async (importOriginal) => {
   const actual = await importOriginal();
 
   // Check if we're running a test that should use real execution engine
@@ -223,17 +223,17 @@ vi.mock('@/engine/execution-engine', async (importOriginal) => {
 
   // Otherwise use mocked version
   return {
-    ExecutionEngine: vi.fn(),
+    ExecutionEngine: mock(),
   };
 });
 
 // Allow process.cwd() but mock exit
-vi.spyOn(process, 'exit').mockImplementation(() => {
+spyOn(process, 'exit').mockImplementation(() => {
   throw new Error('process.exit() called');
 });
 
 // Suppress console output by default (tests can override if needed)
-vi.spyOn(console, 'log').mockImplementation(() => {});
-vi.spyOn(console, 'error').mockImplementation(() => {});
+spyOn(console, 'log').mockImplementation(() => {});
+spyOn(console, 'error').mockImplementation(() => {});
 
 // Per-project timeout is configured in vitest.config.ts (projects.integration.testTimeout)
