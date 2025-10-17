@@ -12,7 +12,7 @@ import { VcsConfigServiceImpl } from '../vcs-config';
 // Mock file system
 mock.module('node:fs', async () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-  const actual = await import<typeof import('node:fs')>('node:fs');
+  const actual = await import('node:fs');
   return {
     ...actual,
     promises: {
