@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { LogLevel } from '@/types/events';
 import { logger } from '@/utils/global-logger';
@@ -7,12 +7,12 @@ import { ExecutionEventBus } from '../execution-event-bus';
 import { ExecutionEventConsumer } from '../execution-event-consumer';
 
 // Mock the global logger
-vi.mock('@/utils/global-logger', () => ({
+mock.module('@/utils/global-logger', () => ({
   logger: {
-    debug: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
+    debug: mock(),
+    error: mock(),
+    info: mock(),
+    warn: mock(),
   },
 }));
 
@@ -21,7 +21,7 @@ describe('ExecutionEventConsumer', () => {
 
   beforeEach(() => {
     eventBus = new ExecutionEventBus();
-    vi.clearAllMocks();
+    mock.restore();
   });
 
   afterEach(() => {

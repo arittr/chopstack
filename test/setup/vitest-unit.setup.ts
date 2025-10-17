@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { mock, spyOn } from 'bun:test';
 
 // Import worktree cleanup to ensure it runs after all tests
 import './worktree-cleanup';
@@ -7,51 +7,51 @@ import './worktree-cleanup';
 // Mock common external dependencies that we don't want to test
 
 // Mock Node.js file system operations
-vi.mock('node:fs/promises', () => ({
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-  mkdir: vi.fn(),
-  stat: vi.fn(),
-  access: vi.fn(),
+mock.module('node:fs/promises', () => ({
+  readFile: mock(),
+  writeFile: mock(),
+  mkdir: mock(),
+  stat: mock(),
+  access: mock(),
 }));
 
 // Mock Node.js child process operations
-vi.mock('execa', () => ({
-  execa: vi.fn(),
+mock.module('execa', () => ({
+  execa: mock(),
 }));
 
 // Mock chalk for consistent output in tests
-vi.mock('chalk', () => {
+mock.module('chalk', () => {
   const mockChalk = {
-    red: vi.fn((text: string) => `[RED]${text}[/RED]`),
-    green: vi.fn((text: string) => `[GREEN]${text}[/GREEN]`),
-    blue: vi.fn((text: string) => `[BLUE]${text}[/BLUE]`),
-    yellow: vi.fn((text: string) => `[YELLOW]${text}[/YELLOW]`),
-    cyan: vi.fn((text: string) => `[CYAN]${text}[/CYAN]`),
-    magenta: vi.fn((text: string) => `[MAGENTA]${text}[/MAGENTA]`),
-    white: vi.fn((text: string) => `[WHITE]${text}[/WHITE]`),
-    gray: vi.fn((text: string) => `[GRAY]${text}[/GRAY]`),
-    grey: vi.fn((text: string) => `[GRAY]${text}[/GRAY]`),
-    dim: vi.fn((text: string) => `[DIM]${text}[/DIM]`),
-    bold: vi.fn((text: string) => `[BOLD]${text}[/BOLD]`),
+    red: mock((text: string) => `[RED]${text}[/RED]`),
+    green: mock((text: string) => `[GREEN]${text}[/GREEN]`),
+    blue: mock((text: string) => `[BLUE]${text}[/BLUE]`),
+    yellow: mock((text: string) => `[YELLOW]${text}[/YELLOW]`),
+    cyan: mock((text: string) => `[CYAN]${text}[/CYAN]`),
+    magenta: mock((text: string) => `[MAGENTA]${text}[/MAGENTA]`),
+    white: mock((text: string) => `[WHITE]${text}[/WHITE]`),
+    gray: mock((text: string) => `[GRAY]${text}[/GRAY]`),
+    grey: mock((text: string) => `[GRAY]${text}[/GRAY]`),
+    dim: mock((text: string) => `[DIM]${text}[/DIM]`),
+    bold: mock((text: string) => `[BOLD]${text}[/BOLD]`),
   };
   return { default: mockChalk };
 });
 
 // Provide real path helpers but allow spying/mocking when needed
-const actualPath = await vi.importActual('node:path');
-vi.mock('node:path', () => ({
+const actualPath = await import('node:path');
+mock.module('node:path', () => ({
   ...actualPath,
-  resolve: vi.fn((actualPath as any).resolve),
-  join: vi.fn((actualPath as any).join),
-  dirname: vi.fn((actualPath as any).dirname),
-  basename: vi.fn((actualPath as any).basename),
-  extname: vi.fn((actualPath as any).extname),
+  resolve: mock((actualPath as any).resolve),
+  join: mock((actualPath as any).join),
+  dirname: mock((actualPath as any).dirname),
+  basename: mock((actualPath as any).basename),
+  extname: mock((actualPath as any).extname),
 }));
 
 // Mock process operations
-vi.spyOn(process, 'cwd').mockReturnValue('/test/cwd');
-vi.spyOn(process, 'exit').mockImplementation(() => {
+spyOn(process, 'cwd').mockReturnValue('/test/cwd');
+spyOn(process, 'exit').mockImplementation(() => {
   throw new Error('process.exit() called');
 });
 

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import type { ExecutionTask } from '@/core/execution/types';
 import type { VcsEngineService } from '@/core/vcs/interfaces';
@@ -13,18 +13,18 @@ describe('StackedVcsStrategy - Branch Suffix Handling', () => {
 
   beforeEach(() => {
     mockVcsEngine = {
-      initialize: vi.fn().mockResolvedValue(undefined),
-      createWorktreesForTasks: vi.fn().mockResolvedValue([]),
-      removeWorktree: vi.fn(),
-      removeAllWorktrees: vi.fn(),
-      addTaskToStack: vi.fn(),
-      restack: vi.fn().mockResolvedValue(undefined),
-      initializeStackState: vi.fn(),
-      getStackInfo: vi.fn(),
-      submitStack: vi.fn(),
-      cleanupWorktrees: vi.fn().mockResolvedValue(undefined),
-      createStackBranch: vi.fn().mockResolvedValue(undefined),
-      commitInStack: vi.fn().mockResolvedValue('commit123'),
+      initialize: mock().mockResolvedValue(undefined),
+      createWorktreesForTasks: mock().mockResolvedValue([]),
+      removeWorktree: mock(),
+      removeAllWorktrees: mock(),
+      addTaskToStack: mock(),
+      restack: mock().mockResolvedValue(undefined),
+      initializeStackState: mock(),
+      getStackInfo: mock(),
+      submitStack: mock(),
+      cleanupWorktrees: mock().mockResolvedValue(undefined),
+      createStackBranch: mock().mockResolvedValue(undefined),
+      commitInStack: mock().mockResolvedValue('commit123'),
     } as unknown as VcsEngineService;
 
     strategy = new StackedVcsStrategy(mockVcsEngine);
