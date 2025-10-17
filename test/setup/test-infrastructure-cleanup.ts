@@ -1,5 +1,5 @@
 import { cleanupOrphanedTestResources, ensureAllResourcesCleanedUp } from '@test/helpers';
-import { afterAll } from 'vitest';
+import { afterAll } from 'bun:test';
 
 const cleanupFlag = Symbol.for('chopstack.testInfrastructureCleanupRegistered');
 
