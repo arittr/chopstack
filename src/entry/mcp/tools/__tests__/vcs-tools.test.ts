@@ -5,7 +5,7 @@
  * Verifies parameter validation, success cases, error handling, and response formats.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import type { WorktreeContext } from '@/core/vcs/domain-services';
 
@@ -16,40 +16,40 @@ import { logger } from '@/utils/global-logger';
 import { registerVcsTools } from '../vcs-tools';
 
 // Mock VcsConfigService
-vi.mock('@/services/vcs/vcs-config', () => ({
-  VcsConfigServiceImpl: vi.fn(),
+mock.module('@/services/vcs/vcs-config', () => ({
+  VcsConfigServiceImpl: mock(),
 }));
 
 // Mock VcsEngineService
-vi.mock('@/services/vcs/vcs-engine-service', () => ({
-  VcsEngineServiceImpl: vi.fn(),
+mock.module('@/services/vcs/vcs-engine-service', () => ({
+  VcsEngineServiceImpl: mock(),
 }));
 
 // Mock logger
-vi.mock('@/utils/global-logger', () => ({
+mock.module('@/utils/global-logger', () => ({
   logger: {
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
+    debug: mock(),
+    info: mock(),
+    warn: mock(),
+    error: mock(),
   },
 }));
 
 describe('VCS MCP Tools - configure_vcs', () => {
   let mockConfigService: {
-    createBackend: ReturnType<typeof vi.fn>;
-    getConfig: ReturnType<typeof vi.fn>;
-    loadConfig: ReturnType<typeof vi.fn>;
-    validateMode: ReturnType<typeof vi.fn>;
+    createBackend: ReturnType<typeof mock>;
+    getConfig: ReturnType<typeof mock>;
+    loadConfig: ReturnType<typeof mock>;
+    validateMode: ReturnType<typeof mock>;
   };
 
   let mockBackend: {
-    initialize: ReturnType<typeof vi.fn>;
-    isAvailable: ReturnType<typeof vi.fn>;
+    initialize: ReturnType<typeof mock>;
+    isAvailable: ReturnType<typeof mock>;
   };
 
   let mockMcp: {
-    addTool: ReturnType<typeof vi.fn>;
+    addTool: ReturnType<typeof mock>;
   };
 
   /**
@@ -64,28 +64,28 @@ describe('VCS MCP Tools - configure_vcs', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.restore();
 
     // Create mock backend
     mockBackend = {
-      isAvailable: vi.fn(),
-      initialize: vi.fn(),
+      isAvailable: mock(),
+      initialize: mock(),
     };
 
     // Create mock config service
     mockConfigService = {
-      loadConfig: vi.fn(),
-      validateMode: vi.fn(),
-      createBackend: vi.fn(),
-      getConfig: vi.fn(),
+      loadConfig: mock(),
+      validateMode: mock(),
+      createBackend: mock(),
+      getConfig: mock(),
     };
 
     // Mock VcsConfigServiceImpl constructor to return our mock
-    vi.mocked(VcsConfigServiceImpl).mockImplementation(() => mockConfigService as never);
+    mock(VcsConfigServiceImpl).mockImplementation(() => mockConfigService as never);
 
     // Create mock FastMCP instance
     mockMcp = {
-      addTool: vi.fn(),
+      addTool: mock(),
     };
   });
 
@@ -456,12 +456,12 @@ describe('VCS MCP Tools - configure_vcs', () => {
 
 describe('VCS MCP Tools - create_task_worktree', () => {
   let mockVcsEngine: {
-    createWorktreesForTasks: ReturnType<typeof vi.fn>;
-    initialize: ReturnType<typeof vi.fn>;
+    createWorktreesForTasks: ReturnType<typeof mock>;
+    initialize: ReturnType<typeof mock>;
   };
 
   let mockMcp: {
-    addTool: ReturnType<typeof vi.fn>;
+    addTool: ReturnType<typeof mock>;
   };
 
   /**
@@ -478,21 +478,21 @@ describe('VCS MCP Tools - create_task_worktree', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.restore();
 
     // Mock VcsEngineService
     mockVcsEngine = {
-      initialize: vi.fn().mockResolvedValue(undefined),
-      createWorktreesForTasks: vi.fn(),
+      initialize: mock().mockResolvedValue(undefined),
+      createWorktreesForTasks: mock(),
     };
 
-    vi.mocked(VcsEngineServiceImpl).mockImplementation(
+    mock(VcsEngineServiceImpl).mockImplementation(
       () => mockVcsEngine as unknown as VcsEngineServiceImpl,
     );
 
     // Create mock FastMCP instance
     mockMcp = {
-      addTool: vi.fn(),
+      addTool: mock(),
     };
   });
 
@@ -889,12 +889,12 @@ describe('VCS MCP Tools - create_task_worktree', () => {
 
 describe('VCS MCP Tools - integrate_task_stack', () => {
   let mockVcsEngine: {
-    buildStackFromTasks: ReturnType<typeof vi.fn>;
-    initialize: ReturnType<typeof vi.fn>;
+    buildStackFromTasks: ReturnType<typeof mock>;
+    initialize: ReturnType<typeof mock>;
   };
 
   let mockMcp: {
-    addTool: ReturnType<typeof vi.fn>;
+    addTool: ReturnType<typeof mock>;
   };
 
   /**
@@ -911,21 +911,21 @@ describe('VCS MCP Tools - integrate_task_stack', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.restore();
 
     // Mock VcsEngineService
     mockVcsEngine = {
-      initialize: vi.fn().mockResolvedValue(undefined),
-      buildStackFromTasks: vi.fn(),
+      initialize: mock().mockResolvedValue(undefined),
+      buildStackFromTasks: mock(),
     };
 
-    vi.mocked(VcsEngineServiceImpl).mockImplementation(
+    mock(VcsEngineServiceImpl).mockImplementation(
       () => mockVcsEngine as unknown as VcsEngineServiceImpl,
     );
 
     // Create mock FastMCP instance
     mockMcp = {
-      addTool: vi.fn(),
+      addTool: mock(),
     };
   });
 
