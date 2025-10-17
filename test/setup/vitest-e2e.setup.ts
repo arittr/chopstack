@@ -4,7 +4,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 // Minimal mocking, allow real filesystem and subprocess operations in controlled environment
 import { resolve } from 'node:path';
 
-import { afterAll, beforeAll } from 'vitest';
+import { afterAll, beforeAll } from 'bun:test';
 
 // Import worktree cleanup to ensure it runs after all tests
 import './worktree-cleanup';
