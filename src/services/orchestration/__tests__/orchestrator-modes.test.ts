@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, mock } from 'bun:test';
 
 import type { ExecutionMode } from '@/core/execution/types';
 
@@ -141,7 +141,7 @@ describe('ClaudeCliTaskExecutionAdapter', () => {
 
 describe('TaskOrchestrator', () => {
   test('executeTask defaults to execute mode', async () => {
-    const executeSpy = vi.fn(
+    const executeSpy = mock(
       async (request: TaskExecutionRequest, emitUpdate: (update: StreamingUpdate) => void) => {
         emitUpdate({
           taskId: request.taskId,
@@ -162,7 +162,7 @@ describe('TaskOrchestrator', () => {
 
     const adapter: TaskExecutionAdapter = {
       executeTask: executeSpy,
-      stopTask: vi.fn().mockReturnValue(true),
+      stopTask: mock().mockReturnValue(true),
     };
 
     const orchestrator = new TaskOrchestrator(adapter);
