@@ -1,5 +1,10 @@
 # chopstack
 
+>[!WARNING]
+>This project is experimental and abandoned.
+>The best parts were split out into [Spectacular](https://github.com/arittr/spectacular) and [Commitment](https://github.com/arittr/commitment).
+>There might be some good ideas left in here, but don't hold me to that.
+
 <img width="150" height="150" alt="chopstack-pancake-1" src="https://github.com/user-attachments/assets/d4f9f3e3-7ea2-424c-b0cd-2f8951ac30b4" />
 
 > Chop massive AI changes into clean, reviewable PR stacks
