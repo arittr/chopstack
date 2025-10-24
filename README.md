@@ -1,6 +1,6 @@
 # chopstack
 
->[!WARNING]
+>[!CAUTION]
 >This project is experimental and abandoned.
 >The best parts were split out into [Spectacular](https://github.com/arittr/spectacular) and [Commitment](https://github.com/arittr/commitment).
 >There might be some good ideas left in here, but don't hold me to that.
